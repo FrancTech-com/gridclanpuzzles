@@ -1,0 +1,25 @@
+# Build
+target/
+*.jar
+*.war
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.eclipse
+
+# Secrets — NEVER commit
+.env
+.env.example
+application.yml
+application-test.yml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

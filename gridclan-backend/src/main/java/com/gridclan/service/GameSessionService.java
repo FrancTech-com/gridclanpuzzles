@@ -1,0 +1,249 @@
+package com.gridclan.service;
+
+import com.gridclan.anticheat.AntiCheatEngine;
+import com.gridclan.dto.*;
+import com.gridclan.entity.ActiveSession;
+import com.gridclan.entity.enums.GameTier;
+import com.gridclan.entity.enums.GameType;
+import com.gridclan.entity.enums.SessionStatus;
+import com.gridclan.exception.*;
+import com.gridclan.repository.ActiveSessionRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Authoritative game session service.
+ *
+ * SECURITY INVARIANTS (from blueprint):
+ *   - Server creates board state; client never does.
+ *   - hintsAllowed is set server-side and CANNOT be overridden by client.
+ *   - Score is computed server-side on every move; client never computes it.
+ *   - Every move passes anti-cheat before board state updates.
+ *   - Hint spends GEMS server-side; client flag is UX only.
+ *
+ * ECONOMY:
+ *   - Points are a pure score/leaderboard metric (GAME_WIN), never spent.
+ *   - Solving a puzzle awards a small gem reward (GAME_REWARD).
+ *   - Hints / revive / replay are paid for in gems (consumed, never cashable).
+ */
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class GameSessionService {
+
+    private final ActiveSessionRepository sessionRepo;
+    private final AntiCheatEngine         antiCheat;
+    private final PlayerPointsService     pointsService;
+    private final GemService              gemService;
+    private final TournamentService       tournamentService;
+    private final GameBoardGenerator      boardGenerator;
+    private final ScoreEngine             scoreEngine;
+    private final HintEngine              hintEngine;
+    private final LeaderboardService      leaderboard;
+
+    @Value("${gridclan.gems.hint-cost:10}")
+    private long hintCostGems;
+
+    @Value("${gridclan.gems.revive-cost:20}")
+    private long reviveCostGems;
+
+    @Value("${gridclan.gems.replay-cost:15}")
+    private long replayCostGems;
+
+    @Value("${gridclan.gems.reward.grid-lockdown:5}")
+    private long rewardGridLockdown;
+
+    @Value("${gridclan.gems.reward.sum-cipher:4}")
+    private long rewardSumCipher;
+
+    @Value("${gridclan.gems.reward.linked-rush:3}")
+    private long rewardLinkedRush;
+
+    // ── Start Session ──────────────────────────────────────────────────────
+
+    @Transactional
+    public SessionStartResponse startSession(UUID userId, SessionStartRequest req) {
+        boolean isTournament = req.getTier() == GameTier.COMMUNITY_TOURNAMENT;
+
+        if (isTournament && req.getTournamentId() != null) {
+            tournamentService.validateEntry(userId, req.getTournamentId());
+        }
+
+        ActiveSession session = ActiveSession.builder()
+            .id(UUID.randomUUID())
+            .userId(userId)
+            .gameType(req.getGameType())
+            .tier(req.getTier())
+            .tournamentId(req.getTournamentId())
+            .boardState(boardGenerator.generate(req.getGameType()))
+            .status(SessionStatus.ACTIVE)
+            // ← SERVER HARDCODES THIS — client payload cannot override
+            .hintsAllowed(!isTournament)
+            .startedAt(Instant.now())
+            .lastMoveAt(Instant.now())
+            .build();
+
+        sessionRepo.save(session);
+        log.info("Session started: userId={} type={} tier={} hints={}",
+            userId, req.getGameType(), req.getTier(), session.isHintsAllowed());
+
+        return SessionStartResponse.from(session);
+    }
+
+    // ── Process Move ───────────────────────────────────────────────────────
+
+    @Transactional
+    public MoveResponse processMove(UUID userId, MoveRequest req) {
+        ActiveSession session = sessionRepo
+            .findByIdAndUserId(req.getSessionId(), userId)
+            .orElseThrow(SessionNotFoundException::new);
+
+        if (session.getStatus() != SessionStatus.ACTIVE) {
+            throw new InvalidSessionStateException("Session is " + session.getStatus());
+        }
+
+        // Anti-Cheat #1: Speed check
+        long msSinceLast = Instant.now().toEpochMilli()
+            - session.getLastMoveAt().toEpochMilli();
+        antiCheat.validateMoveSpeed(session.getGameType(), msSinceLast);
+
+        // Anti-Cheat #2: Mathematical / geometric validity
+        antiCheat.validateMoveLogic(
+            session.getGameType(),
+            session.getBoardState(),
+            req.getMove(),
+            userId,
+            session.getId()
+        );
+
+        // Apply move server-side and compute new authoritative board
+        var newBoard = boardGenerator.applyMove(
+            session.getGameType(), session.getBoardState(), req.getMove());
+        int newScore = scoreEngine.calculate(
+            session.getGameType(), session.getMoveCount(), newBoard.isSolved());
+
+        session.setBoardState(newBoard.getState());
+        session.setServerScore(newScore);
+        session.setMoveCount(session.getMoveCount() + 1);
+        session.setLastMoveAt(Instant.now());
+
+        if (newBoard.isSolved()) {
+            session.setStatus(SessionStatus.COMPLETED);
+            session.setCompletedAt(Instant.now());
+            // Points → leaderboard / progression only (no value).
+            pointsService.creditPoints(userId, newScore, "GAME_WIN", session.getId());
+            // Gems → small in-game reward for solving the puzzle.
+            gemService.creditGems(userId, gemRewardFor(session.getGameType()),
+                "GAME_REWARD", session.getId());
+            if (session.getTournamentId() != null) {
+                leaderboard.submitScore(session.getTournamentId(), userId,
+                    userId.toString(), newScore);
+            }
+            log.info("Session completed: userId={} score={}", userId, newScore);
+        }
+
+        sessionRepo.save(session);
+
+        return MoveResponse.builder()
+            .boardState(newBoard.getState())
+            .score(newScore)
+            .moveCount(session.getMoveCount())
+            .status(session.getStatus())
+            .build();
+    }
+
+    // ── Hint Request (costs gems) ────────────────────────────────────────────
+
+    @Transactional
+    public HintResponse requestHint(UUID userId, UUID sessionId) {
+        ActiveSession session = sessionRepo
+            .findByIdAndUserId(sessionId, userId)
+            .orElseThrow(SessionNotFoundException::new);
+
+        // ── HARD SERVER RULE — not a client-side flag ─────────────────────
+        if (!session.isHintsAllowed()) {
+            throw new HintsBlockedException(
+                "Hints are disabled for Community Tournament sessions.");
+        }
+
+        // Spend gems BEFORE returning the hint (prevents free hints on disconnect).
+        gemService.spendGems(userId, hintCostGems, "HINT", session.getId());
+
+        var hint = hintEngine.compute(session.getGameType(), session.getBoardState());
+        sessionRepo.save(session);
+
+        return HintResponse.builder()
+            .boardState(session.getBoardState())
+            .score(session.getServerScore())
+            .hintData(hint)
+            .build();
+    }
+
+    // ── Revive (costs gems; disabled for tournaments) ─────────────────────────
+
+    @Transactional
+    public MoveResponse revive(UUID userId, UUID sessionId) {
+        ActiveSession session = sessionRepo
+            .findByIdAndUserId(sessionId, userId)
+            .orElseThrow(SessionNotFoundException::new);
+
+        // Competitive integrity — no revives in tournaments.
+        if (session.getTier() == GameTier.COMMUNITY_TOURNAMENT) {
+            throw new InvalidSessionStateException(
+                "Revive is disabled for Community Tournament sessions.");
+        }
+
+        gemService.spendGems(userId, reviveCostGems, "REVIVE", session.getId());
+
+        session.setStatus(SessionStatus.ACTIVE);
+        session.setLastMoveAt(Instant.now());
+        sessionRepo.save(session);
+
+        return MoveResponse.builder()
+            .boardState(session.getBoardState())
+            .score(session.getServerScore())
+            .moveCount(session.getMoveCount())
+            .status(session.getStatus())
+            .build();
+    }
+
+    // ── Replay a game with the same friend (costs gems) ──────────────────────
+
+    @Transactional
+    public SessionStartResponse replayWithFriend(UUID userId, UUID friendId, GameType gameType) {
+        if (userId.equals(friendId)) {
+            throw new IllegalArgumentException("Cannot replay with yourself.");
+        }
+        gemService.spendGems(userId, replayCostGems, "REPLAY", null);
+
+        ActiveSession session = ActiveSession.builder()
+            .id(UUID.randomUUID())
+            .userId(userId)
+            .gameType(gameType)
+            .tier(GameTier.FRIEND)
+            .boardState(boardGenerator.generate(gameType))
+            .status(SessionStatus.ACTIVE)
+            .hintsAllowed(true)
+            .startedAt(Instant.now())
+            .lastMoveAt(Instant.now())
+            .build();
+
+        sessionRepo.save(session);
+        log.info("Replay session started: userId={} friendId={} type={}", userId, friendId, gameType);
+        return SessionStartResponse.from(session);
+    }
+
+    private long gemRewardFor(GameType gameType) {
+        return switch (gameType) {
+            case GRID_LOCKDOWN -> rewardGridLockdown;
+            case SUM_CIPHER    -> rewardSumCipher;
+            case LINKED_RUSH   -> rewardLinkedRush;
+        };
+    }
+}

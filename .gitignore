@@ -1,0 +1,48 @@
+# ============================================================
+# GridClan Puzzles — root .gitignore (monorepo)
+# Per-subproject .gitignore files (gridclan-backend/, gridclan-frontend/)
+# still apply within their directories.
+# ============================================================
+
+# ── Secrets — NEVER commit ────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keystore
+*.p12
+# Firebase / Google Cloud service-account keys (private keys)
+*-adminsdk-*.json
+*serviceAccount*.json
+google-credentials*.json
+
+# ── Node / Expo (frontend) ───────────────────────────────────
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+npm-debug.*
+yarn-error.*
+
+# ── Java / Maven (backend) ───────────────────────────────────
+target/
+*.jar
+*.war
+*.class
+*.original
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── IDE / editor ─────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.eclipse
+
+# ── OS ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

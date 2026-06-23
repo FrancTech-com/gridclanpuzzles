@@ -1,0 +1,491 @@
+openapi: "3.0.3"
+
+info:
+  title: GridClan Puzzles Game Server API
+  version: "1.0.0"
+  description: |
+    Authoritative game server for GridClan Puzzles — a free-to-play mobile
+    puzzle platform. Supports three game types (Grid Lockdown, Sum Cipher,
+    Linked Rush) and real-time community chat over WebSocket/STOMP.
+  contact:
+    name: ETHELES
+    email: support.gridclanpuzzles@gmail.com
+
+servers:
+  - url: https://api.gridclan.gg
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Auth
+  - name: Profile
+  - name: Game
+  - name: Points
+  - name: Community
+  - name: Tournament
+  - name: Admin
+
+paths:
+  # ── Auth ───────────────────────────────────────────────────────────────
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register new account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                username: { type: string, minLength: 3, maxLength: 32 }
+                email: { type: string, format: email }
+                phoneNumber: { type: string, pattern: '^\\+?[0-9]{9,15}$' }
+                password: { type: string, minLength: 8 }
+                countryCode: { type: string, pattern: '^[A-Z]{2}$' }
+      responses:
+        "201":
+          {
+            description: Account created,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/AuthResponse" } },
+              },
+          }
+        "409": { description: Email / username already taken }
+        "400": { description: Validation error }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login (email or phone)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, password]
+              properties:
+                identifier:
+                  { type: string, description: "Email or phone number" }
+                password: { type: string }
+      responses:
+        "200":
+          {
+            description: OK,
+            content:
+              {
+                application/json:
+                  { schema: { $ref: "#/components/schemas/AuthResponse" } },
+              },
+          }
+        "401": { description: Invalid credentials }
+        "429": { description: Account locked (5 failed attempts) }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        "200": { description: New token pair }
+        "401": { description: Invalid / expired refresh token }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (invalidates refresh token)
+      responses:
+        "204": { description: Logged out }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Request OTP password reset code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier]
+              properties:
+                identifier: { type: string }
+      responses:
+        "200": { description: "OTP sent (always 200 — no enumeration)" }
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Apply OTP and set new password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identifier, otp, newPassword]
+              properties:
+                identifier: { type: string }
+                otp: { type: string, pattern: "^[0-9]{6}$" }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        "200": { description: Password updated }
+        "400": { description: Invalid or expired OTP }
+
+  # ── Profile ────────────────────────────────────────────────────────────
+
+  /user/profile:
+    get:
+      tags: [Profile]
+      summary: Get own profile
+      responses:
+        "200":
+          description: Profile data
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+    put:
+      tags: [Profile]
+      summary: Update display name, avatar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                displayName: { type: string, maxLength: 64 }
+                avatarUrl: { type: string }
+      responses:
+        "200": { description: Updated }
+
+  /user/device-token:
+    put:
+      tags: [Profile]
+      summary: Register FCM push token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceToken]
+              properties:
+                deviceToken: { type: string }
+      responses:
+        "200": { description: Registered }
+
+  /user/sessions:
+    get:
+      tags: [Profile]
+      summary: Get completed game sessions
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200": { description: Session list }
+
+  /user/delete-account:
+    post:
+      tags: [Profile]
+      summary: Request account deletion (Google Play requirement)
+      description: |
+        Phase 1 of two-phase GDPR deletion. Account is immediately deactivated.
+        PII erased within 30 days. Points/gameplay audit records are retained in
+        anonymised form. 24-hour cancel window via /user/cancel-deletion.
+      responses:
+        "200": { description: Deletion scheduled }
+
+  /user/cancel-deletion:
+    delete:
+      tags: [Profile]
+      summary: Cancel deletion within 24-hour window
+      security: []
+      parameters:
+        - in: query
+          name: tombstoneId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Deletion cancelled }
+
+  # ── Points ─────────────────────────────────────────────────────────────
+
+  /user/points/balance:
+    get:
+      tags: [Points]
+      summary: Get current points balance
+      description: Rate limited to 10 requests / 60s.
+      responses:
+        "200":
+          description: Balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balance: { type: integer }
+                  lifetimeEarned: { type: integer }
+                  lifetimeSpent: { type: integer }
+                  updatedAt: { type: string, format: date-time }
+
+  /user/points/history:
+    get:
+      tags: [Points]
+      summary: Get ledger transaction history
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 200 }
+      responses:
+        "200": { description: Transaction list }
+
+  /user/ad-reward:
+    post:
+      tags: [Points]
+      summary: Claim points for completed ad view
+      description: Idempotent — same adSessionId returns 409 on replay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [adSessionId, points]
+              properties:
+                adSessionId: { type: string, format: uuid }
+                points: { type: integer, minimum: 1 }
+      responses:
+        "200": { description: Points credited }
+        "409": { description: Already rewarded }
+
+  # ── Game ───────────────────────────────────────────────────────────────
+
+  /game/session/start:
+    post:
+      tags: [Game]
+      summary: Start game session
+      description: |
+        Server generates authoritative board state.
+        hintsAllowed is set server-side — always false for COMMUNITY_TOURNAMENT.
+        Rate limited to 3 / 60s.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gameType, tier]
+              properties:
+                gameType:
+                  {
+                    type: string,
+                    enum: [GRID_LOCKDOWN, SUM_CIPHER, LINKED_RUSH],
+                  }
+                tier:
+                  { type: string, enum: [SOLO, FRIEND, COMMUNITY_TOURNAMENT] }
+                tournamentId: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionStartResponse" }
+
+  /game/session/move:
+    post:
+      tags: [Game]
+      summary: Submit move
+      description: |
+        Rate limited to 30 / 10s. Anti-cheat: speed gate + logic gate.
+        Server returns new authoritative board state — client replaces display state entirely.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sessionId, move]
+              properties:
+                sessionId: { type: string, format: uuid }
+                move:
+                  { type: object, description: Game-type specific move payload }
+      responses:
+        "200": { description: Move applied }
+        "403": { description: Cheat detected }
+
+  /game/session/hint:
+    post:
+      tags: [Game]
+      summary: Request hint (costs 50 pts, blocked in tournaments)
+      parameters:
+        - in: query
+          name: sessionId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Hint returned, points deducted }
+        "403": { description: Hints blocked (tournament session) }
+        "422": { description: Insufficient balance }
+
+  # ── Community ──────────────────────────────────────────────────────────
+
+  /community:
+    post:
+      tags: [Community]
+      summary: Create community
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 3, maxLength: 100 }
+                description: { type: string, maxLength: 500 }
+      responses:
+        "201": { description: Created }
+
+  /community/{communityId}/join:
+    post:
+      tags: [Community]
+      summary: Join community
+      parameters:
+        - in: path
+          name: communityId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Joined }
+
+  /community/{communityId}/leave:
+    delete:
+      tags: [Community]
+      summary: Leave community
+      parameters:
+        - in: path
+          name: communityId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Left }
+
+  # ── Tournament ─────────────────────────────────────────────────────────
+
+  /tournament:
+    get:
+      tags: [Tournament]
+      summary: List tournaments
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [UPCOMING, ACTIVE, COMPLETED] }
+      responses:
+        "200": { description: Tournament list }
+    post:
+      tags: [Tournament]
+      summary: Create tournament (ADMIN or community owner)
+      responses:
+        "201": { description: Created }
+
+  /tournament/{id}/leaderboard:
+    get:
+      tags: [Tournament]
+      summary: Get top-100 leaderboard (Redis sorted set)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100, maximum: 100 }
+      responses:
+        "200": { description: Leaderboard }
+
+  /tournament/{id}/rank:
+    get:
+      tags: [Tournament]
+      summary: Get caller's current rank in tournament
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Rank and score }
+
+# ── Schemas ────────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AuthResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        role: { type: string }
+        userId: { type: string, format: uuid }
+
+    UserProfile:
+      type: object
+      properties:
+        userId: { type: string, format: uuid }
+        username: { type: string }
+        displayName: { type: string }
+        avatarUrl: { type: string }
+        countryCode: { type: string }
+        emailVerified: { type: boolean }
+        role: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    SessionStartResponse:
+      type: object
+      properties:
+        sessionId: { type: string, format: uuid }
+        initialBoard: { type: object }
+        hintsAllowed:
+          {
+            type: boolean,
+            description: "Always false for COMMUNITY_TOURNAMENT",
+          }
+        gameType: { type: string }
+        tier: { type: string }
+        status: { type: string }
+
+    ErrorResponse:
+      type: object
+      properties:
+        status: { type: integer }
+        error: { type: string }
+        message: { type: string }
+        timestamp: { type: integer }
