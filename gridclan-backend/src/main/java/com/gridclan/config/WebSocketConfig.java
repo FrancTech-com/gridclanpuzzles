@@ -30,7 +30,7 @@ import java.util.UUID;
  * WebSocket / STOMP configuration for GridClan community chat.
  *
  * Architecture:
- *   Client connects: WS wss://api.gridclan.gg/ws?token=<JWT>
+ *   Client connects: WS wss://api.gridclanpuzzle.win/ws?token=<JWT>
  *   STOMP CONNECT:   Authorization header or token query param
  *   Subscribe:       /topic/community/{communityId}
  *   Publish (send):  /app/community/{communityId}/chat

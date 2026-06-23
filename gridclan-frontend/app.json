@@ -49,8 +49,8 @@
       "typedRoutes": true
     },
     "extra": {
-      "API_BASE_URL": "https://api.gridclan.gg",
-      "WS_URL": "wss://api.gridclan.gg/ws",
+      "API_BASE_URL": "https://api.gridclanpuzzle.win",
+      "WS_URL": "wss://api.gridclanpuzzle.win/ws",
       "SENTRY_DSN": "",
       "eas": {
         "projectId": "gridclan-app"

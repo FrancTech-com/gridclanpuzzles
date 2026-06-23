@@ -125,9 +125,9 @@ gridclan:
       sum-cipher: 4
       linked-rush: 3
   mail:
-    from: noreply@gridclan.gg
+    from: noreply@gridclanpuzzle.win
     from-name: GridClan Puzzles
-    base-url: ${APP_BASE_URL:https://app.gridclan.gg}
+    base-url: ${APP_BASE_URL:https://app.gridclanpuzzle.win}
   fcm:
     server-key: ${FCM_SERVER_KEY:}
     project-id: ${FCM_PROJECT_ID:gridclan-app}

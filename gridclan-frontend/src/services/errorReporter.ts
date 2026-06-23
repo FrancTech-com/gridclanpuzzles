@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 
 const BASE_URL: string =
   (Constants.expoConfig?.extra?.API_BASE_URL as string | undefined) ??
-  'https://api.gridclan.gg';
+  'https://api.gridclanpuzzle.win';
 
 export type ErrorType =
   | 'JS_CRASH'

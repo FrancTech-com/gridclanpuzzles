@@ -49,7 +49,7 @@ class IntegrationTest {
     void setUp() {
         User user = User.builder()
             .username("testplayer")
-            .email("player@gridclan.gg")
+            .email("player@gridclanpuzzle.win")
             .phoneNumber("+256700000001")
             .passwordHash(encoder.encode("SecurePass123!"))
             .displayName("Test Player")
@@ -74,7 +74,7 @@ class IntegrationTest {
         mvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "identifier", "player@gridclan.gg",
+                    "identifier", "player@gridclanpuzzle.win",
                     "password",   "SecurePass123!"
                 ))))
             .andExpect(status().isOk())
@@ -89,7 +89,7 @@ class IntegrationTest {
         mvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "identifier", "player@gridclan.gg",
+                    "identifier", "player@gridclanpuzzle.win",
                     "password",   "WrongPassword!"
                 ))))
             .andExpect(status().isUnauthorized());
@@ -204,7 +204,7 @@ class IntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                     "username",    "newuser",
-                    "email",       "player@gridclan.gg",  // already taken in @BeforeEach
+                    "email",       "player@gridclanpuzzle.win",  // already taken in @BeforeEach
                     "password",    "SecurePass123!",
                     "dateOfBirth", "1995-01-01"           // adult — passes COPPA age gate
                 ))))
@@ -218,7 +218,7 @@ class IntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                     "username", "brandnew",
-                    "email",    "brandnew@gridclan.gg",
+                    "email",    "brandnew@gridclanpuzzle.win",
                     "password", "short"
                 ))))
             .andExpect(status().isBadRequest())

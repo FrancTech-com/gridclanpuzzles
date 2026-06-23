@@ -4,7 +4,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import type { ChatMessage } from '@gridtypes/index';
 
-const WS_URL = Constants.expoConfig?.extra?.WS_URL ?? 'wss://api.gridclan.gg/ws';
+const WS_URL = Constants.expoConfig?.extra?.WS_URL ?? 'wss://api.gridclanpuzzle.win/ws';
 
 type MessageHandler = (msg: ChatMessage) => void;
 type StatusHandler  = (status: 'CONNECTED' | 'DISCONNECTED' | 'ERROR') => void;

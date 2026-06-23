@@ -175,7 +175,7 @@ public class CommunityController {
             Authentication auth) {
         return ResponseEntity.accepted().body(Map.of(
             "status",  "USE_WEBSOCKET",
-            "message", "Connect to wss://api.gridclan.gg/ws for real-time chat. " +
+            "message", "Connect to wss://api.gridclanpuzzle.win/ws for real-time chat. " +
                        "Subscribe to /topic/community/{communityId}."
         ));
     }

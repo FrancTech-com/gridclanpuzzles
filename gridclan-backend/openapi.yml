@@ -12,7 +12,7 @@ info:
     email: support.gridclanpuzzles@gmail.com
 
 servers:
-  - url: https://api.gridclan.gg
+  - url: https://api.gridclanpuzzle.win
     description: Production
   - url: http://localhost:8080
     description: Local development

@@ -133,7 +133,7 @@ class AccountDeletionServiceTest {
         return User.builder()
             .id(USER_ID)
             .username("testuser")
-            .email("test@gridclan.gg")
+            .email("test@gridclanpuzzle.win")
             .phoneNumber("+256700000000")
             .passwordHash("$2b$12$hash")
             .displayName("Test User")
