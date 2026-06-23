@@ -14,7 +14,7 @@ import { Colors, Font, Radius, Spacing } from '@theme/index';
 import type { UserProfile } from '@gridtypes/index';
 
 const API_BASE_URL: string =
-  Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.gridclan.gg';
+  Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.gridclanpuzzle.win';
 
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();

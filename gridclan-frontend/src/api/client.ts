@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { createPinnedAdapter } from './pinnedAdapter';
 
-const BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.gridclan.gg';
+const BASE_URL = Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.gridclanpuzzle.win';
 
 // Certificate pinning in production builds; undefined → default transport (dev)
 const pinnedAdapter = createPinnedAdapter();

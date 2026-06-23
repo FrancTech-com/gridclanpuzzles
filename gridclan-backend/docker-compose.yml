@@ -84,7 +84,7 @@ services:
       MAIL_PORT:       ${MAIL_PORT:-587}
       MAIL_USERNAME:   ${MAIL_USERNAME:-apikey}
       MAIL_PASSWORD:   ${MAIL_PASSWORD}
-      APP_BASE_URL:    ${APP_BASE_URL:-https://app.gridclan.gg}
+      APP_BASE_URL:    ${APP_BASE_URL:-https://app.gridclanpuzzle.win}
       SPRING_PROFILES_ACTIVE: prod
       # JVM tuning for container
       JAVA_OPTS: >-

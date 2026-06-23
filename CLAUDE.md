@@ -44,7 +44,7 @@ npm test             # Jest (jest-expo preset, watch mode)
 npx jest path/to/file.test.tsx --watchAll=false   # single test, no watch
 ```
 
-API base URL comes from `Constants.expoConfig.extra.API_BASE_URL` in `app.json` (default `https://api.gridclan.gg`); point it at `http://10.0.2.2:8080` for a local backend on the Android emulator.
+API base URL comes from `Constants.expoConfig.extra.API_BASE_URL` in `app.json` (default `https://api.gridclanpuzzle.win`); point it at `http://10.0.2.2:8080` for a local backend on the Android emulator.
 
 ## Architecture
 

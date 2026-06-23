@@ -75,7 +75,7 @@ npm test         # Jest (jest-expo preset)
 ```
 
 The API base URL is read from `Constants.expoConfig.extra.API_BASE_URL` in `gridclan-frontend/app.json`
-(default `https://api.gridclan.gg`). Point it at your local backend (e.g. `http://10.0.2.2:8080` for the Android emulator) during development.
+(default `https://api.gridclanpuzzle.win`). Point it at your local backend (e.g. `http://10.0.2.2:8080` for the Android emulator) during development.
 
 ## Database migrations
 
