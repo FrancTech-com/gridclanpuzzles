@@ -1,0 +1,48 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:gridclan_test;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  flyway:
+    enabled: false   # Flyway uses Postgres syntax; use ddl-auto for tests
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+gridclan:
+  jwt:
+    secret: test-secret-key-32-chars-minimum-ok
+    active-kid: v1
+    keys:
+      v1: test-secret-key-32-chars-minimum-ok   # overrides main yml's ${JWT_SECRET} placeholder
+      v2: ""
+      v3: ""
+    access-token-expiry-minutes: 15
+    refresh-token-expiry-days: 30
+  gems:
+    daily-gift-limit: 500
+    ad-reward: 10
+    hint-cost: 10
+    revive-cost: 20
+    replay-cost: 15
+    reward:
+      grid-lockdown: 5
+      sum-cipher: 4
+      linked-rush: 3
+
+logging:
+  level:
+    com.gridclan: WARN
+    org.springframework: WARN
