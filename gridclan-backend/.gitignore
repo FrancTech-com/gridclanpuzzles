@@ -12,9 +12,9 @@ target/
 
 # Secrets — NEVER commit
 .env
-.env.example
-application.yml
-application-test.yml
+
+# Firebase / Google Cloud service-account keys (private keys)
+*-adminsdk-*.json
 
 # Logs
 *.log

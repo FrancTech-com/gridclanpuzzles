@@ -1,0 +1,140 @@
+spring:
+  application:
+    name: gridclan-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:6543}/${DB_NAME:postgres}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 20000
+      idle-timeout: 300000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # Flyway owns schema; Hibernate only validates
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        default_schema: public
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      ssl:
+        enabled: ${REDIS_SSL:true}
+      # Remote managed Redis (Upstash) needs headroom for the TLS handshake;
+      # the old 2s timeout closed the channel mid-handshake (StacklessClosedChannelException).
+      connect-timeout: 10000ms
+      timeout: 10000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+
+  task:
+    scheduling:
+      pool:
+        size: 5
+
+  mail:
+    host: ${MAIL_HOST:smtp.sendgrid.net}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:apikey}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
+server:
+  port: 8080
+  tomcat:
+    connection-timeout: 10s
+    max-connections: 2000
+
+# ── Observability (blueprint § Observability) ────────────────────────────────
+# Alert thresholds (Grafana): error rate >1%, p99 latency >2s,
+# Redis memory >80%, DB connections >80%.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: gridclan-backend
+
+# Sentry is a no-op until SENTRY_DSN is provided (Doppler).
+sentry:
+  dsn: ${SENTRY_DSN:}
+  environment: ${SENTRY_ENV:production}
+  traces-sample-rate: 0.1
+  send-default-pii: false # never PII (blueprint § Logging)
+
+gridclan:
+  # datasource:
+  #   replica-url:   # set (env GRIDCLAN_DATASOURCE_REPLICAURL) to route
+  #                  # read-only transactions to a Supabase read replica
+  ws:
+    relay:
+      enabled: ${WS_RELAY_ENABLED:false} # true = external STOMP broker (multi-instance chat)
+      host: ${WS_RELAY_HOST:localhost}
+      port: ${WS_RELAY_PORT:61613}
+      login: ${WS_RELAY_LOGIN:guest}
+      passcode: ${WS_RELAY_PASSCODE:guest}
+  jwt:
+    secret: ${JWT_SECRET} # legacy — doubles as keys.v1
+    active-kid: ${JWT_ACTIVE_KID:v1} # kid used to sign NEW tokens
+    keys: # all listed keys stay valid for verification
+      v1: ${JWT_SECRET}
+      v2: ${JWT_SECRET_V2:} # staged next rotation; blank = ignored
+      v3: ${JWT_SECRET_V3:}
+    access-token-expiry-minutes: 15
+    refresh-token-expiry-days: 30
+  # ── Gems (closed-loop in-game currency; no real-world value, no cashout) ──
+  gems:
+    daily-gift-limit: 500 # max gems a user can gift per day (abuse guard)
+    ad-reward: 10 # gems granted per optional rewarded ad
+    hint-cost: 10 # gems to buy an extra hint (non-tournament)
+    revive-cost: 20 # gems to revive a failed solo/casual game
+    replay-cost: 15 # gems to replay a game with a friend
+    reward: # gems awarded per solved puzzle, by game type
+      grid-lockdown: 5
+      sum-cipher: 4
+      linked-rush: 3
+  mail:
+    from: noreply@gridclan.gg
+    from-name: GridClan Puzzles
+    base-url: ${APP_BASE_URL:https://app.gridclan.gg}
+  fcm:
+    server-key: ${FCM_SERVER_KEY:}
+    project-id: ${FCM_PROJECT_ID:gridclan-app}
+
+logging:
+  level:
+    com.gridclan: INFO
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
