@@ -1,0 +1,133 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  FlatList, KeyboardAvoidingView, Platform,
+  SafeAreaView, ScrollView, StyleSheet, Text,
+  TextInput, TouchableOpacity, View,
+} from 'react-native';
+import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { communityApi } from '@api/index';
+import { chatClient } from '@websocket/chatClient';
+import { Button, Card, EmptyState, Input, LoadingSpinner } from '@components/ui/index';
+import { Colors, Font, Radius, Spacing } from '@theme/index';
+import type { ChatMessage, Community } from '@gridtypes/index';
+
+// ── Community list tab ─────────────────────────────────────────────────────
+export default function CommunityScreen() {
+  const { t } = useTranslation();
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [name,        setName]        = useState('');
+  const [desc,        setDesc]        = useState('');
+  const [creating,    setCreating]    = useState(false);
+  const [joiningId,   setJoiningId]   = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const res = await communityApi.list();
+      setCommunities(res.data);
+    } catch {}
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleCreate() {
+    if (!name.trim()) return;
+    setCreating(true);
+    try {
+      await communityApi.create(name.trim(), desc.trim() || undefined);
+      setShowCreate(false);
+      setName(''); setDesc('');
+      await load();
+    } catch {}
+    setCreating(false);
+  }
+
+  async function handleJoin(communityId: string) {
+    setJoiningId(communityId);
+    try {
+      await communityApi.join(communityId);
+      await load();
+    } catch {}
+    setJoiningId(null);
+  }
+
+  if (loading) return <LoadingSpinner />;
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <View style={styles.header}>
+        <Text style={styles.pageTitle}>{t('tabs.community')}</Text>
+        <TouchableOpacity style={styles.createBtn} onPress={() => setShowCreate(!showCreate)}>
+          <Text style={styles.createBtnText}>+ {t('community.new')}</Text>
+        </TouchableOpacity>
+      </View>
+
+      {showCreate && (
+        <Card style={styles.createCard}>
+          <Text style={styles.createTitle}>{t('community.createTitle')}</Text>
+          <Input label={t('community.name')} placeholder="East Africa Puzzlers" value={name} onChangeText={setName} />
+          <Input label={t('community.descriptionOptional')} placeholder="For puzzle fans across EA" value={desc} onChangeText={setDesc} />
+          <Button title={t('community.create')} onPress={handleCreate} loading={creating} disabled={!name.trim()} />
+        </Card>
+      )}
+
+      {communities.length === 0 ? (
+        <EmptyState
+          icon="👥"
+          title={t('community.noneYet')}
+          subtitle={t('community.noneYetSubtitle')}
+        />
+      ) : (
+        communities.map(c => (
+          <Card key={c.id} style={styles.communityCard}>
+            <Text style={styles.communityName}>{c.name}</Text>
+            {c.description && <Text style={styles.communityDesc}>{c.description}</Text>}
+            <View style={styles.communityStats}>
+              <Text style={styles.communityStatText}>{t('community.members', { count: c.memberCount })}</Text>
+              <Text style={styles.communityStatText}>⬡ {t('community.pool', { points: c.weeklyPoolPts.toLocaleString() })}</Text>
+            </View>
+            {c.isMember ? (
+              <TouchableOpacity
+                style={styles.chatBtn}
+                onPress={() => router.push(`/community/${c.id}/chat`)}
+              >
+                <Text style={styles.chatBtnText}>💬 {t('community.openChat')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Button
+                title={t('community.join')}
+                onPress={() => handleJoin(c.id)}
+                loading={joiningId === c.id}
+                size="sm"
+              />
+            )}
+          </Card>
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.bg },
+  content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
+
+  header:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
+  pageTitle:    { color: Colors.textPrimary, fontSize: Font.size.xxl, fontWeight: Font.weight.black },
+  createBtn:    { backgroundColor: Colors.primary, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  createBtnText: { color: Colors.textPrimary, fontWeight: Font.weight.semi, fontSize: Font.size.sm },
+
+  createCard:  { marginBottom: Spacing.lg },
+  createTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold, marginBottom: Spacing.md },
+
+  communityCard:   { marginBottom: Spacing.md },
+  communityName:   { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
+  communityDesc:   { color: Colors.textMuted,   fontSize: Font.size.sm, marginTop: 4 },
+  communityStats:  { flexDirection: 'row', gap: Spacing.lg, marginTop: Spacing.sm, marginBottom: Spacing.sm },
+  communityStatText: { color: Colors.textSecondary, fontSize: Font.size.sm },
+  chatBtn:         { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  chatBtnText:     { color: Colors.primary, fontWeight: Font.weight.semi },
+});
