@@ -1,0 +1,11 @@
+# Keep the repo-root Docker build context small: the root Dockerfile only
+# needs gridclan-backend/. Exclude the frontend, VCS, build outputs and secrets.
+.git
+gridclan-frontend
+**/node_modules
+**/target
+**/dist
+**/.expo
+*.env
+**/.env
+gridclan-backend/certificate.der
