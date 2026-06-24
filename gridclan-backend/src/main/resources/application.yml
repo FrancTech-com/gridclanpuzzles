@@ -53,9 +53,9 @@ spring:
         size: 5
 
   mail:
-    host: ${MAIL_HOST:smtp.sendgrid.net}
+    host: ${MAIL_HOST:smtp.resend.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:apikey}
+    username: ${MAIL_USERNAME:resend}
     password: ${MAIL_PASSWORD}
     properties:
       mail:
@@ -69,7 +69,8 @@ spring:
           writetimeout: 5000
 
 server:
-  port: 8080
+  # Railway (and most PaaS) inject the listen port via $PORT; fall back to 8080 locally.
+  port: ${PORT:8080}
   tomcat:
     connection-timeout: 10s
     max-connections: 2000
