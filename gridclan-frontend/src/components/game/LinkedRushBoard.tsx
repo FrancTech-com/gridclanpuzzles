@@ -1,7 +1,10 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
 import type { LinkedRushBoard as Board, RushMove } from '@gridtypes/index';
+
+// On web, show a pointer cursor on reachable nodes (no-op type on native).
+const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
 interface Props { board: Board; onMove: (move: RushMove) => void; disabled: boolean; }
 
@@ -70,6 +73,7 @@ export function LinkedRushBoard({ board, onMove, disabled }: Props) {
                 isCurrent   && styles.nodeCurrent,
                 isVisited   && styles.nodeVisited,
                 isReachable && styles.nodeReachable,
+                isReachable && !disabled && webCursor,
               ]}
               onPress={() => handleNode(idx)}
               activeOpacity={0.7}

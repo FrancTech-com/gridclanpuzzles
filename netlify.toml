@@ -1,0 +1,25 @@
+# Netlify deployment for the GridClan Puzzles web app (Expo Web static export).
+#
+# This file lives at the repository root so Netlify always finds it in this
+# monorepo. `base` points Netlify at the frontend sub-project; the build runs
+# there, and `publish` is resolved relative to that base directory.
+#
+# Production API/WS URLs are injected via build environment variables
+# (API_BASE_URL / WS_URL) — see [build.environment] below and DEPLOY.md.
+
+[build]
+  base = "gridclan-frontend"
+  command = "npx expo export --platform web"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  API_BASE_URL = "https://api.gridclanpuzzle.win"
+  WS_URL = "wss://api.gridclanpuzzle.win/ws"
+
+# expo-router is a client-side router: every deep link must serve index.html
+# so the JS router can resolve the route. REQUIRED for /game/..., /community/...
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -1,6 +1,6 @@
 import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import * as SecureStore from 'expo-secure-store';
+import { getItem } from '@utils/secureStorage';
 import Constants from 'expo-constants';
 import type { ChatMessage } from '@gridtypes/index';
 
@@ -26,7 +26,7 @@ class ChatClient {
     this.onMessage   = onMessage;
     this.onStatus    = onStatus;
 
-    const token = await SecureStore.getItemAsync('access_token');
+    const token = await getItem('access_token');
 
     this.client = new Client({
       // SockJS factory — supports environments without native WS

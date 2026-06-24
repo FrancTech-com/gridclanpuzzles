@@ -1,5 +1,5 @@
 import { AppState, AppStateStatus } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { getItem } from '@utils/secureStorage';
 import Constants from 'expo-constants';
 
 const BASE_URL: string =
@@ -16,7 +16,7 @@ let isForegrounded = true;
 async function sendHeartbeat(): Promise<void> {
   if (!isForegrounded) return;
   try {
-    const token = await SecureStore.getItemAsync('access_token');
+    const token = await getItem('access_token');
     if (!token) return;
 
     await fetch(`${BASE_URL}/user/heartbeat`, {

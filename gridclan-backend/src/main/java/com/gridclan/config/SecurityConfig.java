@@ -59,8 +59,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        // React Native / Expo clients — adjust origins for production
-        cfg.setAllowedOriginPatterns(List.of("*"));
+        // Allowed browser origins. Native iOS/Android apps send no Origin header
+        // so CORS does not apply to them; this list is the web surface only:
+        //   - the GridClan Puzzles web app on Netlify (gridclanpuzzle.win)
+        //   - localhost during web development (any port).
+        cfg.setAllowedOriginPatterns(List.of(
+            "https://gridclanpuzzle.win",
+            "https://www.gridclanpuzzle.win",
+            "http://localhost:*"));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of(
             "Authorization", "Content-Type", "X-Client-Version"));
