@@ -1,5 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { getItem, setItem, deleteItem } from '@utils/secureStorage';
 import Constants from 'expo-constants';
 import { createPinnedAdapter } from './pinnedAdapter';
 
@@ -17,7 +17,7 @@ export const apiClient = axios.create({
 
 // ── Request interceptor — attach access token ──────────────────────────────
 apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const token = await SecureStore.getItemAsync('access_token');
+  const token = await getItem('access_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
@@ -54,15 +54,15 @@ apiClient.interceptors.response.use(
     refreshing = true;
 
     try {
-      const refreshToken = await SecureStore.getItemAsync('refresh_token');
+      const refreshToken = await getItem('refresh_token');
       if (!refreshToken) throw new Error('No refresh token');
 
       // Refresh bypasses apiClient (no auth header / no interceptor loop) but
       // must still travel over the pinned transport in production.
       const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken },
         pinnedAdapter ? { adapter: pinnedAdapter } : undefined);
-      await SecureStore.setItemAsync('access_token',  data.accessToken);
-      await SecureStore.setItemAsync('refresh_token', data.refreshToken);
+      await setItem('access_token',  data.accessToken);
+      await setItem('refresh_token', data.refreshToken);
 
       // Drain queue
       refreshQueue.forEach(cb => cb(data.accessToken));
@@ -73,8 +73,8 @@ apiClient.interceptors.response.use(
 
     } catch {
       // Refresh failed — clear tokens, force logout
-      await SecureStore.deleteItemAsync('access_token');
-      await SecureStore.deleteItemAsync('refresh_token');
+      await deleteItem('access_token');
+      await deleteItem('refresh_token');
       refreshQueue = [];
       return Promise.reject(error);
     } finally {

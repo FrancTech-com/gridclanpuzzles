@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
 import type { SumCipherBoard as Board, SumMove } from '@gridtypes/index';
+
+// On web, show a pointer cursor on interactive cells (no-op type on native).
+const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
 // ── SumCipherBoard ─────────────────────────────────────────────────────────
 
@@ -20,6 +23,22 @@ export function SumCipherBoard({ board, onMove, disabled }: SumProps) {
     onMove({ cellIndex: selected, digit });
     setSelected(null);
   };
+
+  // Web bonus: with a cell selected, type 1-9 on the physical keyboard to fill
+  // it (Esc / Backspace clears the selection). No-op on native.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || selected === null || disabled) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key >= '1' && e.key <= '9') {
+        onMove({ cellIndex: selected, digit: Number(e.key) });
+        setSelected(null);
+      } else if (e.key === 'Escape' || e.key === 'Backspace') {
+        setSelected(null);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selected, disabled, onMove]);
 
   // Group colours
   const groupColors = ['#ff6b6b40', '#7c6dff40', '#4cff9140', '#ffcc4440', '#44ccff40', '#ff944440'];
@@ -41,6 +60,7 @@ export function SumCipherBoard({ board, onMove, disabled }: SumProps) {
                 sumStyles.cell,
                 { backgroundColor: groupColor },
                 selected === idx && sumStyles.cellSelected,
+                !disabled && cell === 0 && webCursor,
               ]}
               onPress={() => handleCell(idx)}
               activeOpacity={0.7}
@@ -71,7 +91,7 @@ export function SumCipherBoard({ board, onMove, disabled }: SumProps) {
           <Text style={sumStyles.padLabel}>Select digit</Text>
           <View style={sumStyles.digits}>
             {[1,2,3,4,5,6,7,8,9].map(d => (
-              <TouchableOpacity key={d} style={sumStyles.digit} onPress={() => handleDigit(d)}>
+              <TouchableOpacity key={d} style={[sumStyles.digit, webCursor]} onPress={() => handleDigit(d)}>
                 <Text style={sumStyles.digitText}>{d}</Text>
               </TouchableOpacity>
             ))}

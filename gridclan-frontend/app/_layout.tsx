@@ -10,6 +10,7 @@ import { store, persistor, RootState, AppDispatch } from '@store/index';
 import { hydrateAuth } from '@store/slices/authSlice';
 import { Colors } from '@theme/index';
 import { ErrorBoundary } from '@components/ErrorBoundary';
+import { WebContainer } from '@components/ui/WebContainer';
 import { installGlobalErrorHandlers } from '@services/errorReporter';
 import { startActivityTracker, stopActivityTracker } from '@services/activityTracker';
 import { installDeepLinkValidation, warnIfDeviceRooted } from '@services/deviceSecurity';
@@ -66,13 +67,15 @@ function RootNavigator() {
   return (
     <ErrorBoundary>
       <StatusBar style="light" backgroundColor={Colors.bg} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
-        <Stack.Screen name="(auth)"  redirect={!!userId} />
-        <Stack.Screen name="(tabs)"  redirect={!userId}  />
-        <Stack.Screen name="game/[sessionId]" options={{ presentation: 'fullScreenModal' }} />
-        <Stack.Screen name="community/[id]/chat" options={{ presentation: 'card' }} />
-        <Stack.Screen name="tournament/[id]"     options={{ presentation: 'card' }} />
-      </Stack>
+      <WebContainer>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+          <Stack.Screen name="(auth)"  redirect={!!userId} />
+          <Stack.Screen name="(tabs)"  redirect={!userId}  />
+          <Stack.Screen name="game/[sessionId]" options={{ presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="community/[id]/chat" options={{ presentation: 'card' }} />
+          <Stack.Screen name="tournament/[id]"     options={{ presentation: 'card' }} />
+        </Stack>
+      </WebContainer>
     </ErrorBoundary>
   );
 }

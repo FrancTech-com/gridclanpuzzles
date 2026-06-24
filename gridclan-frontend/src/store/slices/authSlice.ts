@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import * as SecureStore from 'expo-secure-store';
+import { getItem, setItem, deleteItem } from '@utils/secureStorage';
 import { authApi } from '@api/auth';
 import type { AuthResponse, LoginRequest, RegisterRequest } from '@gridtypes/index';
 
@@ -49,12 +49,12 @@ export const registerThunk = createAsyncThunk(
 
 export const logoutThunk = createAsyncThunk('auth/logout', async () => {
   try { await authApi.logout(); } catch {}
-  await SecureStore.deleteItemAsync('access_token');
-  await SecureStore.deleteItemAsync('refresh_token');
+  await deleteItem('access_token');
+  await deleteItem('refresh_token');
 });
 
 export const hydrateAuth = createAsyncThunk('auth/hydrate', async () => {
-  const token = await SecureStore.getItemAsync('access_token');
+  const token = await getItem('access_token');
   if (!token) return null;
   // Decode payload without verifying sig (server does that)
   try {
@@ -115,6 +115,6 @@ export const { clearError, setTokens } = authSlice.actions;
 export default authSlice.reducer;
 
 async function saveTokens(data: AuthResponse) {
-  await SecureStore.setItemAsync('access_token',  data.accessToken);
-  await SecureStore.setItemAsync('refresh_token', data.refreshToken);
+  await setItem('access_token',  data.accessToken);
+  await setItem('refresh_token', data.refreshToken);
 }

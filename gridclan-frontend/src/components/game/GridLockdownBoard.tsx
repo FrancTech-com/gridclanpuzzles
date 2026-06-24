@@ -1,7 +1,10 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Colors, Radius, Spacing } from '@theme/index';
 import type { GridLockdownBoard as Board, GridMove } from '@gridtypes/index';
+
+// On web, show a pointer cursor on interactive cells (no-op type on native).
+const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
 const TILE_COLORS = ['transparent', '#ff6b6b', '#7c6dff', '#4cff91', '#ffcc44'];
 
@@ -65,9 +68,11 @@ export function GridLockdownBoard({ board, onMove, disabled }: Props) {
                   { backgroundColor: cell === 0 ? Colors.surfaceHigh : TILE_COLORS[cell] },
                   isSelected  && styles.cellSelected,
                   isHighlight && styles.cellHighlight,
+                  !disabled && webCursor,
                 ]}
                 onPress={() => handleTap(c, r)}
                 activeOpacity={0.7}
+                disabled={disabled}
               >
                 {cell !== 0 && <Text style={styles.cellText}>{cell}</Text>}
               </TouchableOpacity>
