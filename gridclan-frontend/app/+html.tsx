@@ -33,6 +33,21 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/icon-512.png" />
 
+        {/* PWA — installable, offline-capable */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="GridClan" />
+        <script
+          dangerouslySetInnerHTML={{ __html: `
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function () {});
+  });
+}` }}
+        />
+
         {/* Open Graph (Facebook, WhatsApp, LinkedIn, etc.) */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="GridClan Puzzles" />
