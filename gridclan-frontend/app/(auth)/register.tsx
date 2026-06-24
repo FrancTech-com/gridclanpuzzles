@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, Switch, Text, TouchableOpacity, View,
+  FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -10,14 +10,7 @@ import { AppDispatch, RootState } from '@store/index';
 import { registerThunk, clearError } from '@store/slices/authSlice';
 import { Button, Input, Card } from '@components/ui/index';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
-
-type CountryCode = 'UG' | 'KE' | 'TZ';
-
-const COUNTRIES: { label: string; value: CountryCode; flag: string }[] = [
-  { label: 'Uganda',   value: 'UG', flag: '🇺🇬' },
-  { label: 'Kenya',    value: 'KE', flag: '🇰🇪' },
-  { label: 'Tanzania', value: 'TZ', flag: '🇹🇿' },
-];
+import { COUNTRIES, flagOf } from '@data/countries';
 
 /** YYYY-MM-DD, a real past date. Returns the age in whole years, or null. */
 function ageFromDob(dob: string): number | null {
@@ -43,8 +36,18 @@ export default function RegisterScreen() {
   const [password,  setPassword]  = useState('');
   const [dob,       setDob]       = useState('');
   const [marketing, setMarketing] = useState(false);
-  const [country,   setCountry]   = useState<CountryCode>('UG');
+  const [country,   setCountry]   = useState('');           // ISO code, none preselected
   const [dobError,  setDobError]  = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search,     setSearch]     = useState('');
+
+  const selectedCountry = COUNTRIES.find(c => c.code === country);
+  const filteredCountries = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return COUNTRIES;
+    return COUNTRIES.filter(c =>
+      c.name.toLowerCase().includes(q) || c.code.toLowerCase() === q);
+  }, [search]);
 
   async function handleRegister() {
     if (!email.trim() || !password) return;
@@ -109,28 +112,29 @@ export default function RegisterScreen() {
           <Text style={styles.consentText}>{t('auth.marketingOptIn')}</Text>
         </View>
 
-        {/* Country selector */}
+        {/* Country selector — searchable, any country */}
         <Text style={styles.sectionLabel}>{t('auth.yourCountry')}</Text>
-        <View style={styles.currencyRow}>
-          {COUNTRIES.map(c => (
-            <TouchableOpacity
-              key={c.value}
-              style={[styles.currencyBtn, country === c.value && styles.currencyBtnActive]}
-              onPress={() => setCountry(c.value)}
-            >
-              <Text style={styles.currencyFlag}>{c.flag}</Text>
-              <Text style={[styles.currencyLabel, country === c.value && styles.currencyLabelActive]}>
-                {c.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <TouchableOpacity
+          style={styles.countrySelect}
+          onPress={() => { setSearch(''); setPickerOpen(true); }}
+        >
+          {selectedCountry ? (
+            <Text style={styles.countrySelectText}>
+              {flagOf(selectedCountry.code)}  {selectedCountry.name}
+            </Text>
+          ) : (
+            <Text style={styles.countryPlaceholder}>
+              {t('auth.selectCountry', 'Select your country')}
+            </Text>
+          )}
+          <Text style={styles.countryChevron}>▾</Text>
+        </TouchableOpacity>
 
         <Button
           title={t('auth.register')}
           onPress={handleRegister}
           loading={isLoading}
-          disabled={!email || !password || !dob}
+          disabled={!email || !password || !dob || !country}
           style={styles.submitBtn}
         />
 
@@ -142,6 +146,53 @@ export default function RegisterScreen() {
         </View>
 
       </ScrollView>
+
+      {/* Country picker modal */}
+      <Modal
+        visible={pickerOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPickerOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{t('auth.selectCountry', 'Select your country')}</Text>
+              <TouchableOpacity onPress={() => setPickerOpen(false)} hitSlop={12}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.modalSearch}
+              placeholder={t('auth.searchCountry', 'Search country')}
+              placeholderTextColor={Colors.textMuted}
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <FlatList
+              data={filteredCountries}
+              keyExtractor={c => c.code}
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={20}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.countryRow, country === item.code && styles.countryRowActive]}
+                  onPress={() => { setCountry(item.code); setPickerOpen(false); }}
+                >
+                  <Text style={styles.countryRowFlag}>{flagOf(item.code)}</Text>
+                  <Text style={styles.countryRowName}>{item.name}</Text>
+                  {country === item.code && <Text style={styles.countryRowCheck}>✓</Text>}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.countryEmpty}>{t('auth.noCountryMatch', 'No match')}</Text>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -169,12 +220,24 @@ const styles = StyleSheet.create({
   consentRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
   consentText: { color: Colors.textSecondary, fontSize: Font.size.sm, flex: 1 },
 
-  currencyRow:       { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
-  currencyBtn:       { flex: 1, alignItems: 'center', padding: Spacing.md, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
-  currencyBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '20' },
-  currencyFlag:      { fontSize: 24, marginBottom: 4 },
-  currencyLabel:     { color: Colors.textMuted, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
-  currencyLabelActive: { color: Colors.primary },
+  countrySelect:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg },
+  countrySelectText:  { color: Colors.textPrimary, fontSize: Font.size.md },
+  countryPlaceholder: { color: Colors.textMuted, fontSize: Font.size.md },
+  countryChevron:     { color: Colors.textMuted, fontSize: Font.size.md, marginLeft: Spacing.sm },
+
+  modalBackdrop: { flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' },
+  modalSheet:    { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, paddingTop: Spacing.md, maxHeight: '80%' },
+  modalHeader:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
+  modalTitle:    { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
+  modalClose:    { color: Colors.textMuted, fontSize: Font.size.lg },
+  modalSearch:   { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, color: Colors.textPrimary, fontSize: Font.size.md },
+
+  countryRow:       { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg, gap: Spacing.md },
+  countryRowActive: { backgroundColor: Colors.primary + '20' },
+  countryRowFlag:   { fontSize: 22 },
+  countryRowName:   { flex: 1, color: Colors.textPrimary, fontSize: Font.size.md },
+  countryRowCheck:  { color: Colors.primary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
+  countryEmpty:     { color: Colors.textMuted, textAlign: 'center', padding: Spacing.lg },
 
   submitBtn: { marginTop: Spacing.sm, marginBottom: Spacing.md },
 
