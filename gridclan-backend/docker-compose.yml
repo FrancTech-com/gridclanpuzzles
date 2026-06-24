@@ -80,9 +80,9 @@ services:
       REDIS_PORT:      6379
       REDIS_PASSWORD:  ${REDIS_PASSWORD:-}
       JWT_SECRET:      ${JWT_SECRET}
-      MAIL_HOST:       ${MAIL_HOST:-smtp.sendgrid.net}
+      MAIL_HOST:       ${MAIL_HOST:-smtp.resend.com}
       MAIL_PORT:       ${MAIL_PORT:-587}
-      MAIL_USERNAME:   ${MAIL_USERNAME:-apikey}
+      MAIL_USERNAME:   ${MAIL_USERNAME:-resend}
       MAIL_PASSWORD:   ${MAIL_PASSWORD}
       APP_BASE_URL:    ${APP_BASE_URL:-https://app.gridclanpuzzle.win}
       SPRING_PROFILES_ACTIVE: prod
