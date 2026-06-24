@@ -12,6 +12,15 @@ import { Button, Input, Card } from '@components/ui/index';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
 import { COUNTRIES, flagOf } from '@data/countries';
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+// Selectable birth years: 13 (min age) to 100 years ago, most recent first.
+const NOW_YEAR = new Date().getUTCFullYear();
+const YEARS = Array.from({ length: 88 }, (_, i) => NOW_YEAR - 13 - i);
+
 /** YYYY-MM-DD, a real past date. Returns the age in whole years, or null. */
 function ageFromDob(dob: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
@@ -34,11 +43,12 @@ export default function RegisterScreen() {
   const [email,     setEmail]     = useState('');
   const [phone,     setPhone]     = useState('');
   const [password,  setPassword]  = useState('');
-  const [dob,       setDob]       = useState('');
+  const [dobMonth,  setDobMonth]  = useState(0);            // 1-12, 0 = unset
+  const [dobYear,   setDobYear]   = useState(0);            // full year, 0 = unset
   const [marketing, setMarketing] = useState(false);
   const [country,   setCountry]   = useState('');           // ISO code, none preselected
   const [dobError,  setDobError]  = useState<string | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [activePicker, setActivePicker] = useState<'country' | 'month' | 'year' | null>(null);
   const [search,     setSearch]     = useState('');
 
   const selectedCountry = COUNTRIES.find(c => c.code === country);
@@ -49,11 +59,14 @@ export default function RegisterScreen() {
       c.name.toLowerCase().includes(q) || c.code.toLowerCase() === q);
   }, [search]);
 
+  // Day defaults to the 1st; the server re-validates the COPPA age gate.
+  const dob = dobMonth && dobYear ? `${dobYear}-${String(dobMonth).padStart(2, '0')}-01` : '';
+
   async function handleRegister() {
     if (!email.trim() || !password) return;
 
     // COPPA pre-check — the server re-validates and is authoritative
-    const age = ageFromDob(dob.trim());
+    const age = ageFromDob(dob);
     if (age === null) { setDobError(t('auth.dobInvalid')); return; }
     if (age < 13)     { setDobError(t('auth.ageRestricted')); return; }
     setDobError(null);
@@ -64,7 +77,7 @@ export default function RegisterScreen() {
       phoneNumber:       phone.trim() || undefined,
       password,
       countryCode:       country,
-      dateOfBirth:       dob.trim(),
+      dateOfBirth:       dob,
       marketingConsent:  marketing,
     }));
     if (registerThunk.fulfilled.match(result)) router.replace('/(tabs)');
@@ -99,10 +112,29 @@ export default function RegisterScreen() {
         <Input label={`${t('auth.password')} *`} placeholder={t('auth.passwordPlaceholder')}
           value={password} onChangeText={setPassword} secureTextEntry />
 
-        {/* COPPA age gate — date is checked, sent once, never persisted */}
-        <Input label={`${t('auth.dateOfBirth')} *`} placeholder="2000-01-31"
-          value={dob} onChangeText={(v) => { setDob(v); setDobError(null); }}
-          keyboardType="numbers-and-punctuation" autoCapitalize="none" />
+        {/* COPPA age gate — month + year only (day defaults to the 1st);
+            checked client-side, re-validated and never persisted by the server */}
+        <Text style={styles.sectionLabel}>{`${t('auth.dateOfBirth')} *`}</Text>
+        <View style={styles.dobRow}>
+          <TouchableOpacity
+            style={[styles.dobSelect, { flex: 1.4 }]}
+            onPress={() => { setDobError(null); setActivePicker('month'); }}
+          >
+            <Text style={dobMonth ? styles.countrySelectText : styles.countryPlaceholder}>
+              {dobMonth ? MONTHS[dobMonth - 1] : t('auth.month', 'Month')}
+            </Text>
+            <Text style={styles.countryChevron}>▾</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dobSelect, { flex: 1 }]}
+            onPress={() => { setDobError(null); setActivePicker('year'); }}
+          >
+            <Text style={dobYear ? styles.countrySelectText : styles.countryPlaceholder}>
+              {dobYear ? String(dobYear) : t('auth.year', 'Year')}
+            </Text>
+            <Text style={styles.countryChevron}>▾</Text>
+          </TouchableOpacity>
+        </View>
         {dobError && <Text style={styles.dobError}>{dobError}</Text>}
 
         {/* GDPR marketing consent — explicit opt-in, off by default */}
@@ -116,7 +148,7 @@ export default function RegisterScreen() {
         <Text style={styles.sectionLabel}>{t('auth.yourCountry')}</Text>
         <TouchableOpacity
           style={styles.countrySelect}
-          onPress={() => { setSearch(''); setPickerOpen(true); }}
+          onPress={() => { setSearch(''); setActivePicker('country'); }}
         >
           {selectedCountry ? (
             <Text style={styles.countrySelectText}>
@@ -147,49 +179,92 @@ export default function RegisterScreen() {
 
       </ScrollView>
 
-      {/* Country picker modal */}
+      {/* Picker modal — country (searchable) / birth month / birth year */}
       <Modal
-        visible={pickerOpen}
+        visible={activePicker !== null}
         animationType="slide"
         transparent
-        onRequestClose={() => setPickerOpen(false)}
+        onRequestClose={() => setActivePicker(null)}
       >
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{t('auth.selectCountry', 'Select your country')}</Text>
-              <TouchableOpacity onPress={() => setPickerOpen(false)} hitSlop={12}>
+              <Text style={styles.modalTitle}>
+                {activePicker === 'country' ? t('auth.selectCountry', 'Select your country')
+                  : activePicker === 'month' ? t('auth.month', 'Month')
+                  : t('auth.year', 'Year')}
+              </Text>
+              <TouchableOpacity onPress={() => setActivePicker(null)} hitSlop={12}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={styles.modalSearch}
-              placeholder={t('auth.searchCountry', 'Search country')}
-              placeholderTextColor={Colors.textMuted}
-              value={search}
-              onChangeText={setSearch}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <FlatList
-              data={filteredCountries}
-              keyExtractor={c => c.code}
-              keyboardShouldPersistTaps="handled"
-              initialNumToRender={20}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.countryRow, country === item.code && styles.countryRowActive]}
-                  onPress={() => { setCountry(item.code); setPickerOpen(false); }}
-                >
-                  <Text style={styles.countryRowFlag}>{flagOf(item.code)}</Text>
-                  <Text style={styles.countryRowName}>{item.name}</Text>
-                  {country === item.code && <Text style={styles.countryRowCheck}>✓</Text>}
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={styles.countryEmpty}>{t('auth.noCountryMatch', 'No match')}</Text>
-              }
-            />
+
+            {activePicker === 'country' && (
+              <TextInput
+                style={styles.modalSearch}
+                placeholder={t('auth.searchCountry', 'Search country')}
+                placeholderTextColor={Colors.textMuted}
+                value={search}
+                onChangeText={setSearch}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            )}
+
+            {activePicker === 'country' && (
+              <FlatList
+                data={filteredCountries}
+                keyExtractor={c => c.code}
+                keyboardShouldPersistTaps="handled"
+                initialNumToRender={20}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.countryRow, country === item.code && styles.countryRowActive]}
+                    onPress={() => { setCountry(item.code); setActivePicker(null); }}
+                  >
+                    <Text style={styles.countryRowFlag}>{flagOf(item.code)}</Text>
+                    <Text style={styles.countryRowName}>{item.name}</Text>
+                    {country === item.code && <Text style={styles.countryRowCheck}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <Text style={styles.countryEmpty}>{t('auth.noCountryMatch', 'No match')}</Text>
+                }
+              />
+            )}
+
+            {activePicker === 'month' && (
+              <FlatList
+                data={MONTHS}
+                keyExtractor={(m, i) => String(i)}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    style={[styles.countryRow, dobMonth === index + 1 && styles.countryRowActive]}
+                    onPress={() => { setDobMonth(index + 1); setActivePicker(null); }}
+                  >
+                    <Text style={styles.countryRowName}>{item}</Text>
+                    {dobMonth === index + 1 && <Text style={styles.countryRowCheck}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+
+            {activePicker === 'year' && (
+              <FlatList
+                data={YEARS}
+                keyExtractor={y => String(y)}
+                initialNumToRender={20}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.countryRow, dobYear === item && styles.countryRowActive]}
+                    onPress={() => { setDobYear(item); setActivePicker(null); }}
+                  >
+                    <Text style={styles.countryRowName}>{item}</Text>
+                    {dobYear === item && <Text style={styles.countryRowCheck}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+              />
+            )}
           </View>
         </View>
       </Modal>
@@ -219,6 +294,9 @@ const styles = StyleSheet.create({
 
   consentRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
   consentText: { color: Colors.textSecondary, fontSize: Font.size.sm, flex: 1 },
+
+  dobRow:    { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xs },
+  dobSelect: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
 
   countrySelect:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.lg },
   countrySelectText:  { color: Colors.textPrimary, fontSize: Font.size.md },

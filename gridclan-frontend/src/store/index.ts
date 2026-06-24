@@ -5,18 +5,20 @@ import authReducer  from './slices/authSlice';
 import gameReducer  from './slices/gameSlice';
 import pointsReducer from './slices/pointsSlice';
 import gemsReducer   from './slices/gemsSlice';
+import guestReducer  from './slices/guestSlice';
 
 const rootReducer = combineReducers({
   auth:   authReducer,
   game:   gameReducer,
   points: pointsReducer,
   gems:   gemsReducer,
+  guest:  guestReducer,
 });
 
 const persistConfig = {
   key:       'gridclan-root',
   storage:   AsyncStorage,
-  whitelist: ['auth'],   // Only persist auth — game state is session-only
+  whitelist: ['auth', 'guest'],   // persist auth + guest trial count; game state is session-only
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

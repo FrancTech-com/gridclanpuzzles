@@ -10,6 +10,7 @@ import { logoutThunk } from '@store/slices/authSlice';
 import { profileApi, privacyApi } from '@api/index';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '@i18n/index';
 import { Button, Card, Input, LoadingSpinner, Separator } from '@components/ui/index';
+import { RegisterGate } from '@components/AuthGate';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
 import type { UserProfile } from '@gridtypes/index';
 
@@ -29,12 +30,13 @@ export default function ProfileScreen() {
   const [exporting,  setExporting]  = useState(false);
 
   useEffect(() => {
+    if (!userId) { setLoading(false); return; }
     profileApi.getProfile().then(r => {
       setProfile(r.data);
       setDisplayName(r.data.displayName ?? '');
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   async function handleSave() {
     setSaving(true);
@@ -128,6 +130,14 @@ export default function ProfileScreen() {
       ]
     );
   }
+
+  if (!userId) return (
+    <RegisterGate
+      icon="👤"
+      title={t('guest.profileTitle', 'Your profile')}
+      subtitle={t('guest.profileSubtitle', 'Create an account to track your stats, points and settings.')}
+    />
+  );
 
   if (loading) return <LoadingSpinner />;
 

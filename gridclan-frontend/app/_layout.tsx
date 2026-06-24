@@ -69,8 +69,9 @@ function RootNavigator() {
       <StatusBar style="light" backgroundColor={Colors.bg} />
       <WebContainer>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+          {/* Guests can browse (tabs); logged-in users skip the auth group. */}
           <Stack.Screen name="(auth)"  redirect={!!userId} />
-          <Stack.Screen name="(tabs)"  redirect={!userId}  />
+          <Stack.Screen name="(tabs)" />
           <Stack.Screen name="game/[sessionId]" options={{ presentation: 'fullScreenModal' }} />
           <Stack.Screen name="community/[id]/chat" options={{ presentation: 'card' }} />
           <Stack.Screen name="tournament/[id]"     options={{ presentation: 'card' }} />

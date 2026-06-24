@@ -1,4 +1,15 @@
 {
+  "guest": {
+    "homeBanner": "Browse the games for free. Create an account to play, compete and join communities.",
+    "communityTitle": "Join the community",
+    "communitySubtitle": "Create an account to join communities, chat, and play with friends.",
+    "tournamentTitle": "Compete in tournaments",
+    "tournamentSubtitle": "Create an account to enter tournaments and climb the leaderboards.",
+    "gemsTitle": "Earn and spend gems",
+    "gemsSubtitle": "Create an account to earn gems by playing and spend them on revives and hints.",
+    "profileTitle": "Your profile",
+    "profileSubtitle": "Create an account to track your stats, points and settings."
+  },
   "common": {
     "appName": "GridClan Puzzles",
     "pts": "pts",
@@ -39,6 +50,8 @@
     "passwordPlaceholder": "At least 8 characters",
     "dobInvalid": "Enter a valid date as YYYY-MM-DD.",
     "yourCountry": "Your country",
+    "month": "Month",
+    "year": "Year",
     "selectCountry": "Select your country",
     "searchCountry": "Search country",
     "noCountryMatch": "No match",
@@ -66,6 +79,8 @@
   },
   "home": {
     "greeting": "Good game,",
+    "guestGreeting": "Welcome to",
+    "registerToPlay": "Register to play",
     "choosePuzzle": "Choose your puzzle",
     "gameType": "Game type",
     "mode": "Mode",

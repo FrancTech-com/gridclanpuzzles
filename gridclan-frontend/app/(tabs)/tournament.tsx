@@ -4,14 +4,18 @@ import {
   Text, TouchableOpacity, View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { tournamentApi } from '@api/index';
+import { RootState } from '@store/index';
 import { Badge, Card, EmptyState, LoadingSpinner } from '@components/ui/index';
+import { RegisterGate } from '@components/AuthGate';
 import { Colors, Font, GameMeta, Radius, Spacing } from '@theme/index';
 import type { Tournament } from '@gridtypes/index';
 
 export default function TournamentScreen() {
   const { t } = useTranslation();
+  const userId = useSelector((s: RootState) => s.auth.userId);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [refreshing,  setRefreshing]  = useState(false);
@@ -28,7 +32,15 @@ export default function TournamentScreen() {
     setRefreshing(false);
   }
 
-  useEffect(() => { load(); }, [activeTab]);
+  useEffect(() => { if (userId) load(); }, [activeTab, userId]);
+
+  if (!userId) return (
+    <RegisterGate
+      icon="🏆"
+      title={t('guest.tournamentTitle', 'Compete in tournaments')}
+      subtitle={t('guest.tournamentSubtitle', 'Create an account to enter tournaments and climb the leaderboards.')}
+    />
+  );
 
   if (loading) return <LoadingSpinner />;
 
