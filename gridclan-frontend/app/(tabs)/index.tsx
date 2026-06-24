@@ -9,6 +9,7 @@ import { AppDispatch, RootState } from '@store/index';
 import { startSessionThunk } from '@store/slices/gameSlice';
 import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index';
+import { RegisterBanner } from '@components/AuthGate';
 import { Colors, Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
 import type { GameTier, GameType } from '@gridtypes/index';
 
@@ -21,15 +22,23 @@ const TIERS: { labelKey: string; value: GameTier; icon: string; descKey: string 
 export default function HomeScreen() {
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
+  const userId         = useSelector((s: RootState) => s.auth.userId);
   const { balance }    = useSelector((s: RootState) => s.points);
   const { isLoading }  = useSelector((s: RootState) => s.game);
+  const isGuest = !userId;
 
   const [selectedGame, setSelectedGame] = useState<GameType>('GRID_LOCKDOWN');
   const [selectedTier, setSelectedTier] = useState<GameTier>('SOLO');
 
-  useEffect(() => { dispatch(fetchBalanceThunk()); }, []);
+  useEffect(() => { if (userId) dispatch(fetchBalanceThunk()); }, [userId]);
 
   async function handlePlay() {
+    // Guests must register to play: Friend/Tournament always; Solo until the
+    // on-device trial demo lands (the guest trial counter is wired for that).
+    if (isGuest) {
+      router.push('/(auth)/register');
+      return;
+    }
     const result = await dispatch(startSessionThunk({ gameType: selectedGame, tier: selectedTier }));
     if (startSessionThunk.fulfilled.match(result)) {
       router.push(`/game/${result.payload.sessionId}`);
@@ -40,12 +49,28 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>{t('home.greeting')}</Text>
-          <Text style={styles.title}>{t('home.choosePuzzle')}</Text>
+        <View style={styles.headerTitleWrap}>
+          <Text style={styles.greeting}>{isGuest ? t('home.guestGreeting', 'Welcome to') : t('home.greeting')}</Text>
+          <Text style={styles.title}>{isGuest ? t('common.appName') : t('home.choosePuzzle')}</Text>
         </View>
-        {balance && <PointsBadge points={balance.balance} />}
+        {isGuest ? (
+          <View style={styles.authBtns}>
+            <TouchableOpacity onPress={() => router.push('/(auth)/login')} hitSlop={8}>
+              <Text style={styles.signInText}>{t('auth.login')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.registerBtn} onPress={() => router.push('/(auth)/register')}>
+              <Text style={styles.registerBtnText}>{t('auth.register')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          balance && <PointsBadge points={balance.balance} />
+        )}
       </View>
+
+      {/* Guest nudge — register to play & unlock everything */}
+      {isGuest && (
+        <RegisterBanner message={t('guest.homeBanner', 'Browse the games for free. Create an account to play, compete and join communities.')} />
+      )}
 
       {/* Game type selector */}
       <Text style={styles.sectionLabel}>{t('home.gameType')}</Text>
@@ -93,7 +118,7 @@ export default function HomeScreen() {
       )}
 
       <Button
-        title={t('game.start')}
+        title={isGuest ? t('home.registerToPlay', 'Register to play') : t('game.start')}
         onPress={handlePlay}
         loading={isLoading}
         size="lg"
@@ -107,9 +132,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
 
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.xl },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.lg },
+  headerTitleWrap: { flex: 1 },
   greeting: { color: Colors.textMuted, fontSize: Font.size.md },
   title:    { color: Colors.textPrimary, fontSize: Font.size.xl, fontWeight: Font.weight.bold, marginTop: 2 },
+
+  authBtns:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  signInText:     { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  registerBtn:    { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full },
+  registerBtnText:{ color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   sectionLabel: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 },
 

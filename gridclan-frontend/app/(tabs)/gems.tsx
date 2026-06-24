@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
 import { fetchGemBalanceThunk, fetchGemHistoryThunk } from '@store/slices/gemsSlice';
 import { Card, LoadingSpinner, EmptyState, Separator } from '@components/ui/index';
+import { RegisterGate } from '@components/AuthGate';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
 
 /**
@@ -19,6 +20,7 @@ import { Colors, Font, Radius, Spacing } from '@theme/index';
 export default function GemsScreen() {
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
+  const userId = useSelector((s: RootState) => s.auth.userId);
   const { balance, history, isLoading } = useSelector((s: RootState) => s.gems);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -27,13 +29,21 @@ export default function GemsScreen() {
     dispatch(fetchGemHistoryThunk(50));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (userId) load(); }, [userId]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([dispatch(fetchGemBalanceThunk()), dispatch(fetchGemHistoryThunk(50))]);
     setRefreshing(false);
   };
+
+  if (!userId) return (
+    <RegisterGate
+      icon="💎"
+      title={t('guest.gemsTitle', 'Earn and spend gems')}
+      subtitle={t('guest.gemsSubtitle', 'Create an account to earn gems by playing and spend them on revives and hints.')}
+    />
+  );
 
   if (isLoading && !balance) return <LoadingSpinner />;
 

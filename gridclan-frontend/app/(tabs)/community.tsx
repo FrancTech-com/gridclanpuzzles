@@ -5,16 +5,20 @@ import {
   TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { router } from 'expo-router';
+import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { communityApi } from '@api/index';
 import { chatClient } from '@websocket/chatClient';
+import { RootState } from '@store/index';
 import { Button, Card, EmptyState, Input, LoadingSpinner } from '@components/ui/index';
+import { RegisterGate } from '@components/AuthGate';
 import { Colors, Font, Radius, Spacing } from '@theme/index';
 import type { ChatMessage, Community } from '@gridtypes/index';
 
 // ── Community list tab ─────────────────────────────────────────────────────
 export default function CommunityScreen() {
   const { t } = useTranslation();
+  const userId = useSelector((s: RootState) => s.auth.userId);
   const [communities, setCommunities] = useState<Community[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [showCreate,  setShowCreate]  = useState(false);
@@ -31,7 +35,7 @@ export default function CommunityScreen() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { if (userId) load(); }, [userId]);
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -53,6 +57,14 @@ export default function CommunityScreen() {
     } catch {}
     setJoiningId(null);
   }
+
+  if (!userId) return (
+    <RegisterGate
+      icon="👥"
+      title={t('guest.communityTitle', 'Join the community')}
+      subtitle={t('guest.communitySubtitle', 'Create an account to join communities, chat, and play with friends.')}
+    />
+  );
 
   if (loading) return <LoadingSpinner />;
 
