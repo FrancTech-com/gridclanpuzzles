@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FlatList, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Link, router } from 'expo-router';
@@ -75,7 +75,7 @@ export default function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
         <View style={styles.header}>
-          <Text style={styles.logo}>⬡</Text>
+          <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>{t('auth.joinTitle')}</Text>
           <Text style={styles.subtitle}>{t('auth.createSubtitle')}</Text>
         </View>
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: Spacing.lg },
 
   header: { alignItems: 'center', marginBottom: Spacing.xl, marginTop: Spacing.xl },
-  logo:   { fontSize: 48, color: Colors.primary, marginBottom: Spacing.sm },
+  logo:   { width: 84, height: 84, borderRadius: Radius.lg, marginBottom: Spacing.sm },
   title:  { fontSize: Font.size.xxl, fontWeight: Font.weight.black, color: Colors.textPrimary },
   subtitle: { color: Colors.textMuted, fontSize: Font.size.md },
 

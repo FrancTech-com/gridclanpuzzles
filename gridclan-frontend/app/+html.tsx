@@ -24,13 +24,12 @@ export default function Root({ children }: PropsWithChildren) {
           name="keywords"
           content="GridClan Puzzles, puzzle game, free puzzle game, competitive puzzles, skill game, Grid Lockdown, Sum Cipher, Linked Rush, brain games, online puzzles"
         />
-        <meta name="theme-color" content="#0f0f1a" />
+        <meta name="theme-color" content="#07172e" />
         <meta name="robots" content="index, follow" />
         <meta name="author" content="GridClan Puzzles" />
         <link rel="canonical" href="https://gridclanpuzzle.win/" />
 
-        {/* Favicons — hexagon brand mark (SVG preferred, PNG fallback) */}
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        {/* Favicons — GridClan shield emblem */}
         <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/icon-512.png" />
 
@@ -88,6 +87,6 @@ export default function Root({ children }: PropsWithChildren) {
 }
 
 const backgroundCss = `
-html, body { background-color: #07070d; }
+html, body { background-color: #051124; }
 #root { display: flex; min-height: 100vh; }
 `;

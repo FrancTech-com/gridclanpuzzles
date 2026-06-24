@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { authApi } from '@api/auth';
 import { Button, Input } from '@components/ui/index';
-import { Colors, Font, Spacing } from '@theme/index';
+import { Colors, Font, Radius, Spacing } from '@theme/index';
 
 type Step = 'REQUEST' | 'VERIFY';
 
@@ -54,7 +54,7 @@ export default function ForgotPasswordScreen() {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.logo}>⬡</Text>
+        <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
         <Text style={styles.title}>{step === 'REQUEST' ? t('auth.resetPassword') : t('auth.enterCode')}</Text>
         <Text style={styles.subtitle}>
           {step === 'REQUEST'
@@ -91,7 +91,7 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   flex:     { flex: 1, backgroundColor: Colors.bg },
   scroll:   { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center' },
-  logo:     { fontSize: 48, color: Colors.primary, textAlign: 'center', marginBottom: Spacing.md },
+  logo:     { width: 84, height: 84, borderRadius: Radius.lg, alignSelf: 'center', marginBottom: Spacing.md },
   title:    { color: Colors.textPrimary, fontSize: Font.size.xl, fontWeight: Font.weight.bold, textAlign: 'center', marginBottom: 8 },
   subtitle: { color: Colors.textMuted, fontSize: Font.size.sm, textAlign: 'center', marginBottom: Spacing.xl, lineHeight: 20 },
   error:    { color: Colors.error, fontSize: Font.size.sm, textAlign: 'center', marginBottom: Spacing.md },
