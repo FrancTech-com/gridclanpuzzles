@@ -10,6 +10,7 @@ import { startSessionThunk } from '@store/slices/gameSlice';
 import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index';
 import { RegisterBanner } from '@components/AuthGate';
+import { BouncingEmblem } from '@components/BouncingEmblem';
 import { Colors, Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
 import type { GameTier, GameType } from '@gridtypes/index';
 
@@ -47,6 +48,9 @@ export default function HomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Bouncing emblem hero */}
+      <BouncingEmblem size={76} style={styles.heroEmblem} />
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleWrap}>
@@ -131,6 +135,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
+
+  heroEmblem: { alignSelf: 'center', marginBottom: Spacing.md },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.lg },
   headerTitleWrap: { flex: 1 },

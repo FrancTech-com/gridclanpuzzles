@@ -96,7 +96,20 @@ if ('serviceWorker' in navigator) {
             app mounts and the desktop backdrop stays consistent. */}
         <style dangerouslySetInnerHTML={{ __html: backgroundCss }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {/* Opening animation — the emblem's parts fly in and assemble, then the
+            overlay fades to reveal the app. Pure CSS so it runs before/while the
+            JS bundle hydrates. */}
+        <div id="gc-splash" aria-hidden="true">
+          <div className="gc-emblem">
+            <img className="gc-piece gc-p0" src="/splash-piece-0.png" alt="" />
+            <img className="gc-piece gc-p1" src="/splash-piece-1.png" alt="" />
+            <img className="gc-piece gc-p2" src="/splash-piece-2.png" alt="" />
+            <img className="gc-piece gc-p3" src="/splash-piece-3.png" alt="" />
+          </div>
+        </div>
+        {children}
+      </body>
     </html>
   );
 }
@@ -104,4 +117,39 @@ if ('serviceWorker' in navigator) {
 const backgroundCss = `
 html, body { background-color: #051124; }
 #root { display: flex; min-height: 100vh; }
+
+/* ── Opening splash: emblem pieces assemble, then fade out ─────────────── */
+#gc-splash {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 45%, #0e2440 0%, #051124 70%);
+  animation: gcSplashOut 0.55s ease 1.65s forwards;
+}
+#gc-splash .gc-emblem {
+  position: relative; width: 200px; height: 200px;
+  animation: gcSettle 0.5s ease 1.15s both;
+}
+#gc-splash .gc-piece {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  opacity: 0;
+  animation: gcAssemble 0.7s cubic-bezier(0.22, 0.9, 0.27, 1.2) both;
+}
+#gc-splash .gc-p0 { transform: translate(-44px,-44px) scale(.7) rotate(-10deg); animation-delay: 0s;    }
+#gc-splash .gc-p1 { transform: translate( 44px,-44px) scale(.7) rotate( 10deg); animation-delay: .12s; }
+#gc-splash .gc-p2 { transform: translate(-44px, 44px) scale(.7) rotate( 10deg); animation-delay: .24s; }
+#gc-splash .gc-p3 { transform: translate( 44px, 44px) scale(.7) rotate(-10deg); animation-delay: .36s; }
+@keyframes gcAssemble {
+  to { opacity: 1; transform: translate(0,0) scale(1) rotate(0deg); }
+}
+@keyframes gcSettle {
+  0% { transform: scale(1); } 45% { transform: scale(1.05); } 100% { transform: scale(1); }
+}
+@keyframes gcSplashOut {
+  to { opacity: 0; visibility: hidden; pointer-events: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #gc-splash { animation: gcSplashOut 0.3s ease 0.6s forwards; }
+  #gc-splash .gc-piece { opacity: 1; transform: none; animation: none; }
+  #gc-splash .gc-emblem { animation: none; }
+}
 `;
