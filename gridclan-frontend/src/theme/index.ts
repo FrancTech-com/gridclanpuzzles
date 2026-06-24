@@ -2,43 +2,43 @@ import { Platform } from 'react-native';
 
 // ── Palette ────────────────────────────────────────────────────────────────
 export const Colors = {
-  // Backgrounds
-  bg:          '#0f0f1a',   // App background — deep space
-  surface:     '#1a1a2e',   // Cards / sheets
-  surfaceHigh: '#242440',   // Elevated surfaces
-  border:      '#2a2a4a',   // Dividers, input borders
+  // Backgrounds — deep navy, matching the GridClan emblem
+  bg:          '#07172e',   // App background — deep navy
+  surface:     '#0e2440',   // Cards / sheets
+  surfaceHigh: '#173458',   // Elevated surfaces
+  border:      '#214568',   // Dividers, input borders
 
-  // Brand
-  primary:     '#7c6dff',   // GridClan violet
-  primaryDim:  '#5a4dcc',   // Pressed state
-  accent:      '#4cff91',   // Success / score / win
-  accentDim:   '#2dcc6a',
+  // Brand — teal primary, gold secondary (from the emblem)
+  primary:     '#2bbf9a',   // GridClan teal
+  primaryDim:  '#1f9a7d',   // Pressed state
+  accent:      '#e8c45a',   // Gold — score / win / highlight
+  accentDim:   '#c9a23f',
 
   // Game type colours
   gridLockdown: '#ff6b6b',  // Red — Grid Lockdown
-  sumCipher:    '#ffcc44',  // Gold — Sum Cipher
+  sumCipher:    '#e8c45a',  // Gold — Sum Cipher
   linkedRush:   '#44ccff',  // Cyan — Linked Rush
 
   // Text
   textPrimary:   '#ffffff',
-  textSecondary: '#a0a0c0',
-  textMuted:     '#505070',
+  textSecondary: '#a8c2dc',
+  textMuted:     '#5d7894',
 
   // Status
-  error:   '#ff4d4d',
-  warning: '#ffcc44',
-  success: '#4cff91',
+  error:   '#ff5a5a',
+  warning: '#e8c45a',
+  success: '#37d9a3',
   info:    '#44ccff',
 
   // Points / currency
-  points:  '#ffd700',
-  ugx:     '#4cff91',
+  points:  '#e8c45a',
+  ugx:     '#37d9a3',
   kes:     '#44ccff',
   tzs:     '#ff9944',
 
   // Overlay
-  overlay:     'rgba(0,0,0,0.6)',
-  overlayLight: 'rgba(0,0,0,0.3)',
+  overlay:     'rgba(3,9,20,0.65)',
+  overlayLight: 'rgba(3,9,20,0.35)',
 } as const;
 
 // ── Spacing ────────────────────────────────────────────────────────────────

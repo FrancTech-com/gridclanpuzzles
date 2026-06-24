@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView, Platform, ScrollView,
+  Image, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Link, router } from 'expo-router';
@@ -29,7 +29,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
         <View style={styles.header}>
-          <Text style={styles.logo}>⬡</Text>
+          <Image source={require('../../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title}>{t('common.appName')}</Text>
           <Text style={styles.subtitle}>{t('auth.signInSubtitle')}</Text>
         </View>
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center' },
 
   header: { alignItems: 'center', marginBottom: Spacing.xxl },
-  logo:   { fontSize: 56, color: Colors.primary, marginBottom: Spacing.sm },
+  logo:   { width: 96, height: 96, borderRadius: Radius.lg, marginBottom: Spacing.sm },
   title:  { fontSize: Font.size.xxl, fontWeight: Font.weight.black, color: Colors.textPrimary, letterSpacing: -1 },
   subtitle: { color: Colors.textMuted, fontSize: Font.size.md, marginTop: 4 },
 
