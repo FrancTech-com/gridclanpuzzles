@@ -18,6 +18,7 @@ module.exports = function(api) {
           '@websocket': './src/websocket',
           '@services': './src/services',
           '@i18n': './src/i18n',
+          '@data': './src/data',
         },
       }],
       'react-native-reanimated/plugin',

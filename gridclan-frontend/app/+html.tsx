@@ -15,12 +15,65 @@ export default function Root({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
         />
-        <title>GridClan Puzzles</title>
+        <title>GridClan Puzzles — Free Competitive Skill Puzzle Game</title>
         <meta
           name="description"
-          content="GridClan Puzzles — a free, competitive, skill-based puzzle game. Play Grid Lockdown, Sum Cipher and Linked Rush in your browser."
+          content="GridClan Puzzles is a free, competitive, skill-based puzzle game. Play Grid Lockdown, Sum Cipher and Linked Rush, climb the leaderboards and join communities — no pay-to-play, ever."
+        />
+        <meta
+          name="keywords"
+          content="GridClan Puzzles, puzzle game, free puzzle game, competitive puzzles, skill game, Grid Lockdown, Sum Cipher, Linked Rush, brain games, online puzzles"
         />
         <meta name="theme-color" content="#0f0f1a" />
+        <meta name="robots" content="index, follow" />
+        <meta name="author" content="GridClan Puzzles" />
+        <link rel="canonical" href="https://gridclanpuzzle.win/" />
+
+        {/* Favicons — hexagon brand mark (SVG preferred, PNG fallback) */}
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+        <link rel="apple-touch-icon" href="/icon-512.png" />
+
+        {/* Open Graph (Facebook, WhatsApp, LinkedIn, etc.) */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="GridClan Puzzles" />
+        <meta property="og:title" content="GridClan Puzzles — Free Competitive Skill Puzzle Game" />
+        <meta
+          property="og:description"
+          content="Play free, competitive, skill-based puzzles — Grid Lockdown, Sum Cipher and Linked Rush. Climb the leaderboards. No pay-to-play, ever."
+        />
+        <meta property="og:url" content="https://gridclanpuzzle.win/" />
+        <meta property="og:image" content="https://gridclanpuzzle.win/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:alt" content="GridClan Puzzles hexagon logo" />
+
+        {/* Twitter / X card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="GridClan Puzzles — Free Competitive Skill Puzzle Game" />
+        <meta
+          name="twitter:description"
+          content="Play free, competitive, skill-based puzzles — Grid Lockdown, Sum Cipher and Linked Rush. No pay-to-play, ever."
+        />
+        <meta name="twitter:image" content="https://gridclanpuzzle.win/og-image.png" />
+
+        {/* Structured data for rich search results */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@type': 'VideoGame',
+            name: 'GridClan Puzzles',
+            url: 'https://gridclanpuzzle.win/',
+            image: 'https://gridclanpuzzle.win/og-image.png',
+            description:
+              'A free, competitive, skill-based puzzle game. Play Grid Lockdown, Sum Cipher and Linked Rush, climb the leaderboards and join communities.',
+            applicationCategory: 'GameApplication',
+            genre: 'Puzzle',
+            operatingSystem: 'Android, iOS, Web',
+            offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+          }) }}
+        />
 
         {/* Resets RN ScrollView quirks on web. */}
         <ScrollViewStyleReset />

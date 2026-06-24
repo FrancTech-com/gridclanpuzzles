@@ -11,7 +11,8 @@ export interface RegisterRequest {
   email:              string;
   phoneNumber?:       string;
   password:           string;
-  countryCode?:       'UG' | 'KE' | 'TZ';
+  /** ISO 3166-1 alpha-2 country code; backend validates ^[A-Z]{2}$. */
+  countryCode?:       string;
   /** YYYY-MM-DD — required by the backend COPPA age gate; never persisted. */
   dateOfBirth:        string;
   /** GDPR Art. 6(1)(a) explicit opt-in; defaults to false server-side. */
