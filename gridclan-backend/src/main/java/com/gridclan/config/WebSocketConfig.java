@@ -85,8 +85,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
             .addInterceptors(new TokenHandshakeInterceptor())
-            // Allow React Native and web clients
-            .setAllowedOriginPatterns("*")
+            // Browser origins allowed (kept in sync with SecurityConfig CORS):
+            // the web app on gridclanpuzzle.win + localhost for web dev. Native
+            // iOS/Android clients send no Origin header, so the origin check
+            // does not apply to them.
+            .setAllowedOriginPatterns(
+                "https://gridclanpuzzle.win",
+                "https://www.gridclanpuzzle.win",
+                "http://localhost:*")
             .withSockJS()   // Fallback for environments without native WS
                 .setHeartbeatTime(25_000);
     }
