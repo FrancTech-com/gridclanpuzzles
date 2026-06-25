@@ -168,7 +168,21 @@
     "starting": "Starting…",
     "enter": "Enter tournament",
     "leaderboard": "Leaderboard",
-    "noScores": "No scores yet. Be the first!"
+    "noScores": "No scores yet. Be the first!",
+    "new": "New",
+    "createTitle": "New tournament",
+    "createCta": "Create tournament",
+    "createFailed": "Could not create the tournament. Please try again.",
+    "fieldName": "Tournament name",
+    "namePlaceholder": "e.g. Friday Night Grid",
+    "duration": "Duration",
+    "dur_h1": "1 hour",
+    "dur_d1": "1 day",
+    "dur_w1": "1 week",
+    "community": "Community (optional)",
+    "communityNone": "Open",
+    "maxPlayers": "Max players (optional)",
+    "unlimited": "Unlimited"
   },
   "community": {
     "new": "New",

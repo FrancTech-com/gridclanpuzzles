@@ -50,7 +50,12 @@ export default function TournamentScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={Colors.primary} />}
     >
-      <Text style={styles.pageTitle}>{t('tournament.tournaments')}</Text>
+      <View style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>{t('tournament.tournaments')}</Text>
+        <TouchableOpacity style={styles.newBtn} onPress={() => router.push('/tournament/create')}>
+          <Text style={styles.newBtnText}>+ {t('tournament.new', 'New')}</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* Tabs */}
       <View style={styles.tabs}>
@@ -144,7 +149,10 @@ function statusColor(status: string) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
-  pageTitle: { color: Colors.textPrimary, fontSize: Font.size.xxl, fontWeight: Font.weight.black, marginBottom: Spacing.lg },
+  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
+  pageTitle: { color: Colors.textPrimary, fontSize: Font.size.xxl, fontWeight: Font.weight.black },
+  newBtn:     { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full },
+  newBtnText: { color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   tabs:        { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
   tab:         { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border },

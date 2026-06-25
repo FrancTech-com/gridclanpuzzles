@@ -40,6 +40,12 @@ export default function HomeScreen() {
       router.push('/(auth)/register');
       return;
     }
+    // Tournament play happens *inside* a specific tournament — send the player
+    // to pick/join one instead of starting an unattached tournament session.
+    if (selectedTier === 'COMMUNITY_TOURNAMENT') {
+      router.push('/(tabs)/tournament');
+      return;
+    }
     const result = await dispatch(startSessionThunk({ gameType: selectedGame, tier: selectedTier }));
     if (startSessionThunk.fulfilled.match(result)) {
       router.push(`/game/${result.payload.sessionId}`);

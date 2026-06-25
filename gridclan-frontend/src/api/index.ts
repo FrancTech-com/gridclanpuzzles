@@ -110,6 +110,18 @@ export const tournamentApi = {
   list: (status?: string) =>
     apiClient.get<Tournament[]>(`/tournament${status ? `?status=${status}` : ''}`),
 
+  create: (payload: {
+    name: string;
+    gameType: GameType;
+    communityId?: string;
+    maxPlayers?: number;
+    startsAt: string;   // ISO-8601
+    endsAt: string;     // ISO-8601
+  }) =>
+    apiClient.post<{ tournamentId: string; name: string; status: string }>(
+      '/tournament', payload,
+    ),
+
   get: (id: string) =>
     apiClient.get<Tournament>(`/tournament/${id}`),
 
