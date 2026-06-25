@@ -134,6 +134,34 @@ export const tournamentApi = {
     apiClient.get<PlayerRank>(`/tournament/${id}/rank`),
 };
 
+// ── Grid Scrabble (async shared-board 2-player) ─────────────────────────────
+export interface ScrabblePlacement { row: number; col: number; letter: string; blank: boolean; }
+
+export interface ScrabbleView {
+  gameId:        string;
+  inviteCode:    string;
+  status:        'WAITING_FOR_OPPONENT' | 'ACTIVE' | 'COMPLETE';
+  board:         string[];   // 15 rows; '.'=empty, UPPER=tile, lower=blank
+  yourRack:      string;     // up to 7 chars ('_' = blank)
+  yourTurn:      boolean;
+  yourScore:     number;
+  opponentScore: number;
+  hasOpponent:   boolean;
+  tilesInBag:    number;
+  outcome?:      'WON' | 'LOST' | 'TIE';
+}
+
+export const scrabbleApi = {
+  create: () => apiClient.post<ScrabbleView>('/scrabble'),
+  join:   (code: string) => apiClient.post<ScrabbleView>(`/scrabble/${code}/join`),
+  get:    (id: string)   => apiClient.get<ScrabbleView>(`/scrabble/${id}`),
+  move:   (id: string, placements: ScrabblePlacement[]) =>
+            apiClient.post<ScrabbleView>(`/scrabble/${id}/move`, { placements }),
+  pass:   (id: string)   => apiClient.post<ScrabbleView>(`/scrabble/${id}/pass`),
+  exchange: (id: string, tiles: string) =>
+            apiClient.post<ScrabbleView>(`/scrabble/${id}/exchange`, { tiles }),
+};
+
 // ── Challenges (async friend matches) ───────────────────────────────────────
 export interface ChallengeView {
   code:          string;
