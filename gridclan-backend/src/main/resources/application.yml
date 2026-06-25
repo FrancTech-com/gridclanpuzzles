@@ -83,6 +83,13 @@ management:
     web:
       exposure:
         include: health,prometheus
+  health:
+    # SMTP (Resend) reachability must NOT fail the service health check — a
+    # transient mail outage would otherwise make /actuator/health return 503,
+    # which the platform reads as unhealthy and restarts the container. Mail is
+    # non-critical to liveness; DB and Redis health stay enabled (they are).
+    mail:
+      enabled: false
   metrics:
     tags:
       application: gridclan-backend
