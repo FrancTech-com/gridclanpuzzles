@@ -146,6 +146,20 @@ export default function HomeScreen() {
         size="lg"
         style={styles.playBtn}
       />
+
+      {/* Grid Scrabble — its own turn-based 2-player flow (not a solo game type) */}
+      <TouchableOpacity
+        style={styles.scrabbleCard}
+        activeOpacity={0.85}
+        onPress={() => router.push(isGuest ? '/(auth)/register' : '/scrabble/new')}
+      >
+        <Text style={styles.scrabbleIcon}>🔤</Text>
+        <View style={styles.scrabbleText}>
+          <Text style={styles.scrabbleTitle}>{t('scrabble.homeTitle', 'Grid Scrabble')}</Text>
+          <Text style={styles.scrabbleDesc}>{t('scrabble.homeDesc', 'Build words with a friend on a shared board, turn by turn.')}</Text>
+        </View>
+        <Text style={styles.scrabbleArrow}>›</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -198,4 +212,15 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   noHintsText:   { color: Colors.warning, fontSize: Font.size.sm, textAlign: 'center' },
 
   playBtn: { marginTop: Spacing.md },
+
+  scrabbleCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md,
+    borderWidth: 1, borderColor: Colors.border, marginTop: Spacing.lg,
+  },
+  scrabbleIcon:  { fontSize: 28 },
+  scrabbleText:  { flex: 1 },
+  scrabbleTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
+  scrabbleDesc:  { color: Colors.textMuted, fontSize: Font.size.sm, marginTop: 2 },
+  scrabbleArrow: { color: Colors.textMuted, fontSize: Font.size.xl },
 });
