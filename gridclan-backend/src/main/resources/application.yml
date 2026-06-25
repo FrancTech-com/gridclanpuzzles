@@ -139,10 +139,6 @@ gridclan:
   fcm:
     server-key: ${FCM_SERVER_KEY:}
     project-id: ${FCM_PROJECT_ID:gridclan-app}
-  # OneSignal push (web PWA + mobile). No-op until both are set.
-  onesignal:
-    app-id:  ${ONESIGNAL_APP_ID:}
-    api-key: ${ONESIGNAL_API_KEY:}
 
 logging:
   level:
