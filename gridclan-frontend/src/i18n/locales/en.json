@@ -219,5 +219,48 @@
     "network": "No connection. Check your network and try again.",
     "server": "Something went wrong. Please try again.",
     "rateLimited": "Too many requests. Please wait a moment."
+  },
+  "howToPlay": {
+    "title": "How to Play",
+    "link": "How to play",
+    "intro": "GridClan Puzzles is a free, skill-based puzzle game. Solve puzzles to earn points and gems. Points are a pure measure of skill — they have no cash value and can never be withdrawn.",
+    "gamesTitle": "The puzzles",
+    "games": {
+      "GRID_LOCKDOWN": {
+        "name": "Grid Lockdown",
+        "how": "Drag tiles to rearrange the grid until it matches the target pattern. Solve it in fewer moves and less time for a higher score."
+      },
+      "SUM_CIPHER": {
+        "name": "Sum Cipher",
+        "how": "Fill the empty cells with numbers so every row and group adds up to its target sum. Each number has to fit all the sums around it."
+      },
+      "LINKED_RUSH": {
+        "name": "Linked Rush",
+        "how": "Draw one continuous path that links every node exactly once, without crossing your line or revisiting a node."
+      }
+    },
+    "modesTitle": "Ways to play",
+    "modes": {
+      "solo": {
+        "name": "Solo",
+        "desc": "Play on your own to practise and earn points & gems."
+      },
+      "friend": {
+        "name": "Friend",
+        "desc": "Invite a friend and go head-to-head on the same puzzle."
+      },
+      "tournament": {
+        "name": "Tournament",
+        "desc": "Compete against your community for gem rewards. Hints are disabled — pure skill."
+      }
+    },
+    "scoringTitle": "Points & scoring",
+    "scoring": "The server scores every move you make, so results are always fair. Points reflect your skill only — there is no money, no pay-to-win, and no cashing out, ever.",
+    "gemsTitle": "Gems",
+    "gems": "Gems are an in-game extra you earn by playing or watching optional ads. Spend them on hints, revives and replays, or gift them to friends. Gems have no real-world value and can’t be bought or exchanged for money.",
+    "fairTitle": "Fair play",
+    "fair": "The game server is the referee. Moves that are impossible or impossibly fast are rejected, so everyone competes on a level field.",
+    "ctaGuest": "Create an account to play",
+    "ctaUser": "Start playing"
   }
 }
