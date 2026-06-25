@@ -4,8 +4,8 @@ import {
   TextInputProps, TouchableOpacity, TouchableOpacityProps, View, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Font, Radius, Shadow, Spacing } from '@theme/index';
-
+import { Font, Radius, Shadow, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 // ── Button ─────────────────────────────────────────────────────────────────
 interface ButtonProps extends TouchableOpacityProps {
   title:    string;
@@ -15,6 +15,8 @@ interface ButtonProps extends TouchableOpacityProps {
 }
 
 export function Button({ title, variant = 'primary', size = 'md', loading, style, disabled, ...props }: ButtonProps) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const bg = {
     primary:   Colors.primary,
     secondary: Colors.surfaceHigh,
@@ -51,6 +53,8 @@ export function Button({ title, variant = 'primary', size = 'md', loading, style
 interface CardProps { children: React.ReactNode; style?: ViewStyle; }
 
 export function Card({ children, style }: CardProps) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
@@ -61,6 +65,8 @@ interface InputProps extends TextInputProps {
 }
 
 export function Input({ label, error, style, secureTextEntry, ...props }: InputProps) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const isPassword = !!secureTextEntry;
   const [hidden, setHidden] = useState(true);
 
@@ -95,16 +101,21 @@ export function Input({ label, error, style, secureTextEntry, ...props }: InputP
 // ── Badge ──────────────────────────────────────────────────────────────────
 interface BadgeProps { label: string; color?: string; }
 
-export function Badge({ label, color = Colors.primary }: BadgeProps) {
+export function Badge({ label, color }: BadgeProps) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
+  const c = color ?? Colors.primary;
   return (
-    <View style={[styles.badge, { backgroundColor: color + '28' }]}>
-      <Text style={[styles.badgeText, { color }]}>{label}</Text>
+    <View style={[styles.badge, { backgroundColor: c + '28' }]}>
+      <Text style={[styles.badgeText, { color: c }]}>{label}</Text>
     </View>
   );
 }
 
 // ── PointsBadge ────────────────────────────────────────────────────────────
 export function PointsBadge({ points }: { points: number }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.pointsBadge}>
       <Text style={styles.pointsIcon}>⬡</Text>
@@ -114,21 +125,27 @@ export function PointsBadge({ points }: { points: number }) {
 }
 
 // ── Loading spinner ────────────────────────────────────────────────────────
-export function LoadingSpinner({ size = 'large', color = Colors.primary }: { size?: 'small' | 'large'; color?: string }) {
+export function LoadingSpinner({ size = 'large', color }: { size?: 'small' | 'large'; color?: string }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.spinner}>
-      <ActivityIndicator size={size} color={color} />
+      <ActivityIndicator size={size} color={color ?? Colors.primary} />
     </View>
   );
 }
 
 // ── Separator ─────────────────────────────────────────────────────────────
 export function Separator() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return <View style={styles.separator} />;
 }
 
 // ── Empty state ────────────────────────────────────────────────────────────
 export function EmptyState({ icon, title, subtitle }: { icon: string; title: string; subtitle?: string }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyIcon}>{icon}</Text>
@@ -139,7 +156,7 @@ export function EmptyState({ icon, title, subtitle }: { icon: string; title: str
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   btn: {
     borderRadius:    Radius.md,
     alignItems:      'center',

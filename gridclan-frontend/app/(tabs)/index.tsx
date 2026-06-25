@@ -11,7 +11,8 @@ import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index';
 import { RegisterBanner } from '@components/AuthGate';
 import { BouncingEmblem } from '@components/BouncingEmblem';
-import { Colors, Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
+import { Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { GameTier, GameType } from '@gridtypes/index';
 
 const TIERS: { labelKey: string; value: GameTier; icon: string; descKey: string }[] = [
@@ -21,6 +22,8 @@ const TIERS: { labelKey: string; value: GameTier; icon: string; descKey: string 
 ];
 
 export default function HomeScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const userId         = useSelector((s: RootState) => s.auth.userId);
@@ -147,7 +150,7 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
 

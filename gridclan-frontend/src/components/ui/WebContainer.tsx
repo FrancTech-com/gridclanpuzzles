@@ -1,7 +1,6 @@
 import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { Colors } from '@theme/index';
-
+import { useColors } from '@theme/theme';
 /**
  * Web layout frame.
  *
@@ -16,6 +15,8 @@ import { Colors } from '@theme/index';
  * completely unaffected.
  */
 export function WebContainer({ children }: { children: React.ReactNode }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   if (Platform.OS !== 'web') return <>{children}</>;
 
   return (
@@ -25,7 +26,7 @@ export function WebContainer({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   // Fills the viewport behind the app column.
   backdrop: {
     flex: 1,

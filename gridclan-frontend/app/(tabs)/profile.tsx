@@ -11,7 +11,8 @@ import { profileApi, privacyApi } from '@api/index';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '@i18n/index';
 import { Button, Card, Input, LoadingSpinner, Separator } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors, useTheme, type ThemePref } from '@theme/theme';
 import type { UserProfile } from '@gridtypes/index';
 
 const API_BASE_URL: string =
@@ -19,6 +20,9 @@ const API_BASE_URL: string =
 
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
+  const { pref, setPref } = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const userId   = useSelector((s: RootState) => s.auth.userId);
 
@@ -177,6 +181,22 @@ export default function ProfileScreen() {
         <DetailRow label={t('profile.memberSince')} value={profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '—'} />
       </Card>
 
+      {/* Theme */}
+      <Text style={styles.sectionLabel}>{t('settings.theme', 'Theme')}</Text>
+      <View style={styles.languageRow}>
+        {(['system', 'light', 'dark'] as ThemePref[]).map(opt => (
+          <TouchableOpacity
+            key={opt}
+            style={[styles.languageBtn, pref === opt && styles.languageBtnActive]}
+            onPress={() => setPref(opt)}
+          >
+            <Text style={[styles.languageText, pref === opt && styles.languageTextActive]}>
+              {t(`settings.theme_${opt}`, opt)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Language */}
       <Text style={styles.sectionLabel}>{t('settings.language')}</Text>
       <View style={styles.languageRow}>
@@ -222,6 +242,8 @@ export default function ProfileScreen() {
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
+  const Colors = useColors();
+  const detailStyles = React.useMemo(() => makeDetailStyles(Colors), [Colors]);
   return (
     <View style={detailStyles.row}>
       <Text style={detailStyles.label}>{label}</Text>
@@ -230,13 +252,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const detailStyles = StyleSheet.create({
+const makeDetailStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   row:   { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   label: { color: Colors.textMuted, fontSize: Font.size.sm },
   value: { color: Colors.textPrimary, fontSize: Font.size.sm, fontWeight: Font.weight.medium },
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
 

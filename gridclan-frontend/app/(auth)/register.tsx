@@ -9,7 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
 import { registerThunk, clearError } from '@store/slices/authSlice';
 import { Button, Input, Card } from '@components/ui/index';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import { COUNTRIES, flagOf } from '@data/countries';
 
 const MONTHS = [
@@ -35,6 +36,8 @@ function ageFromDob(dob: string): number | null {
 }
 
 export default function RegisterScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((s: RootState) => s.auth);
@@ -272,7 +275,7 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   flex:   { flex: 1, backgroundColor: Colors.bg },
   scroll: { flexGrow: 1, padding: Spacing.lg },
 

@@ -10,11 +10,14 @@ import { tournamentApi } from '@api/index';
 import { RootState } from '@store/index';
 import { Badge, Card, EmptyState, LoadingSpinner } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
-import { Colors, Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { Tournament } from '@gridtypes/index';
 
 export default function TournamentScreen() {
   const { t } = useTranslation();
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const userId = useSelector((s: RootState) => s.auth.userId);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -85,6 +88,8 @@ export default function TournamentScreen() {
 
 function TournamentCard({ tournament }: { tournament: Tournament }) {
   const { t } = useTranslation();
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const meta = GameMeta[tournament.gameType];
 
   const handleEnter = () => {
@@ -100,7 +105,7 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
           <Text style={styles.cardName}>{tournament.name}</Text>
           <Text style={[styles.cardGame, { color: meta.color }]}>{meta.label}</Text>
         </View>
-        <Badge label={tournament.status} color={statusColor(tournament.status)} />
+        <Badge label={tournament.status} color={statusColor(tournament.status, Colors)} />
       </View>
 
       <View style={styles.cardStats}>
@@ -134,6 +139,8 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
 }
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -142,11 +149,11 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   );
 }
 
-function statusColor(status: string) {
+function statusColor(status: string, Colors: ReturnType<typeof useColors>) {
   return { ACTIVE: Colors.accent, UPCOMING: Colors.primary, COMPLETED: Colors.textMuted }[status] ?? Colors.textMuted;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
