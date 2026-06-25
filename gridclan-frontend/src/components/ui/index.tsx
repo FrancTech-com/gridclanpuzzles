@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator, StyleSheet, Text, TextInput,
   TextInputProps, TouchableOpacity, TouchableOpacityProps, View, ViewStyle,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Font, Radius, Shadow, Spacing } from '@theme/index';
 
 // ── Button ─────────────────────────────────────────────────────────────────
@@ -59,16 +60,33 @@ interface InputProps extends TextInputProps {
   error?:  string;
 }
 
-export function Input({ label, error, style, ...props }: InputProps) {
+export function Input({ label, error, style, secureTextEntry, ...props }: InputProps) {
+  const isPassword = !!secureTextEntry;
+  const [hidden, setHidden] = useState(true);
+
   return (
     <View style={styles.inputWrapper}>
       {label && <Text style={styles.inputLabel}>{label}</Text>}
-      <TextInput
-        style={[styles.input, error ? styles.inputError : null, style as any]}
-        placeholderTextColor={Colors.textMuted}
-        selectionColor={Colors.primary}
-        {...props}
-      />
+      <View style={styles.inputRow}>
+        <TextInput
+          style={[styles.input, isPassword && styles.inputWithIcon, error ? styles.inputError : null, style as any]}
+          placeholderTextColor={Colors.textMuted}
+          selectionColor={Colors.primary}
+          secureTextEntry={isPassword ? hidden : secureTextEntry}
+          {...props}
+        />
+        {isPassword && (
+          <TouchableOpacity
+            style={styles.eyeBtn}
+            onPress={() => setHidden(h => !h)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+          >
+            <Ionicons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
       {error && <Text style={styles.inputErrorText}>{error}</Text>}
     </View>
   );
@@ -159,6 +177,9 @@ const styles = StyleSheet.create({
     borderWidth:     1,
     borderColor:     Colors.border,
   },
+  inputRow:       { position: 'relative', justifyContent: 'center' },
+  inputWithIcon:  { paddingRight: Spacing.xl + Spacing.md },
+  eyeBtn:         { position: 'absolute', right: Spacing.md, top: 0, bottom: 0, justifyContent: 'center' },
   inputError:     { borderColor: Colors.error },
   inputErrorText: { color: Colors.error, fontSize: Font.size.xs, marginTop: 4 },
 
