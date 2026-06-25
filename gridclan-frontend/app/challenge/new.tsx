@@ -4,7 +4,8 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { challengeApi } from '@api/index';
 import { Button, Card, Input } from '@components/ui/index';
-import { Colors, Font, GameMeta, Spacing } from '@theme/index';
+import { Font, GameMeta, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { GameType } from '@gridtypes/index';
 
 /**
@@ -12,6 +13,8 @@ import type { GameType } from '@gridtypes/index';
  * your round, then share the code), or enter a friend's code to join theirs.
  */
 export default function NewChallengeScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ gameType?: string }>();
   const gameType = (params.gameType as GameType) || 'GRID_LOCKDOWN';
@@ -82,7 +85,7 @@ export default function NewChallengeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   intro:     { color: Colors.textSecondary, fontSize: Font.size.md, lineHeight: 22, marginBottom: Spacing.lg },

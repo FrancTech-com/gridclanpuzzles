@@ -8,14 +8,16 @@ import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
 import { giftGemsThunk } from '@store/slices/gemsSlice';
 import { Button, Input, Card } from '@components/ui/index';
-import { Colors, Font, Spacing } from '@theme/index';
-
+import { Font, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 /**
  * Gift gems to a friend. A gift is NOT a sale — no money is involved, and
  * gems can never be converted to cash. Server enforces a daily gift cap,
  * blocks self-gifting, and validates the recipient.
  */
 export default function GiftGemsScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const balance = useSelector((s: RootState) => s.gems.balance);
@@ -89,7 +91,7 @@ export default function GiftGemsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   flex:     { flex: 1, backgroundColor: Colors.bg },
   scroll:   { padding: Spacing.lg },
   card:     { padding: Spacing.lg },

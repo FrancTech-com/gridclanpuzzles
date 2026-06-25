@@ -8,10 +8,13 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '@store/index';
 import { chatClient } from '@websocket/chatClient';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { ChatMessage } from '@gridtypes/index';
 
 export default function ChatScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { id: communityId } = useLocalSearchParams<{ id: string }>();
   const userId  = useSelector((s: RootState) => s.auth.userId);
@@ -108,7 +111,7 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   flex:      { flex: 1 },
 

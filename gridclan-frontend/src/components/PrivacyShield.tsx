@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AppState, AppStateStatus, StyleSheet, Text, View } from 'react-native';
-import { Colors, Font } from '@theme/index';
-
+import { Font } from '@theme/index';
+import { useColors } from '@theme/theme';
 /**
  * Covers sensitive content while the app is backgrounded so balances and
  * profile details never appear in the OS app-switcher snapshot
@@ -15,6 +15,8 @@ import { Colors, Font } from '@theme/index';
  *   <PrivacyShield><ScrollView>…</ScrollView></PrivacyShield>
  */
 export function PrivacyShield({ children }: { children: React.ReactNode }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export function PrivacyShield({ children }: { children: React.ReactNode }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   fill: { flex: 1 },
   cover: {
     ...StyleSheet.absoluteFillObject,

@@ -3,8 +3,8 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@components/ui/index';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
-
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 /**
  * Full-screen prompt shown to guests on registration-gated tabs
  * (community, tournaments, gems, profile).
@@ -15,6 +15,8 @@ export function RegisterGate({ icon, title, subtitle }: {
   subtitle: string;
 }) {
   const { t } = useTranslation();
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.gate}>
       <Text style={styles.gateIcon}>{icon}</Text>
@@ -36,6 +38,8 @@ export function RegisterGate({ icon, title, subtitle }: {
 
 /** Inline banner nudging a guest to register (e.g. after the solo trial limit). */
 export function RegisterBanner({ message }: { message: string }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   return (
     <View style={styles.banner}>
@@ -49,7 +53,7 @@ export function RegisterBanner({ message }: { message: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   gate: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     padding: Spacing.xl, backgroundColor: Colors.bg,

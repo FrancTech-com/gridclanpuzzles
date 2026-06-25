@@ -6,7 +6,8 @@ import { router, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { tournamentApi, communityApi } from '@api/index';
 import { Button, Card, Input } from '@components/ui/index';
-import { Colors, Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { Community, GameType } from '@gridtypes/index';
 
 const GAME_ORDER: GameType[] = ['GRID_LOCKDOWN', 'SUM_CIPHER', 'LINKED_RUSH'];
@@ -20,6 +21,8 @@ const DURATIONS: { key: string; hours: number }[] = [
 ];
 
 export default function CreateTournamentScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
 
   const [name, setName]             = useState('');
@@ -166,7 +169,7 @@ export default function CreateTournamentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
   card:      { padding: Spacing.md },

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { LinkedRushBoard as Board, RushMove } from '@gridtypes/index';
 
 // On web, show a pointer cursor on reachable nodes (no-op type on native).
@@ -15,6 +16,8 @@ function nodePosition(index: number, total: number, radius: number, cx: number, 
 }
 
 export function LinkedRushBoard({ board, onMove, disabled }: Props) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const cx = 150, cy = 150, r = 110;
   const nodeSize = 40;
 
@@ -89,7 +92,7 @@ export function LinkedRushBoard({ board, onMove, disabled }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { alignItems: 'center', gap: Spacing.md },
   label:     { color: Colors.textSecondary, fontSize: Font.size.md, fontWeight: Font.weight.semi },
 
