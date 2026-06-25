@@ -51,6 +51,10 @@ export default function HomeScreen() {
       {/* Bouncing emblem hero */}
       <BouncingEmblem size={76} style={styles.heroEmblem} />
 
+      <TouchableOpacity onPress={() => router.push('/how-to-play')} hitSlop={8} style={styles.howToLink}>
+        <Text style={styles.howToText}>ⓘ {t('howToPlay.link', 'How to play')}</Text>
+      </TouchableOpacity>
+
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTitleWrap}>
@@ -136,7 +140,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
 
-  heroEmblem: { alignSelf: 'center', marginBottom: Spacing.md },
+  heroEmblem: { alignSelf: 'center', marginBottom: Spacing.sm },
+
+  howToLink: { alignSelf: 'center', marginBottom: Spacing.md },
+  howToText: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.medium },
 
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.lg },
   headerTitleWrap: { flex: 1 },
