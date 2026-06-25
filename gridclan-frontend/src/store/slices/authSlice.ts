@@ -1,6 +1,7 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { getItem, setItem, deleteItem } from '@utils/secureStorage';
 import { authApi } from '@api/auth';
+import { apiErrorMessage } from '@api/errors';
 import type { AuthResponse, LoginRequest, RegisterRequest } from '@gridtypes/index';
 
 interface AuthState {
@@ -29,7 +30,7 @@ export const loginThunk = createAsyncThunk(
       await saveTokens(res.data);
       return res.data;
     } catch (e: any) {
-      return rejectWithValue(e.response?.data?.message ?? 'Login failed');
+      return rejectWithValue(apiErrorMessage(e, 'Login failed'));
     }
   }
 );
@@ -42,7 +43,7 @@ export const registerThunk = createAsyncThunk(
       await saveTokens(res.data);
       return res.data;
     } catch (e: any) {
-      return rejectWithValue(e.response?.data?.message ?? 'Registration failed');
+      return rejectWithValue(apiErrorMessage(e, 'Registration failed'));
     }
   }
 );
