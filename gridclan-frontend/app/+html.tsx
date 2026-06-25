@@ -30,7 +30,7 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="canonical" href="https://gridclanpuzzle.win/" />
 
         {/* Favicons — GridClan shield emblem */}
-        <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+        <link rel="icon" type="image/png" sizes="any" href="/favicon.png" />
         <link rel="apple-touch-icon" href="/icon-512.png" />
 
         {/* PWA — installable, offline-capable */}
