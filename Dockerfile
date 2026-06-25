@@ -43,13 +43,15 @@ USER gridclan
 # Expose app port
 EXPOSE 8080
 
-# Health check — Docker monitors this directly
+# Health check — Docker monitors this directly. Probe the actual listen port
+# ($PORT on PaaS like Railway; 8080 locally) — hardcoding 8080 fails on Railway.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+  CMD wget -qO- "http://localhost:${PORT:-8080}/actuator/health" || exit 1
 
-# JVM startup flags
-ENV JAVA_OPTS="-Xms256m -Xmx512m \
-  -XX:+UseContainerSupport \
+# JVM startup flags. Heap is sized from the container memory limit via
+# MaxRAMPercentage — do NOT also set -Xmx (it overrides the percentage and can
+# exceed a small container, causing OOM kills / restart loops).
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
   -XX:MaxRAMPercentage=75.0 \
   -Djava.security.egd=file:/dev/./urandom \
   -Dspring.profiles.active=prod"
