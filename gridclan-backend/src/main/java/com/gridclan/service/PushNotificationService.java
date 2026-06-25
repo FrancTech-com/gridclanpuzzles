@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Firebase Cloud Messaging (FCM) push notification service.
@@ -73,6 +74,16 @@ public class PushNotificationService {
             "Account reinstated",
             "Your GridClan Puzzles account is active again. Welcome back!",
             Map.of("type", "ACCOUNT_REINSTATED"));
+    }
+
+    /** It's the player's turn in a Grid Scrabble game. */
+    @Async
+    public void notifyScrabbleTurn(String deviceToken, UUID gameId) {
+        if (!isValid(deviceToken)) return;
+        send(deviceToken,
+            "Your turn!",
+            "Your friend played — make your move in Grid Scrabble.",
+            Map.of("type", "SCRABBLE_TURN", "gameId", String.valueOf(gameId)));
     }
 
     // ── Internal send ─────────────────────────────────────────────────────
