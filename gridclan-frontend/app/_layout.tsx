@@ -14,7 +14,6 @@ import { WebContainer } from '@components/ui/WebContainer';
 import { installGlobalErrorHandlers } from '@services/errorReporter';
 import { startActivityTracker, stopActivityTracker } from '@services/activityTracker';
 import { installDeepLinkValidation, warnIfDeviceRooted } from '@services/deviceSecurity';
-import { initOneSignal, setOneSignalUser, clearOneSignalUser } from '@services/onesignal';
 import { loadPersistedLanguage } from '@i18n/index'; // also runs i18next init before first render
 
 SplashScreen.preventAutoHideAsync();
@@ -46,17 +45,14 @@ function RootNavigator() {
     dispatch(hydrateAuth()).finally(() => SplashScreen.hideAsync());
     loadPersistedLanguage();                    // user's language choice, if any
     warnIfDeviceRooted();                       // soft warning, never blocks
-    initOneSignal();                            // web push (no-op until configured)
     return installDeepLinkValidation();
   }, []);
 
-  // Start/stop activity tracker + OneSignal identity on auth change
+  // Start/stop activity tracker whenever authentication state changes
   useEffect(() => {
     const wasLoggedIn = prevUserIdRef.current !== null;
     const isLoggedIn  = userId !== null;
     prevUserIdRef.current = userId;
-
-    if (userId) setOneSignalUser(userId); else clearOneSignalUser();
 
     if (isLoggedIn && !wasLoggedIn) {
       startActivityTracker();

@@ -89,10 +89,6 @@ if ('serviceWorker' in navigator) {
           }) }}
         />
 
-        {/* OneSignal Web Push SDK (push notifications). Inert until init() runs
-            with a configured app id (see src/services/onesignal.ts). */}
-        <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer />
-
         {/* Resets RN ScrollView quirks on web. */}
         <ScrollViewStyleReset />
 

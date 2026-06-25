@@ -3,6 +3,7 @@ package com.gridclan.service;
 import com.gridclan.entity.ScrabbleGame;
 import com.gridclan.gridscrabble.*;
 import com.gridclan.repository.ScrabbleGameRepository;
+import com.gridclan.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -30,7 +31,8 @@ public class ScrabbleGameService {
     private static final SecureRandom RANDOM  = new SecureRandom();
 
     private final ScrabbleGameRepository repo;
-    private final OneSignalService oneSignal;
+    private final UserRepository userRepo;
+    private final PushNotificationService push;
 
     // Dictionary loaded once (≈359k words). Lazy so startup isn't blocked.
     private volatile WordList dict;
@@ -190,13 +192,12 @@ public class ScrabbleGameService {
         return out;
     }
 
-    /** Best-effort "your turn" push via OneSignal (targets the user's external id). No-op until configured. */
+    /** Best-effort "your turn" push to the given player (no-op without a device token / FCM). */
     private void notifyTurn(UUID userId, UUID gameId) {
         if (userId == null) return;
-        oneSignal.notifyUser(userId, "Your turn!",
-            "Your friend played — make your move in Grid Scrabble.",
-            Map.of("type", "SCRABBLE_TURN", "gameId", gameId.toString(),
-                   "url", "https://gridclanpuzzle.win/scrabble/" + gameId));
+        try {
+            userRepo.findById(userId).ifPresent(u -> push.notifyScrabbleTurn(u.getDeviceToken(), gameId));
+        } catch (Exception ignored) { /* notifications are never fatal */ }
     }
 
     private void finish(ScrabbleGame g) {
