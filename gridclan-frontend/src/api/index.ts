@@ -134,6 +134,31 @@ export const tournamentApi = {
     apiClient.get<PlayerRank>(`/tournament/${id}/rank`),
 };
 
+// ── Challenges (async friend matches) ───────────────────────────────────────
+export interface ChallengeView {
+  code:          string;
+  gameType:      GameType;
+  status:        'PENDING' | 'COMPLETE';
+  role:          'CREATOR' | 'OPPONENT' | 'VIEWER';
+  hasOpponent:   boolean;
+  yourScore:     number | null;
+  theirScore:    number | null;
+  yourSessionId: string | null;
+  expiresAt:     string;
+  outcome?:      'WON' | 'LOST' | 'TIE';
+}
+
+export const challengeApi = {
+  create: (gameType: GameType) =>
+    apiClient.post<{ code: string; sessionId: string; gameType: GameType }>('/challenge', { gameType }),
+
+  get: (code: string) =>
+    apiClient.get<ChallengeView>(`/challenge/${code}`),
+
+  accept: (code: string) =>
+    apiClient.post<{ sessionId: string; gameType: GameType }>(`/challenge/${code}/accept`),
+};
+
 // ── Presence / activity ────────────────────────────────────────────────────
 export const presenceApi = {
   heartbeat: () =>
