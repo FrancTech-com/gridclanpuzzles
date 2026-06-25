@@ -46,6 +46,11 @@ export default function HomeScreen() {
       router.push('/(tabs)/tournament');
       return;
     }
+    // Friend play is an async challenge — pick the game, create/share a code.
+    if (selectedTier === 'FRIEND') {
+      router.push(`/challenge/new?gameType=${selectedGame}`);
+      return;
+    }
     const result = await dispatch(startSessionThunk({ gameType: selectedGame, tier: selectedTier }));
     if (startSessionThunk.fulfilled.match(result)) {
       router.push(`/game/${result.payload.sessionId}`);

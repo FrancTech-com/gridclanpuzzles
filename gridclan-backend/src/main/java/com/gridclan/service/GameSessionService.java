@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -93,6 +94,32 @@ public class GameSessionService {
         log.info("Session started: userId={} type={} tier={} hints={}",
             userId, req.getGameType(), req.getTier(), session.isHintsAllowed());
 
+        return SessionStartResponse.from(session);
+    }
+
+    /**
+     * Start a session on a CALLER-SUPPLIED board (used by async friend
+     * challenges so both players solve the identical puzzle). The board still
+     * comes from the server — never the client — so the trust model holds.
+     * Always FRIEND tier with hints enabled; scoring is unchanged.
+     */
+    @Transactional
+    public SessionStartResponse startWithBoard(UUID userId, GameType gameType,
+                                               Map<String, Object> board) {
+        ActiveSession session = ActiveSession.builder()
+            .id(UUID.randomUUID())
+            .userId(userId)
+            .gameType(gameType)
+            .tier(GameTier.FRIEND)
+            .boardState(board)
+            .status(SessionStatus.ACTIVE)
+            .hintsAllowed(true)
+            .startedAt(Instant.now())
+            .lastMoveAt(Instant.now())
+            .build();
+
+        sessionRepo.save(session);
+        log.info("Challenge session started: userId={} type={}", userId, gameType);
         return SessionStartResponse.from(session);
     }
 
