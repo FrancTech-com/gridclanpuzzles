@@ -4,14 +4,16 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useTranslation } from 'react-i18next';
 import { challengeApi, type ChallengeView } from '@api/index';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
-import { Colors, Font, GameMeta, Radius, Spacing } from '@theme/index';
-
+import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 /**
  * Challenge hub: shows status, lets the current user play their round, and
  * reveals both scores + the winner once everyone has finished. Re-fetches on
  * focus so returning from a finished game updates the result automatically.
  */
 export default function ChallengeHubScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { code } = useLocalSearchParams<{ code: string }>();
 
@@ -156,6 +158,8 @@ export default function ChallengeHubScreen() {
 
 
 function Score({ label, value, highlight }: { label: string; value: number | null; highlight?: boolean }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return (
     <View style={styles.score}>
       <Text style={styles.scoreLabel}>{label}</Text>
@@ -164,7 +168,7 @@ function Score({ label, value, highlight }: { label: string; value: number | nul
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg },
   center:    { flex: 1, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },

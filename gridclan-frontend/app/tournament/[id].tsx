@@ -7,11 +7,14 @@ import { AppDispatch } from '@store/index';
 import { startSessionThunk } from '@store/slices/gameSlice';
 import { tournamentApi } from '@api/index';
 import { Badge, Card, LoadingSpinner } from '@components/ui/index';
-import { Colors, Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { LeaderboardEntry, Tournament } from '@gridtypes/index';
 
 export default function TournamentDetailScreen() {
   const { t } = useTranslation();
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { id }    = useLocalSearchParams<{ id: string }>();
   const dispatch  = useDispatch<AppDispatch>();
 
@@ -128,6 +131,8 @@ export default function TournamentDetailScreen() {
 }
 
 function StatBlock({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  const Colors = useColors();
+  const statStyles = React.useMemo(() => makeStatStyles(Colors), [Colors]);
   return (
     <View style={statStyles.block}>
       <Text style={statStyles.label}>{label}</Text>
@@ -136,13 +141,13 @@ function StatBlock({ label, value, highlight }: { label: string; value: string; 
   );
 }
 
-const statStyles = StyleSheet.create({
+const makeStatStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   block: { flex: 1, alignItems: 'center', gap: 2 },
   label: { color: Colors.textMuted,    fontSize: Font.size.xs },
   value: { color: Colors.textPrimary,  fontSize: Font.size.md, fontWeight: Font.weight.semi, textAlign: 'center' },
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl },
 

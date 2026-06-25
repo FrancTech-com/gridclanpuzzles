@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { SumCipherBoard as Board, SumMove } from '@gridtypes/index';
 
 // On web, show a pointer cursor on interactive cells (no-op type on native).
@@ -11,6 +12,8 @@ const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 interface SumProps { board: Board; onMove: (move: SumMove) => void; disabled: boolean; }
 
 export function SumCipherBoard({ board, onMove, disabled }: SumProps) {
+  const Colors = useColors();
+  const sumStyles = React.useMemo(() => makeSumStyles(Colors), [Colors]);
   const [selected, setSelected] = useState<number | null>(null);
 
   const handleCell = (idx: number) => {
@@ -102,7 +105,7 @@ export function SumCipherBoard({ board, onMove, disabled }: SumProps) {
   );
 }
 
-const sumStyles = StyleSheet.create({
+const makeSumStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { alignItems: 'center', gap: Spacing.lg },
   grid:      { flexDirection: 'row', flexWrap: 'wrap', width: 240, gap: 4 },
   cell: {

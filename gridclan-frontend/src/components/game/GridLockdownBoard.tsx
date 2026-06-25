@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors, Radius, Spacing } from '@theme/index';
+import { Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { GridLockdownBoard as Board, GridMove } from '@gridtypes/index';
 
 // On web, show a pointer cursor on interactive cells (no-op type on native).
@@ -15,6 +16,8 @@ interface Props {
 }
 
 export function GridLockdownBoard({ board, onMove, disabled }: Props) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const [selected, setSelected] = React.useState<{ x: number; y: number } | null>(null);
 
   const handleTap = useCallback((x: number, y: number) => {
@@ -84,7 +87,7 @@ export function GridLockdownBoard({ board, onMove, disabled }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { alignItems: 'center', gap: Spacing.lg },
 
   targetSection: { alignItems: 'center', gap: Spacing.xs },

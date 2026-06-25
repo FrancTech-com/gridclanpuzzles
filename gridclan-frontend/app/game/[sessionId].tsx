@@ -17,10 +17,13 @@ import { Button, LoadingSpinner } from '@components/ui/index';
 import { GridLockdownBoard }  from '@components/game/GridLockdownBoard';
 import { SumCipherBoard }    from '@components/game/SumCipherBoard';
 import { LinkedRushBoard }   from '@components/game/LinkedRushBoard';
-import { Colors, Font, Spacing, GameMeta } from '@theme/index';
+import { Font, Spacing, GameMeta } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { GridMove, RushMove, SumMove } from '@gridtypes/index';
 
 export default function GameScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const dispatch      = useDispatch<AppDispatch>();
@@ -167,7 +170,7 @@ export default function GameScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
 
   header: {
