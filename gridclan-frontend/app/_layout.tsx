@@ -8,7 +8,7 @@ import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { store, persistor, RootState, AppDispatch } from '@store/index';
 import { hydrateAuth } from '@store/slices/authSlice';
-import { Colors } from '@theme/index';
+import { ThemeProvider, useTheme } from '@theme/theme';
 import { ErrorBoundary } from '@components/ErrorBoundary';
 import { WebContainer } from '@components/ui/WebContainer';
 import { installGlobalErrorHandlers } from '@services/errorReporter';
@@ -39,6 +39,7 @@ function RootNavigator() {
   const dispatch = useDispatch<AppDispatch>();
   const userId   = useSelector((s: RootState) => s.auth.userId);
   const prevUserIdRef = useRef<string | null>(null);
+  const { scheme, colors } = useTheme();
 
   useEffect(() => {
     dispatch(hydrateAuth()).finally(() => SplashScreen.hideAsync());
@@ -66,9 +67,9 @@ function RootNavigator() {
 
   return (
     <ErrorBoundary>
-      <StatusBar style="light" backgroundColor={Colors.bg} />
+      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} backgroundColor={colors.bg} />
       <WebContainer>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg } }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           {/* Guests can browse (tabs); logged-in users skip the auth group. */}
           <Stack.Screen name="(auth)"  redirect={!!userId} />
           <Stack.Screen name="(tabs)" />
@@ -86,7 +87,9 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <PersistGate persistor={persistor}>
-        <RootNavigator />
+        <ThemeProvider>
+          <RootNavigator />
+        </ThemeProvider>
       </PersistGate>
     </Provider>
   );

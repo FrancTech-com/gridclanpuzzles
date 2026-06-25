@@ -9,9 +9,11 @@ import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
 import { loginThunk, clearError } from '@store/slices/authSlice';
 import { Button, Input } from '@components/ui/index';
-import { Colors, Font, Spacing, Radius } from '@theme/index';
-
+import { Font, Spacing, Radius } from '@theme/index';
+import { useColors } from '@theme/theme';
 export default function LoginScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((s: RootState) => s.auth);
@@ -87,7 +89,7 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   flex:   { flex: 1, backgroundColor: Colors.bg },
   scroll: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center' },
 

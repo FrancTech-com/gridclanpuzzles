@@ -5,7 +5,8 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '@store/index';
 import { Button, Card } from '@components/ui/index';
-import { Colors, Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { GameType } from '@gridtypes/index';
 
 const GAME_ORDER: GameType[] = ['GRID_LOCKDOWN', 'SUM_CIPHER', 'LINKED_RUSH'];
@@ -22,6 +23,8 @@ const MODES: { key: string; icon: string }[] = [
  * by guests (no auth) so newcomers can decide before registering.
  */
 export default function HowToPlayScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const isGuest = !useSelector((s: RootState) => s.auth.userId);
 
@@ -83,7 +86,7 @@ export default function HowToPlayScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingBottom: Spacing.xxl },
 

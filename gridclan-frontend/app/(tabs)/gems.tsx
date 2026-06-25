@@ -10,14 +10,16 @@ import { AppDispatch, RootState } from '@store/index';
 import { fetchGemBalanceThunk, fetchGemHistoryThunk } from '@store/slices/gemsSlice';
 import { Card, LoadingSpinner, EmptyState, Separator } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
-
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 /**
  * Gems tab — closed-loop in-game currency. Gems have no cash value and
  * cannot be withdrawn. They are earned by playing, gifted to friends, and
  * spent on revives, replays, hints, and cosmetics.
  */
 export default function GemsScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const userId = useSelector((s: RootState) => s.auth.userId);
@@ -103,10 +105,12 @@ export default function GemsScreen() {
 }
 
 function Stat({ label }: { label: string }) {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   return <Text style={styles.stat}>{label}</Text>;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg },
 

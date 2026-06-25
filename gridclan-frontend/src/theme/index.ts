@@ -1,7 +1,10 @@
 import { Platform } from 'react-native';
 
 // ── Palette ────────────────────────────────────────────────────────────────
-export const Colors = {
+// Two palettes with identical keys. `Colors` defaults to dark for back-compat
+// (any code reading Colors.* directly stays dark); themed screens read the
+// active palette via useColors() from '@theme/theme'.
+export const darkColors = {
   // Backgrounds — deep navy, matching the GridClan emblem
   bg:          '#07172e',   // App background — deep navy
   surface:     '#0e2440',   // Cards / sheets
@@ -39,7 +42,47 @@ export const Colors = {
   // Overlay
   overlay:     'rgba(3,9,20,0.65)',
   overlayLight: 'rgba(3,9,20,0.35)',
-} as const;
+};
+
+export type ThemeColors = typeof darkColors;
+
+// Light palette — light backgrounds, navy text, brand teal/gold darkened for
+// contrast on white. Same keys as darkColors.
+export const lightColors: ThemeColors = {
+  bg:          '#f4f7fb',
+  surface:     '#ffffff',
+  surfaceHigh: '#eaf1f8',
+  border:      '#d3e0ec',
+
+  primary:     '#1aa183',
+  primaryDim:  '#15866d',
+  accent:      '#bd962f',
+  accentDim:   '#9c7d28',
+
+  gridLockdown: '#e14b41',
+  sumCipher:    '#bd962f',
+  linkedRush:   '#1f93cf',
+
+  textPrimary:   '#0c2138',
+  textSecondary: '#3d5a78',
+  textMuted:     '#6c829a',
+
+  error:   '#d6453f',
+  warning: '#b98421',
+  success: '#1f9d74',
+  info:    '#1f93cf',
+
+  points:  '#bd962f',
+  ugx:     '#1f9d74',
+  kes:     '#1f93cf',
+  tzs:     '#cf7a2f',
+
+  overlay:     'rgba(12,33,56,0.45)',
+  overlayLight: 'rgba(12,33,56,0.2)',
+};
+
+// Back-compat default (dark). Prefer useColors() in themed components.
+export const Colors = darkColors;
 
 // ── Spacing ────────────────────────────────────────────────────────────────
 export const Spacing = {

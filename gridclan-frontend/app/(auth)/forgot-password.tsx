@@ -4,11 +4,13 @@ import { Link, router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { authApi } from '@api/auth';
 import { Button, Input } from '@components/ui/index';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
-
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 type Step = 'REQUEST' | 'VERIFY';
 
 export default function ForgotPasswordScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const [step,        setStep]        = useState<Step>('REQUEST');
   const [identifier,  setIdentifier]  = useState('');
@@ -88,7 +90,7 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   flex:     { flex: 1, backgroundColor: Colors.bg },
   scroll:   { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center' },
   logo:     { width: 84, height: 84, borderRadius: Radius.lg, alignSelf: 'center', marginBottom: Spacing.md },

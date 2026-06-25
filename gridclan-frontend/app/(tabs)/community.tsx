@@ -12,11 +12,14 @@ import { chatClient } from '@websocket/chatClient';
 import { RootState } from '@store/index';
 import { Button, Card, EmptyState, Input, LoadingSpinner } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
-import { Colors, Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
+import { useColors } from '@theme/theme';
 import type { ChatMessage, Community } from '@gridtypes/index';
 
 // ── Community list tab ─────────────────────────────────────────────────────
 export default function CommunityScreen() {
+  const Colors = useColors();
+  const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const userId = useSelector((s: RootState) => s.auth.userId);
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -123,7 +126,7 @@ export default function CommunityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
   content:   { padding: Spacing.lg, paddingTop: Spacing.xl + Spacing.lg },
 
