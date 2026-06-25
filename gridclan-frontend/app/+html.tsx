@@ -116,7 +116,10 @@ if ('serviceWorker' in navigator) {
 
 const backgroundCss = `
 html, body { background-color: #051124; }
-#root { display: flex; min-height: 100vh; }
+/* Use dynamic viewport height (dvh) so the bottom tab bar isn't hidden behind
+   mobile browser chrome (address bar / toolbar); 100vh is a fallback for
+   browsers without dvh support. On desktop the two are equivalent. */
+#root { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 /* ── Opening splash: emblem pieces assemble, then fade out ─────────────── */
 #gc-splash {
