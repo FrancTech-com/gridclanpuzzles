@@ -14,12 +14,10 @@ import { fetchGemBalanceThunk } from '@store/slices/gemsSlice';
 const HINT_COST_GEMS = 10;
 const REVIVE_COST_GEMS = 20;
 import { Button, LoadingSpinner } from '@components/ui/index';
-import { GridLockdownBoard }  from '@components/game/GridLockdownBoard';
-import { SumCipherBoard }    from '@components/game/SumCipherBoard';
-import { LinkedRushBoard }   from '@components/game/LinkedRushBoard';
+import { WordSearchBoard } from '@components/game/WordSearchBoard';
 import { Font, Spacing, GameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
-import type { GridMove, RushMove, SumMove } from '@gridtypes/index';
+import type { WordSearchMove } from '@gridtypes/index';
 
 export default function GameScreen() {
   const Colors = useColors();
@@ -53,7 +51,7 @@ export default function GameScreen() {
     }
   }, [status]);
 
-  const handleMove = useCallback((move: GridMove | SumMove | RushMove) => {
+  const handleMove = useCallback((move: WordSearchMove) => {
     if (!sessionId || isMoveLoading) return;
     dispatch(submitMoveThunk({
       sessionId,
@@ -140,14 +138,8 @@ export default function GameScreen() {
 
       {/* Game board — server-authoritative display only */}
       <View style={styles.boardContainer}>
-        {session.gameType === 'GRID_LOCKDOWN' && (
-          <GridLockdownBoard board={boardState as any} onMove={handleMove} disabled={isMoveLoading} />
-        )}
-        {session.gameType === 'SUM_CIPHER' && (
-          <SumCipherBoard board={boardState as any} onMove={handleMove} disabled={isMoveLoading} />
-        )}
-        {session.gameType === 'LINKED_RUSH' && (
-          <LinkedRushBoard board={boardState as any} onMove={handleMove} disabled={isMoveLoading} />
+        {session.gameType === 'WORD_SEARCH' && (
+          <WordSearchBoard board={boardState as any} onMove={handleMove} disabled={isMoveLoading} />
         )}
       </View>
 

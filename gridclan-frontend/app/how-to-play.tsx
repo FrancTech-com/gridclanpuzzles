@@ -9,12 +9,19 @@ import { Font, GameMeta, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { GameType } from '@gridtypes/index';
 
-const GAME_ORDER: GameType[] = ['GRID_LOCKDOWN', 'SUM_CIPHER', 'LINKED_RUSH'];
+const GAME_ORDER: GameType[] = ['WORD_SEARCH'];
 
 const MODES: { key: string; icon: string }[] = [
   { key: 'solo',       icon: '🎮' },
   { key: 'friend',     icon: '👥' },
   { key: 'tournament', icon: '🏆' },
+];
+
+// Real-time 2-player games (their own invite-and-play flows, live over WebSocket).
+const LIVE_GAMES: { key: string; icon: string; name: string; how: string }[] = [
+  { key: 'scrabble',   icon: '🔤', name: 'Grid Scrabble', how: 'Build words on a shared board, taking turns. Every move appears on your friend’s screen instantly.' },
+  { key: 'gomoku',     icon: '⚫', name: 'Grid Connect',     how: 'Take turns placing stones; first to line up five in a row — across, down, or diagonally — wins.' },
+  { key: 'battleship', icon: '🚢', name: 'Grid Battleships', how: 'Your fleet is hidden on a grid. Take turns firing at the enemy waters and sink every ship to win.' },
 ];
 
 /**
@@ -53,6 +60,18 @@ export default function HowToPlayScreen() {
           </Card>
         ))}
 
+        {/* Live 2-player games */}
+        <Text style={styles.sectionLabel}>{t('howToPlay.liveTitle', 'Play live with a friend')}</Text>
+        {LIVE_GAMES.map(g => (
+          <Card key={g.key} style={styles.modeCard}>
+            <Text style={styles.modeIcon}>{g.icon}</Text>
+            <View style={styles.modeText}>
+              <Text style={styles.cardTitle}>{t(`howToPlay.live.${g.key}.name`, g.name)}</Text>
+              <Text style={styles.cardBody}>{t(`howToPlay.live.${g.key}.how`, g.how)}</Text>
+            </View>
+          </Card>
+        ))}
+
         {/* Ways to play */}
         <Text style={styles.sectionLabel}>{t('howToPlay.modesTitle', 'Ways to play')}</Text>
         {MODES.map(m => (
@@ -65,9 +84,12 @@ export default function HowToPlayScreen() {
           </Card>
         ))}
 
-        {/* Points, gems, fair play */}
+        {/* Points, leaderboards, gems, fair play */}
         <Text style={styles.sectionLabel}>{t('howToPlay.scoringTitle', 'Points & scoring')}</Text>
         <Text style={styles.paragraph}>{t('howToPlay.scoring')}</Text>
+
+        <Text style={styles.sectionLabel}>{t('howToPlay.leaderboardTitle', 'Leaderboards')}</Text>
+        <Text style={styles.paragraph}>{t('howToPlay.leaderboard')}</Text>
 
         <Text style={styles.sectionLabel}>{t('howToPlay.gemsTitle', 'Gems')}</Text>
         <Text style={styles.paragraph}>{t('howToPlay.gems')}</Text>

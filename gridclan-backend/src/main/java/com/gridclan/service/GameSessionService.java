@@ -57,14 +57,8 @@ public class GameSessionService {
     @Value("${gridclan.gems.replay-cost:15}")
     private long replayCostGems;
 
-    @Value("${gridclan.gems.reward.grid-lockdown:5}")
-    private long rewardGridLockdown;
-
-    @Value("${gridclan.gems.reward.sum-cipher:4}")
-    private long rewardSumCipher;
-
-    @Value("${gridclan.gems.reward.linked-rush:3}")
-    private long rewardLinkedRush;
+    @Value("${gridclan.gems.reward.word-search:5}")
+    private long rewardWordSearch;
 
     // ── Start Session ──────────────────────────────────────────────────────
 
@@ -163,8 +157,9 @@ public class GameSessionService {
         if (newBoard.isSolved()) {
             session.setStatus(SessionStatus.COMPLETED);
             session.setCompletedAt(Instant.now());
-            // Points → leaderboard / progression only (no value).
-            pointsService.creditPoints(userId, newScore, "GAME_WIN", session.getId());
+            // Points → leaderboard / progression only (no value). Tagged
+            // WORD_SEARCH so it feeds the per-game leaderboard breakdown.
+            pointsService.creditGamePoints(userId, "WORD_SEARCH", newScore, "GAME_WIN", session.getId());
             // Gems → small in-game reward for solving the puzzle.
             gemService.creditGems(userId, gemRewardFor(session.getGameType()),
                 "GAME_REWARD", session.getId());
@@ -268,9 +263,7 @@ public class GameSessionService {
 
     private long gemRewardFor(GameType gameType) {
         return switch (gameType) {
-            case GRID_LOCKDOWN -> rewardGridLockdown;
-            case SUM_CIPHER    -> rewardSumCipher;
-            case LINKED_RUSH   -> rewardLinkedRush;
+            case WORD_SEARCH -> rewardWordSearch;
         };
     }
 }

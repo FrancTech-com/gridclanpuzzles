@@ -10,7 +10,7 @@ import { Font, GameMeta, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { Community, GameType } from '@gridtypes/index';
 
-const GAME_ORDER: GameType[] = ['GRID_LOCKDOWN', 'SUM_CIPHER', 'LINKED_RUSH'];
+const GAME_ORDER: GameType[] = ['WORD_SEARCH'];
 
 // Duration presets (hours) — avoids a native date-picker dependency and keeps
 // the flow one-tap. The tournament starts now and ends now + duration.
@@ -26,7 +26,7 @@ export default function CreateTournamentScreen() {
   const { t } = useTranslation();
 
   const [name, setName]             = useState('');
-  const [gameType, setGameType]     = useState<GameType>('GRID_LOCKDOWN');
+  const [gameType, setGameType]     = useState<GameType>('WORD_SEARCH');
   const [durationH, setDurationH]   = useState(24);
   const [maxPlayers, setMaxPlayers] = useState('');
   const [communityId, setCommunityId] = useState<string | undefined>(undefined);

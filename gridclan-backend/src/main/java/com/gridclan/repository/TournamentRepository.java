@@ -14,6 +14,9 @@ public interface TournamentRepository extends JpaRepository<Tournament, UUID> {
     // This method is required by TournamentController to find tournaments by status
     List<Tournament> findByStatus(String status);
 
+    /** Tournaments belonging to a community (newest first). */
+    List<Tournament> findByCommunityIdOrderByStartsAtDesc(UUID communityId);
+
     @Modifying
     @Query(value = "DELETE FROM tournament_participants WHERE user_id = :userId", nativeQuery = true)
     void removeParticipant(@Param("userId") UUID userId);

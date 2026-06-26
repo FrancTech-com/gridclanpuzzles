@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  FlatList, KeyboardAvoidingView, Platform, SafeAreaView,
+  FlatList, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -8,30 +8,50 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { RootState } from '@store/index';
 import { chatClient } from '@websocket/chatClient';
+import { communityApi, tournamentApi } from '@api/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
-import type { ChatMessage } from '@gridtypes/index';
+import type { ChatMessage, CommunityMemberInfo, Tournament } from '@gridtypes/index';
 
 export default function ChatScreen() {
   const Colors = useColors();
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
-  const { id: communityId } = useLocalSearchParams<{ id: string }>();
+  const { id: communityId, name } = useLocalSearchParams<{ id: string; name?: string }>();
   const userId  = useSelector((s: RootState) => s.auth.userId);
 
-  const [messages,   setMessages]   = useState<ChatMessage[]>([]);
-  const [text,       setText]       = useState('');
-  const [status,     setStatus]     = useState<'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR'>('CONNECTING');
+  const [messages,    setMessages]    = useState<ChatMessage[]>([]);
+  const [members,     setMembers]     = useState<CommunityMemberInfo[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [text,        setText]        = useState('');
+  const [status,      setStatus]      = useState<'CONNECTING' | 'CONNECTED' | 'DISCONNECTED' | 'ERROR'>('CONNECTING');
   const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
     if (!communityId) return;
-    chatClient.connect(
-      communityId,
-      msg => setMessages(prev => [...prev, msg]),
-      s   => setStatus(s === 'CONNECTED' ? 'CONNECTED' : s === 'ERROR' ? 'ERROR' : 'DISCONNECTED')
-    );
-    return () => chatClient.disconnect();
+
+    // Roster + community tournaments (independent of the chat socket).
+    communityApi.members(communityId).then(r => setMembers(r.data)).catch(() => {});
+    tournamentApi.byCommunity(communityId).then(r => setTournaments(r.data)).catch(() => {});
+
+    let cleanup = () => {};
+    let cancelled = false;
+    (async () => {
+      // Seed the saved history FIRST, then start streaming live messages on top.
+      try {
+        const r = await communityApi.messages(communityId);
+        if (!cancelled) setMessages(r.data);
+      } catch {}
+      if (cancelled) return;
+      chatClient.connect(
+        communityId,
+        msg => setMessages(prev => [...prev, msg]),
+        s   => setStatus(s === 'CONNECTED' ? 'CONNECTED' : s === 'ERROR' ? 'ERROR' : 'DISCONNECTED')
+      );
+      cleanup = () => chatClient.disconnect();
+    })();
+
+    return () => { cancelled = true; cleanup(); };
   }, [communityId]);
 
   function handleSend() {
@@ -50,9 +70,42 @@ export default function ChatScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{t('community.chatTitle')}</Text>
+        <Text style={styles.title} numberOfLines={1}>{name || t('community.chatTitle')}</Text>
         <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
       </View>
+
+      {/* Member roster */}
+      {members.length > 0 && (
+        <View style={styles.membersWrap}>
+          <Text style={styles.membersCount}>👥 {t('community.members', { count: members.length })}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.membersRow}>
+            {members.map(m => (
+              <View key={m.userId} style={styles.memberChip}>
+                <Text style={styles.memberName}>{m.displayName}</Text>
+                {m.role === 'OWNER' && <Text style={styles.memberOwner}>★</Text>}
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Community tournaments — join from here */}
+      {tournaments.length > 0 && (
+        <View style={styles.tournWrap}>
+          <Text style={styles.tournLabel}>🏆 {t('community.tournaments', 'Tournaments')}</Text>
+          {tournaments.map(tn => (
+            <View key={tn.id} style={styles.tournRow}>
+              <View style={styles.flex}>
+                <Text style={styles.tournName} numberOfLines={1}>{tn.name}</Text>
+                <Text style={styles.tournMeta}>{tn.status}</Text>
+              </View>
+              <TouchableOpacity style={styles.joinBtn} onPress={() => router.push(`/tournament/${tn.id}`)}>
+                <Text style={styles.joinBtnText}>{t('community.joinTournament', 'Join')}</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* Messages */}
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -120,6 +173,21 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   backText:  { color: Colors.primary, fontSize: Font.size.xl },
   title:     { flex: 1, color: Colors.textPrimary, fontWeight: Font.weight.bold, fontSize: Font.size.lg },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
+
+  membersWrap:  { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingBottom: Spacing.sm },
+  membersCount: { color: Colors.textSecondary, fontSize: Font.size.xs, fontWeight: Font.weight.semi, marginBottom: 6 },
+  membersRow:   { gap: Spacing.xs, paddingRight: Spacing.md },
+  memberChip:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderWidth: 1, borderColor: Colors.border },
+  memberName:   { color: Colors.textPrimary, fontSize: Font.size.xs, fontWeight: Font.weight.medium },
+  memberOwner:  { color: Colors.accent, fontSize: Font.size.xs },
+
+  tournWrap:  { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: Spacing.xs },
+  tournLabel: { color: Colors.textSecondary, fontSize: Font.size.xs, fontWeight: Font.weight.semi },
+  tournRow:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, padding: Spacing.sm, borderWidth: 1, borderColor: Colors.border },
+  tournName:  { color: Colors.textPrimary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  tournMeta:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: 2 },
+  joinBtn:    { backgroundColor: Colors.primary, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
+  joinBtnText:{ color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   messageList: { padding: Spacing.md, gap: Spacing.sm },
 

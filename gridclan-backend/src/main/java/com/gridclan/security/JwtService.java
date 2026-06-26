@@ -60,12 +60,13 @@ public class JwtService {
         this.refreshExpiryMs = refreshDays * 24 * 60 * 60 * 1000;
     }
 
-    public String generateAccessToken(UUID userId, String role) {
+    public String generateAccessToken(UUID userId, String role, int tokenVersion) {
         return Jwts.builder()
             .header().keyId(activeKid).and()
             .subject(userId.toString())
             .claim("role", role)
             .claim("type", "ACCESS")
+            .claim("tv", tokenVersion)   // session epoch — see JwtAuthFilter revocation check
             .issuedAt(Date.from(Instant.now()))
             .expiration(Date.from(Instant.now().plusMillis(accessExpiryMs)))
             .signWith(keysByKid.get(activeKid))

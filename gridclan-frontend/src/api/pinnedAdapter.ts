@@ -5,6 +5,7 @@ import {
   InternalAxiosRequestConfig,
 } from 'axios';
 import { NativeModules } from 'react-native';
+import Constants from 'expo-constants';
 
 /**
  * Certificate pinning (blueprint § SECURITY — FRONTEND).
@@ -32,6 +33,12 @@ type PinnedFetchResponse = {
 
 export function createPinnedAdapter(): AxiosAdapter | undefined {
   if (__DEV__) return undefined;
+  // OFF by default: pinning requires a matching cert bundled at build time
+  // (android/app/src/main/assets/gridclan-api.cer). Without it, every request
+  // would fail. Enable only after bundling current+next certs and a rotation
+  // plan — flip extra.sslPinningEnabled to true. Until then we use standard
+  // TLS (still HTTPS/WSS), so the app connects normally.
+  if (!Constants.expoConfig?.extra?.sslPinningEnabled) return undefined;
   if (!NativeModules.RNSslPinning) return undefined; // Expo Go / not prebuilt
 
   // Required lazily so importing this file never crashes in Expo Go.

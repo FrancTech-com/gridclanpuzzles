@@ -61,11 +61,11 @@ class GameSessionServiceTest {
     @Test
     @DisplayName("SOLO session: hintsAllowed = true (server hardcodes)")
     void startSession_solo_hintsAllowed() {
-        when(boardGenerator.generate(any())).thenReturn(Map.of("type", "GRID_LOCKDOWN"));
+        when(boardGenerator.generate(any())).thenReturn(Map.of("type", "WORD_SEARCH"));
         when(sessionRepo.save(any())).thenAnswer(i -> i.getArgument(0));
 
         var req = SessionStartRequest.builder()
-            .gameType(GameType.GRID_LOCKDOWN).tier(GameTier.SOLO).build();
+            .gameType(GameType.WORD_SEARCH).tier(GameTier.SOLO).build();
 
         var response = service.startSession(USER_ID, req);
 
@@ -76,12 +76,12 @@ class GameSessionServiceTest {
     @DisplayName("COMMUNITY_TOURNAMENT session: hintsAllowed = false (server hardcodes)")
     void startSession_tournament_hintsBlocked() {
         UUID tournamentId = UUID.randomUUID();
-        when(boardGenerator.generate(any())).thenReturn(Map.of("type", "SUM_CIPHER"));
+        when(boardGenerator.generate(any())).thenReturn(Map.of("type", "WORD_SEARCH"));
         when(sessionRepo.save(any())).thenAnswer(i -> i.getArgument(0));
         doNothing().when(tournamentService).validateEntry(any(), any());
 
         var req = SessionStartRequest.builder()
-            .gameType(GameType.SUM_CIPHER)
+            .gameType(GameType.WORD_SEARCH)
             .tier(GameTier.COMMUNITY_TOURNAMENT)
             .tournamentId(tournamentId)
             .build();
@@ -152,9 +152,9 @@ class GameSessionServiceTest {
         return ActiveSession.builder()
             .id(SESSION_ID)
             .userId(USER_ID)
-            .gameType(GameType.GRID_LOCKDOWN)
+            .gameType(GameType.WORD_SEARCH)
             .tier(tier)
-            .boardState(new HashMap<>(Map.of("type", "GRID_LOCKDOWN", "solved", false)))
+            .boardState(new HashMap<>(Map.of("type", "WORD_SEARCH", "solved", false)))
             .status(SessionStatus.ACTIVE)
             .hintsAllowed(tier != GameTier.COMMUNITY_TOURNAMENT)
             .startedAt(Instant.now().minusSeconds(30))

@@ -46,6 +46,9 @@ public class SecurityConfig {
                 // Legal documents must be public before login (blueprint:
                 // "privacy policy accessible at a public URL before app launch")
                 .requestMatchers("/legal/**").permitAll()
+                // Global leaderboard is public so the guest-browsable home can
+                // show the top-players panel (display name + score only, no PII)
+                .requestMatchers("/leaderboard/**").permitAll()
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )

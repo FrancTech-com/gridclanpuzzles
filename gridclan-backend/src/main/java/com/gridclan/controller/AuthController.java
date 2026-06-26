@@ -218,6 +218,9 @@ public class AuthController {
             UUID userId = (UUID) auth.getPrincipal();
             userRepo.findById(userId).ifPresent(user -> {
                 user.setRefreshTokenHash(null);
+                // Bump the session epoch so the access token already in flight (and any
+                // copy a thief may hold) is rejected immediately, not just after expiry.
+                user.setTokenVersion(user.getTokenVersion() + 1);
                 userRepo.save(user);
                 audit.record(userId, "USER_LOGOUT", null);
             });
@@ -228,7 +231,7 @@ public class AuthController {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private TokenPair issueTokens(User user) {
-        String access  = jwtService.generateAccessToken(user.getId(), user.getRole());
+        String access  = jwtService.generateAccessToken(user.getId(), user.getRole(), user.getTokenVersion());
         String refresh = jwtService.generateRefreshToken(user.getId());
         user.setRefreshTokenHash(encoder.encode(refresh));
         userRepo.save(user);

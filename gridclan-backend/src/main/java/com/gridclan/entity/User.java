@@ -80,6 +80,15 @@ public class User {
     @Column(name = "refresh_token_hash", length = 255)
     private String refreshTokenHash;
 
+    /**
+     * Session epoch. Embedded in every access token as the "tv" claim and checked
+     * on each request — bumping it (logout, password reset) instantly invalidates
+     * all outstanding access tokens, so a stolen/leaked token stops working.
+     */
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private int tokenVersion = 0;
+
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 

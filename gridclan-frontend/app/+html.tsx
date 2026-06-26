@@ -18,11 +18,11 @@ export default function Root({ children }: PropsWithChildren) {
         <title>GridClan Puzzles — Free Competitive Skill Puzzle Game</title>
         <meta
           name="description"
-          content="GridClan Puzzles is a free, competitive, skill-based puzzle game. Play Grid Lockdown, Sum Cipher and Linked Rush, climb the leaderboards and join communities — no pay-to-play, ever."
+          content="GridClan Puzzles is a free, competitive, skill-based puzzle game with four games — Word Search Grid, Grid Connect, Grid Battleships and Grid Scrabble. Challenge a friend in real time, climb the leaderboards and join communities. No pay-to-play, ever."
         />
         <meta
           name="keywords"
-          content="GridClan Puzzles, puzzle game, free puzzle game, competitive puzzles, skill game, Grid Lockdown, Sum Cipher, Linked Rush, brain games, online puzzles"
+          content="GridClan Puzzles, puzzle game, free puzzle game, competitive puzzles, skill game, Word Search Grid, Grid Connect, Grid Battleships, Grid Scrabble, word search, five in a row, gomoku, battleship, scrabble, play with friends, brain games, online puzzles"
         />
         <meta name="theme-color" content="#07172e" />
         <meta name="robots" content="index, follow" />
@@ -54,7 +54,7 @@ if ('serviceWorker' in navigator) {
         <meta property="og:title" content="GridClan Puzzles — Free Competitive Skill Puzzle Game" />
         <meta
           property="og:description"
-          content="Play free, competitive, skill-based puzzles — Grid Lockdown, Sum Cipher and Linked Rush. Climb the leaderboards. No pay-to-play, ever."
+          content="Play four free, skill-based games — Word Search Grid, Grid Connect, Grid Battleships and Grid Scrabble. Challenge a friend in real time. No pay-to-play, ever."
         />
         <meta property="og:url" content="https://gridclanpuzzle.win/" />
         <meta property="og:image" content="https://gridclanpuzzle.win/og-image.png" />
@@ -67,7 +67,7 @@ if ('serviceWorker' in navigator) {
         <meta name="twitter:title" content="GridClan Puzzles — Free Competitive Skill Puzzle Game" />
         <meta
           name="twitter:description"
-          content="Play free, competitive, skill-based puzzles — Grid Lockdown, Sum Cipher and Linked Rush. No pay-to-play, ever."
+          content="Play four free, skill-based games — Word Search Grid, Grid Connect, Grid Battleships and Grid Scrabble. Challenge a friend in real time. No pay-to-play, ever."
         />
         <meta name="twitter:image" content="https://gridclanpuzzle.win/og-image.png" />
 
@@ -81,9 +81,16 @@ if ('serviceWorker' in navigator) {
             url: 'https://gridclanpuzzle.win/',
             image: 'https://gridclanpuzzle.win/og-image.png',
             description:
-              'A free, competitive, skill-based puzzle game. Play Grid Lockdown, Sum Cipher and Linked Rush, climb the leaderboards and join communities.',
+              'A free, competitive, skill-based puzzle game with four games — Word Search Grid, Grid Connect, Grid Battleships and Grid Scrabble. Challenge a friend in real time, climb the leaderboards and join communities.',
+            gameItem: [
+              { '@type': 'Thing', name: 'Word Search Grid' },
+              { '@type': 'Thing', name: 'Grid Connect' },
+              { '@type': 'Thing', name: 'Grid Battleships' },
+              { '@type': 'Thing', name: 'Grid Scrabble' },
+            ],
             applicationCategory: 'GameApplication',
             genre: 'Puzzle',
+            playMode: 'MultiPlayer',
             operatingSystem: 'Android, iOS, Web',
             offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
           }) }}

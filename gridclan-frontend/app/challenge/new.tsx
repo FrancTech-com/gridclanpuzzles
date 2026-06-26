@@ -17,7 +17,7 @@ export default function NewChallengeScreen() {
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
   const params = useLocalSearchParams<{ gameType?: string }>();
-  const gameType = (params.gameType as GameType) || 'GRID_LOCKDOWN';
+  const gameType = (params.gameType as GameType) || 'WORD_SEARCH';
 
   const [creating, setCreating] = useState(false);
   const [code, setCode] = useState('');

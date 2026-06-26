@@ -18,9 +18,7 @@ export const darkColors = {
   accentDim:   '#c9a23f',
 
   // Game type colours
-  gridLockdown: '#ff6b6b',  // Red — Grid Lockdown
-  sumCipher:    '#e8c45a',  // Gold — Sum Cipher
-  linkedRush:   '#44ccff',  // Cyan — Linked Rush
+  wordSearch:  '#7c6dff',   // Violet — Word Search
 
   // Text
   textPrimary:   '#ffffff',
@@ -59,9 +57,7 @@ export const lightColors: ThemeColors = {
   accent:      '#bd962f',
   accentDim:   '#9c7d28',
 
-  gridLockdown: '#e14b41',
-  sumCipher:    '#bd962f',
-  linkedRush:   '#1f93cf',
+  wordSearch:  '#5a4ad1',
 
   textPrimary:   '#0c2138',
   textSecondary: '#3d5a78',
@@ -168,22 +164,10 @@ export const Duration = {
 
 // ── Game type metadata ─────────────────────────────────────────────────────
 export const GameMeta = {
-  GRID_LOCKDOWN: {
-    label:       'Grid Lockdown',
-    color:       Colors.gridLockdown,
-    description: 'Drag tiles to match the target pattern',
-    icon:        'grid',
-  },
-  SUM_CIPHER: {
-    label:       'Sum Cipher',
-    color:       Colors.sumCipher,
-    description: 'Fill cells so every group sums correctly',
-    icon:        'hash',
-  },
-  LINKED_RUSH: {
-    label:       'Linked Rush',
-    color:       Colors.linkedRush,
-    description: 'Chain all nodes without revisiting',
-    icon:        'git-branch',
+  WORD_SEARCH: {
+    label:       'Word Search Grid',
+    color:       Colors.wordSearch,
+    description: 'Find every hidden word against the clock',
+    icon:        'search',
   },
 } as const;

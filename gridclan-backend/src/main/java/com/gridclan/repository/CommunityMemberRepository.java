@@ -18,6 +18,8 @@ public interface CommunityMemberRepository extends JpaRepository<CommunityMember
     @Query("SELECT m.userId FROM CommunityMember m WHERE m.communityId = :cid AND m.isActive = true")
     List<UUID> findActiveMemberIds(@Param("cid") UUID communityId, Pageable pageable);
 
+    List<CommunityMember> findByCommunityIdAndIsActiveTrueOrderByJoinedAtAsc(UUID communityId);
+
     @Query("SELECT c FROM CommunityMember c WHERE c.communityId = :cid AND c.userId = :uid")
 Optional<CommunityMember> findByCommunityIdAndUserId(@Param("cid") UUID communityId, @Param("uid") UUID userId);
 

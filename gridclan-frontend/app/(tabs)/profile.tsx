@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Linking, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View,
+  Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import Constants from 'expo-constants';
 import { AppDispatch, RootState } from '@store/index';
 import { logoutThunk } from '@store/slices/authSlice';
-import { profileApi, privacyApi } from '@api/index';
+import { profileApi } from '@api/index';
+import { confirm } from '@utils/confirm';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '@i18n/index';
 import { Button, Card, Input, LoadingSpinner, Separator } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
@@ -31,7 +32,6 @@ export default function ProfileScreen() {
   const [editing,    setEditing]    = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [saving,     setSaving]     = useState(false);
-  const [exporting,  setExporting]  = useState(false);
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
@@ -53,86 +53,34 @@ export default function ProfileScreen() {
   }
 
   async function handleLogout() {
-    Alert.alert(t('profile.signOutConfirm'), '', [
-      { text: t('common.cancel'), style: 'cancel' },
-      { text: t('auth.logout'), style: 'destructive', onPress: () => dispatch(logoutThunk()) },
-    ]);
-  }
-
-  // GDPR Art. 15/20 — hand the user their data as machine-readable JSON
-  async function handleExportData() {
-    setExporting(true);
-    try {
-      const res = await privacyApi.exportData();
-      await Share.share({
-        title: 'gridclan-data-export.json',
-        message: JSON.stringify(res.data, null, 2),
-      });
-    } catch (e: any) {
-      Alert.alert(t('common.error'), e.response?.data?.message ?? t('errors.server'));
-    } finally {
-      setExporting(false);
-    }
+    const ok = await confirm({
+      title:        t('profile.signOutConfirm'),
+      confirmLabel: t('auth.logout'),
+      cancelLabel:  t('common.cancel'),
+      destructive:  true,
+    });
+    if (ok) dispatch(logoutThunk());
   }
 
   function handlePrivacyPolicy() {
     Linking.openURL(`${API_BASE_URL}/legal/privacy-policy.html`);
   }
 
-  function handleDoNotSell() {
-    Alert.alert(t('settings.doNotSell'), t('privacy.doNotSellExplain'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.confirm'),
-        onPress: async () => {
-          try {
-            await privacyApi.doNotSell();
-            Alert.alert(t('privacy.doNotSellRecorded'));
-          } catch {
-            Alert.alert(t('common.error'), t('errors.server'));
-          }
-        },
-      },
-    ]);
-  }
-
-  function handleWithdrawConsent() {
-    Alert.alert(t('settings.withdrawConsent'), t('privacy.withdrawConsentExplain'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('common.confirm'),
-        onPress: async () => {
-          try {
-            await privacyApi.withdrawConsent();
-            Alert.alert(t('privacy.consentWithdrawn'));
-          } catch {
-            Alert.alert(t('common.error'), t('errors.server'));
-          }
-        },
-      },
-    ]);
-  }
-
   async function handleDeleteAccount() {
-    Alert.alert(
-      t('settings.deleteAccount'),
-      t('profile.deleteWarning'),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('profile.deleteConfirmBtn'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await profileApi.deleteAccount();
-              dispatch(logoutThunk());
-            } catch (e: any) {
-              Alert.alert(t('common.error'), e.response?.data?.message ?? t('errors.server'));
-            }
-          },
-        },
-      ]
-    );
+    const ok = await confirm({
+      title:        t('settings.deleteAccount'),
+      message:      t('profile.deleteWarning'),
+      confirmLabel: t('profile.deleteConfirmBtn'),
+      cancelLabel:  t('common.cancel'),
+      destructive:  true,
+    });
+    if (!ok) return;
+    try {
+      await profileApi.deleteAccount();
+      dispatch(logoutThunk());
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e.response?.data?.message ?? t('errors.server'));
+    }
   }
 
   if (!userId) return (
@@ -213,16 +161,10 @@ export default function ProfileScreen() {
         ))}
       </View>
 
-      {/* Privacy & data (GDPR / CCPA — blueprint § GLOBAL PRIVACY LAWS) */}
+      {/* Privacy */}
       <Text style={styles.sectionLabel}>{t('settings.privacyAndData')}</Text>
-      <Button title={t('settings.exportData')} variant="secondary"
-        onPress={handleExportData} loading={exporting} style={styles.actionBtn} />
       <Button title={t('settings.privacyPolicy')} variant="secondary"
         onPress={handlePrivacyPolicy} style={styles.actionBtn} />
-      <Button title={t('settings.doNotSell')} variant="secondary"
-        onPress={handleDoNotSell} style={styles.actionBtn} />
-      <Button title={t('settings.withdrawConsent')} variant="secondary"
-        onPress={handleWithdrawConsent} style={styles.actionBtn} />
 
       <Separator />
 

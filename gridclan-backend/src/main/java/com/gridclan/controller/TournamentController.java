@@ -41,7 +41,18 @@ public class TournamentController {
     @GetMapping
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<List<Map<String, Object>>> listTournaments(
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) UUID communityId) {
+
+        // Scoped to a community: show its UPCOMING + ACTIVE tournaments so members can join.
+        if (communityId != null) {
+            List<Tournament> ofCommunity = tournamentRepo
+                .findByCommunityIdOrderByStartsAtDesc(communityId).stream()
+                .filter(t -> !"COMPLETED".equalsIgnoreCase(t.getStatus()))
+                .toList();
+            return ResponseEntity.ok(ofCommunity.stream().map(this::toSummary).toList());
+        }
+
         List<Tournament> tournaments = status != null
             ? tournamentRepo.findByStatus(status.toUpperCase())
             : tournamentRepo.findByStatus("ACTIVE");

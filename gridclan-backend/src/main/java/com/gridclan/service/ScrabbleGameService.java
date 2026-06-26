@@ -3,10 +3,10 @@ package com.gridclan.service;
 import com.gridclan.entity.ScrabbleGame;
 import com.gridclan.gridscrabble.*;
 import com.gridclan.repository.ScrabbleGameRepository;
-import com.gridclan.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -31,8 +31,8 @@ public class ScrabbleGameService {
     private static final SecureRandom RANDOM  = new SecureRandom();
 
     private final ScrabbleGameRepository repo;
-    private final UserRepository userRepo;
-    private final PushNotificationService push;
+    private final SimpMessagingTemplate messaging;
+    private final PlayerPointsService    pointsService;
 
     // Dictionary loaded once (≈359k words). Lazy so startup isn't blocked.
     private volatile WordList dict;
@@ -80,7 +80,7 @@ public class ScrabbleGameService {
             g.setStatus("ACTIVE");
             repo.save(g);
             log.info("Scrabble game joined: code={} opponent={}", code, userId);
-            notifyTurn(g.getPlayer1Id(), g.getId());   // creator moves first
+            broadcast(g);   // tell the creator (live) that the game has started — their turn
         }
         return view(userId, g);
     }
@@ -119,7 +119,7 @@ public class ScrabbleGameService {
         else g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
 
         repo.save(g);
-        if ("ACTIVE".equals(g.getStatus())) notifyTurn(me == 1 ? g.getPlayer2Id() : g.getPlayer1Id(), g.getId());
+        broadcast(g);   // opponent's device updates live (or both see the game complete)
         return view(userId, g);
     }
 
@@ -132,7 +132,7 @@ public class ScrabbleGameService {
         if (g.getPassStreak() >= 4) finish(g);          // both players passed twice
         else g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
         repo.save(g);
-        if ("ACTIVE".equals(g.getStatus())) notifyTurn(me == 1 ? g.getPlayer2Id() : g.getPlayer1Id(), g.getId());
+        broadcast(g);
         return view(userId, g);
     }
 
@@ -157,6 +157,7 @@ public class ScrabbleGameService {
         g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
         g.setLastMoveAt(Instant.now());
         repo.save(g);
+        broadcast(g);
         return view(userId, g);
     }
 
@@ -192,12 +193,21 @@ public class ScrabbleGameService {
         return out;
     }
 
-    /** Best-effort "your turn" push to the given player (no-op without a device token / FCM). */
-    private void notifyTurn(UUID userId, UUID gameId) {
-        if (userId == null) return;
+    /**
+     * Push a lightweight "state changed" ping to both players over WebSocket so their clients
+     * re-fetch their own (rack-filtered) view. Carries no secret state — just enough to know
+     * something changed and whose turn it is. Never fatal: a dropped ping just means the other
+     * client refreshes on its next focus/poll.
+     */
+    private void broadcast(ScrabbleGame g) {
         try {
-            userRepo.findById(userId).ifPresent(u -> push.notifyScrabbleTurn(u.getDeviceToken(), gameId));
-        } catch (Exception ignored) { /* notifications are never fatal */ }
+            messaging.convertAndSend("/topic/scrabble/" + g.getId(), Map.of(
+                "gameId",        g.getId().toString(),
+                "status",        g.getStatus(),
+                "currentPlayer", g.getCurrentPlayer(),
+                "version",       g.getLastMoveAt().toEpochMilli()
+            ));
+        } catch (Exception ignored) { /* live updates are never fatal */ }
     }
 
     private void finish(ScrabbleGame g) {
@@ -205,6 +215,12 @@ public class ScrabbleGameService {
         if (g.getScore1() > g.getScore2())      g.setWinnerId(g.getPlayer1Id());
         else if (g.getScore2() > g.getScore1()) g.setWinnerId(g.getPlayer2Id());
         else g.setWinnerId(null); // tie
+
+        // Native scoring: each player banks the word points they earned this game
+        // (creditGamePoints no-ops on a 0 score). Feeds the SCRABBLE leaderboard.
+        pointsService.creditGamePoints(g.getPlayer1Id(), "SCRABBLE", g.getScore1(), "GAME_WIN", g.getId());
+        if (g.getPlayer2Id() != null)
+            pointsService.creditGamePoints(g.getPlayer2Id(), "SCRABBLE", g.getScore2(), "GAME_WIN", g.getId());
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -7,8 +7,9 @@ import type {
   GemBalance, GemTransaction, GiftGemsRequest,
   GameType,
   UserProfile,
-  Community,
+  Community, CommunityMemberInfo, ChatMessage,
   Tournament, LeaderboardEntry, PlayerRank,
+  GlobalLeaderboardEntry, GameLeaderboardEntry, GameKey,
 } from '@gridtypes/index';
 
 // ── Game ───────────────────────────────────────────────────────────────────
@@ -38,6 +39,16 @@ export const pointsApi = {
 
   getHistory: (limit = 50) =>
     apiClient.get<LedgerEntry[]>(`/user/points/history?limit=${limit}`),
+
+  /** Combined leaderboard — ranked by total points, with per-game breakdown. */
+  getGlobalLeaderboard: (limit = 10) =>
+    apiClient.get<{ leaderboard: GlobalLeaderboardEntry[] }>(
+      `/leaderboard/global?limit=${limit}`),
+
+  /** Single-game leaderboard — ranked by that game's points. */
+  getGameLeaderboard: (game: GameKey, limit = 10) =>
+    apiClient.get<{ leaderboard: GameLeaderboardEntry[]; game: string }>(
+      `/leaderboard/global?limit=${limit}&game=${game}`),
 };
 
 // ── Gems (closed-loop in-game currency — no real-world value, no cashout) ────
@@ -75,21 +86,6 @@ export const profileApi = {
     apiClient.post('/user/delete-account'),
 };
 
-// ── Privacy (GDPR / CCPA) ──────────────────────────────────────────────────
-export const privacyApi = {
-  /** GDPR Art. 15/20 — all personal data as machine-readable JSON. */
-  exportData: () =>
-    apiClient.get<Record<string, unknown>>('/user/data-export'),
-
-  /** GDPR Art. 7(3) — stops marketing emails immediately. */
-  withdrawConsent: () =>
-    apiClient.post('/user/consent/withdraw'),
-
-  /** CCPA — records the do-not-sell preference. */
-  doNotSell: () =>
-    apiClient.post('/user/privacy/do-not-sell'),
-};
-
 // ── Community ──────────────────────────────────────────────────────────────
 export const communityApi = {
   list: (page = 0, size = 20) =>
@@ -103,12 +99,21 @@ export const communityApi = {
 
   leave: (communityId: string) =>
     apiClient.delete(`/community/${communityId}/leave`),
+
+  members: (communityId: string) =>
+    apiClient.get<CommunityMemberInfo[]>(`/community/${communityId}/members`),
+
+  messages: (communityId: string) =>
+    apiClient.get<ChatMessage[]>(`/community/${communityId}/messages`),
 };
 
 // ── Tournament ─────────────────────────────────────────────────────────────
 export const tournamentApi = {
   list: (status?: string) =>
     apiClient.get<Tournament[]>(`/tournament${status ? `?status=${status}` : ''}`),
+
+  byCommunity: (communityId: string) =>
+    apiClient.get<Tournament[]>(`/tournament?communityId=${communityId}`),
 
   create: (payload: {
     name: string;
@@ -160,6 +165,47 @@ export const scrabbleApi = {
   pass:   (id: string)   => apiClient.post<ScrabbleView>(`/scrabble/${id}/pass`),
   exchange: (id: string, tiles: string) =>
             apiClient.post<ScrabbleView>(`/scrabble/${id}/exchange`, { tiles }),
+};
+
+// ── Gomoku (real-time five-in-a-row) ────────────────────────────────────────
+export interface GomokuView {
+  gameId:      string;
+  inviteCode:  string;
+  status:      'WAITING_FOR_OPPONENT' | 'ACTIVE' | 'COMPLETE';
+  board:       string[];   // 15 rows; '.'=empty, '1'/'2'=stones
+  yourStone:   number;     // 1 or 2 (0 = spectator)
+  yourTurn:    boolean;
+  hasOpponent: boolean;
+  outcome?:    'WON' | 'LOST' | 'TIE';
+}
+
+export const gomokuApi = {
+  create: () => apiClient.post<GomokuView>('/gomoku'),
+  join:   (code: string) => apiClient.post<GomokuView>(`/gomoku/${code}/join`),
+  get:    (id: string)   => apiClient.get<GomokuView>(`/gomoku/${id}`),
+  move:   (id: string, row: number, col: number) =>
+            apiClient.post<GomokuView>(`/gomoku/${id}/move`, { row, col }),
+};
+
+// ── Battleship (real-time) ──────────────────────────────────────────────────
+export interface BattleshipView {
+  gameId:        string;
+  inviteCode:    string;
+  status:        'WAITING_FOR_OPPONENT' | 'ACTIVE' | 'COMPLETE';
+  yourBoard:     string[];   // your waters: '.'=water 'S'=ship 'O'=miss 'X'=hit
+  trackingBoard: string[];   // your shots on the enemy: '.'=unknown 'O'=miss 'X'=hit
+  yourTurn:      boolean;
+  hasOpponent:   boolean;
+  lastShot?:     'HIT' | 'MISS' | 'SUNK' | 'WIN';
+  outcome?:      'WON' | 'LOST' | 'TIE';
+}
+
+export const battleshipApi = {
+  create: () => apiClient.post<BattleshipView>('/battleship'),
+  join:   (code: string) => apiClient.post<BattleshipView>(`/battleship/${code}/join`),
+  get:    (id: string)   => apiClient.get<BattleshipView>(`/battleship/${id}`),
+  move:   (id: string, row: number, col: number) =>
+            apiClient.post<BattleshipView>(`/battleship/${id}/move`, { row, col }),
 };
 
 // ── Challenges (async friend matches) ───────────────────────────────────────
