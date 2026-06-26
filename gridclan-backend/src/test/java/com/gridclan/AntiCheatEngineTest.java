@@ -22,136 +22,71 @@ class AntiCheatEngineTest {
     @Mock FlaggedEventRepository flagRepo;
     @InjectMocks AntiCheatEngine engine;
 
+    // A tiny board with HUG hidden across the top row (left→right).
+    private Map<String, Object> board() {
+        return Map.of(
+            "type",  "WORD_SEARCH",
+            "rows",  3, "cols", 3,
+            "grid",  List.of("HUG", "XYZ", "QQQ"),
+            "words", List.of("HUG"),
+            "found", List.of()
+        );
+    }
+
     // ── Speed gate ───────────────────────────────────────────────────────
 
-    @Test @DisplayName("GRID_LOCKDOWN: 50ms move → SPEED_VIOLATION")
-    void gridLockdown_speedViolation() {
+    @Test @DisplayName("WORD_SEARCH: 50ms move → SPEED_VIOLATION")
+    void wordSearch_speedViolation() {
         when(flagRepo.save(any())).thenReturn(null);
-        assertThatThrownBy(() -> engine.validateMoveSpeed(GameType.GRID_LOCKDOWN, 50L))
+        assertThatThrownBy(() -> engine.validateMoveSpeed(GameType.WORD_SEARCH, 50L))
             .isInstanceOf(CheatDetectedException.class)
             .hasMessageContaining("SPEED_VIOLATION");
     }
 
-    @Test @DisplayName("SUM_CIPHER: 399ms move → SPEED_VIOLATION (min 400ms)")
-    void sumCipher_speedViolation() {
-        when(flagRepo.save(any())).thenReturn(null);
-        assertThatThrownBy(() -> engine.validateMoveSpeed(GameType.SUM_CIPHER, 399L))
-            .isInstanceOf(CheatDetectedException.class);
-    }
-
-    @Test @DisplayName("LINKED_RUSH: 200ms move → valid (exactly on threshold)")
-    void linkedRush_exactThreshold_valid() {
-        assertThatCode(() -> engine.validateMoveSpeed(GameType.LINKED_RUSH, 200L))
+    @Test @DisplayName("WORD_SEARCH: 250ms move → valid (exactly on threshold)")
+    void wordSearch_exactThreshold_valid() {
+        assertThatCode(() -> engine.validateMoveSpeed(GameType.WORD_SEARCH, 250L))
             .doesNotThrowAnyException();
     }
 
-    @Test @DisplayName("GRID_LOCKDOWN: 300ms move → valid")
-    void gridLockdown_validSpeed() {
-        assertThatCode(() -> engine.validateMoveSpeed(GameType.GRID_LOCKDOWN, 300L))
-            .doesNotThrowAnyException();
-    }
+    // ── Logic gate — structural legality only ─────────────────────────────
 
-    // ── Logic gate — GridLockdown ─────────────────────────────────────────
-
-    @Test @DisplayName("GridLockdown: diagonal move → IMPOSSIBLE_MOVE")
-    void gridLockdown_diagonalMove_rejected() {
+    @Test @DisplayName("WORD_SEARCH: out-of-bounds selection → IMPOSSIBLE_MOVE")
+    void wordSearch_outOfBounds_rejected() {
         when(flagRepo.save(any())).thenReturn(null);
-
-        var board = Map.of(
-            "grid", List.of(
-                List.of(1, 0, 0),
-                List.of(0, 0, 0),
-                List.of(0, 0, 0)
-            ),
-            "targetPattern", List.of(List.of(0,0,0), List.of(0,1,0), List.of(0,0,0))
-        );
-        var move = Map.of("fromX", 0, "fromY", 0, "toX", 1, "toY", 1);  // diagonal
+        var move = Map.of("fromRow", 0, "fromCol", 0, "toRow", 0, "toCol", 9);  // col 9 off-grid
 
         assertThatThrownBy(() -> engine.validateMoveLogic(
-            GameType.GRID_LOCKDOWN, board, move, null, null))
+            GameType.WORD_SEARCH, board(), move, null, null))
             .isInstanceOf(CheatDetectedException.class)
             .hasMessageContaining("IMPOSSIBLE_MOVE");
     }
 
-    @Test @DisplayName("GridLockdown: valid orthogonal move → passes")
-    void gridLockdown_orthogonalMove_valid() {
-        var board = Map.of(
-            "grid", List.of(
-                List.of(1, 0, 0),
-                List.of(0, 0, 0),
-                List.of(0, 0, 0)
-            ),
-            "targetPattern", List.of(List.of(0,1,0), List.of(0,0,0), List.of(0,0,0))
-        );
-        var move = Map.of("fromX", 0, "fromY", 0, "toX", 1, "toY", 0);  // right
+    @Test @DisplayName("WORD_SEARCH: non-straight (knight) selection → IMPOSSIBLE_MOVE")
+    void wordSearch_nonStraightLine_rejected() {
+        when(flagRepo.save(any())).thenReturn(null);
+        var move = Map.of("fromRow", 0, "fromCol", 0, "toRow", 2, "toCol", 1);  // not H/V/diagonal
+
+        assertThatThrownBy(() -> engine.validateMoveLogic(
+            GameType.WORD_SEARCH, board(), move, null, null))
+            .isInstanceOf(CheatDetectedException.class);
+    }
+
+    @Test @DisplayName("WORD_SEARCH: a straight line selection → passes (word check happens later)")
+    void wordSearch_straightLine_passes() {
+        var move = Map.of("fromRow", 0, "fromCol", 0, "toRow", 0, "toCol", 2);  // top row
 
         assertThatCode(() -> engine.validateMoveLogic(
-            GameType.GRID_LOCKDOWN, board, move, null, null))
+            GameType.WORD_SEARCH, board(), move, null, null))
             .doesNotThrowAnyException();
     }
 
-    // ── Logic gate — SumCipher ────────────────────────────────────────────
-
-    @Test @DisplayName("SumCipher: digit that exceeds group target → IMPOSSIBLE_MOVE")
-    void sumCipher_digitExceedsTarget_rejected() {
-        when(flagRepo.save(any())).thenReturn(null);
-
-        var board = Map.of(
-            "cells",      List.of(0, 5, 4),
-            "groups",     List.of(List.of(0, 1, 2)),
-            "targetSums", List.of(10)
-        );
-        // Placing 9 → sum=18, exceeds target 10
-        var move = Map.of("cellIndex", 0, "digit", 9);
-
-        assertThatThrownBy(() -> engine.validateMoveLogic(
-            GameType.SUM_CIPHER, board, move, null, null))
-            .isInstanceOf(CheatDetectedException.class);
-    }
-
-    @Test @DisplayName("SumCipher: valid digit placement → passes")
-    void sumCipher_validDigit_passes() {
-        var board = Map.of(
-            "cells",      List.of(0, 3, 2),
-            "groups",     List.of(List.of(0, 1, 2)),
-            "targetSums", List.of(10)
-        );
-        var move = Map.of("cellIndex", 0, "digit", 5);  // 5+3+2=10 ✓
+    @Test @DisplayName("WORD_SEARCH: a wrong straight-line guess is NOT a cheat")
+    void wordSearch_wrongGuess_notCheating() {
+        var move = Map.of("fromRow", 1, "fromCol", 0, "toRow", 1, "toCol", 2);  // "XYZ" — not a word
 
         assertThatCode(() -> engine.validateMoveLogic(
-            GameType.SUM_CIPHER, board, move, null, null))
+            GameType.WORD_SEARCH, board(), move, null, null))
             .doesNotThrowAnyException();
-    }
-
-    // ── Logic gate — LinkedRush ───────────────────────────────────────────
-
-    @Test @DisplayName("LinkedRush: move to non-adjacent node → IMPOSSIBLE_MOVE")
-    void linkedRush_nonAdjacentNode_rejected() {
-        when(flagRepo.save(any())).thenReturn(null);
-
-        var board = Map.of(
-            "adjacency",    Map.of("0", List.of(1, 2), "1", List.of(0)),
-            "visitedNodes", List.of(0)
-        );
-        var move = Map.of("fromNode", 0, "toNode", 7);  // 7 not adjacent to 0
-
-        assertThatThrownBy(() -> engine.validateMoveLogic(
-            GameType.LINKED_RUSH, board, move, null, null))
-            .isInstanceOf(CheatDetectedException.class);
-    }
-
-    @Test @DisplayName("LinkedRush: move to already-visited node → IMPOSSIBLE_MOVE")
-    void linkedRush_visitedNode_rejected() {
-        when(flagRepo.save(any())).thenReturn(null);
-
-        var board = Map.of(
-            "adjacency",    Map.of("0", List.of(1, 2)),
-            "visitedNodes", List.of(0, 1)   // node 1 already visited
-        );
-        var move = Map.of("fromNode", 0, "toNode", 1);
-
-        assertThatThrownBy(() -> engine.validateMoveLogic(
-            GameType.LINKED_RUSH, board, move, null, null))
-            .isInstanceOf(CheatDetectedException.class);
     }
 }

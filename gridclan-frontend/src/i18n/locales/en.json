@@ -83,6 +83,7 @@
     "registerToPlay": "Register to play",
     "choosePuzzle": "Choose your puzzle",
     "gameType": "Game type",
+    "liveGames": "Play live with a friend",
     "mode": "Mode",
     "tierSolo": "Solo",
     "tierSoloDesc": "Play alone, earn points & gems",
@@ -90,7 +91,15 @@
     "tierFriendDesc": "Invite a friend",
     "tierTournament": "Tournament",
     "tierTournamentDesc": "No hints — compete for gem rewards",
-    "noHintsTournament": "Hints are disabled in tournaments"
+    "noHintsTournament": "Hints are disabled in tournaments",
+    "topPlayers": "Top players",
+    "leaderboardEmpty": "No ranked players yet — be the first!",
+    "leaderboardPoints": "{{points}} pts",
+    "lbAll": "All",
+    "lbWordSearch": "Word Search",
+    "lbScrabble": "Scrabble",
+    "lbGomoku": "Connect",
+    "lbBattleship": "Battleships"
   },
   "game": {
     "start": "Start game",
@@ -186,6 +195,8 @@
   },
   "community": {
     "new": "New",
+    "tournaments": "Tournaments",
+    "joinTournament": "Join",
     "createTitle": "Create community",
     "name": "Name",
     "descriptionOptional": "Description (optional)",
@@ -241,20 +252,27 @@
   "howToPlay": {
     "title": "How to Play",
     "link": "How to play",
-    "intro": "GridClan Puzzles is a free, skill-based puzzle game. Solve puzzles to earn points and gems. Points are a pure measure of skill — they have no cash value and can never be withdrawn.",
+    "intro": "GridClan Puzzles is a free, skill-based puzzle game with four games. Play to earn points and gems, and climb the leaderboards. Points are a pure measure of skill — they have no cash value and can never be withdrawn.",
     "gamesTitle": "The puzzles",
     "games": {
-      "GRID_LOCKDOWN": {
-        "name": "Grid Lockdown",
-        "how": "Drag tiles to rearrange the grid until it matches the target pattern. Solve it in fewer moves and less time for a higher score."
+      "WORD_SEARCH": {
+        "name": "Word Search Grid",
+        "how": "A grid hides words running across, down, and diagonally — forwards or backwards. Tap the first and last letter of each word to mark it. Find them all, faster and with fewer mistakes, for a higher score."
+      }
+    },
+    "liveTitle": "Play live with a friend",
+    "live": {
+      "scrabble": {
+        "name": "Grid Scrabble",
+        "how": "Build words on a shared board, taking turns. Every move appears on your friend’s screen instantly. You score the points of the words you make."
       },
-      "SUM_CIPHER": {
-        "name": "Sum Cipher",
-        "how": "Fill the empty cells with numbers so every row and group adds up to its target sum. Each number has to fit all the sums around it."
+      "gomoku": {
+        "name": "Grid Connect",
+        "how": "Take turns placing stones; first to line up five in a row — across, down, or diagonally — wins. Win quickly for a bigger points bonus."
       },
-      "LINKED_RUSH": {
-        "name": "Linked Rush",
-        "how": "Draw one continuous path that links every node exactly once, without crossing your line or revisiting a node."
+      "battleship": {
+        "name": "Grid Battleships",
+        "how": "Your fleet is hidden on a grid. Take turns firing at the enemy waters and sink every ship to win. Win with more ships afloat for a bigger bonus."
       }
     },
     "modesTitle": "Ways to play",
@@ -273,9 +291,11 @@
       }
     },
     "scoringTitle": "Points & scoring",
-    "scoring": "The server scores every move you make, so results are always fair. Points reflect your skill only — there is no money, no pay-to-win, and no cashing out, ever.",
+    "scoring": "All four games earn you points, scored on the server so results are always fair. Each game scores in its own way — word value in Scrabble, finding speed in Word Search, and a win bonus in Connect and Battleships. Points reflect your skill only: no money, no pay-to-win, and no cashing out, ever.",
+    "leaderboardTitle": "Leaderboards",
+    "leaderboard": "Your points place you on the global leaderboard. Climb the overall ranking — the sum of all four games — or filter by a single game to see who tops it. Top players show on the home screen.",
     "gemsTitle": "Gems",
-    "gems": "Gems are an in-game extra you earn by playing or watching optional ads. Spend them on hints, revives and replays, or gift them to friends. Gems have no real-world value and can’t be bought or exchanged for money.",
+    "gems": "Gems are an in-game extra you earn by playing or watching optional ads. In solo and friend games you can spend them on hints, revives and replays, or gift them to friends. Gems have no real-world value and can’t be bought or exchanged for money.",
     "fairTitle": "Fair play",
     "fair": "The game server is the referee. Moves that are impossible or impossibly fast are rejected, so everyone competes on a level field.",
     "ctaGuest": "Create an account to play",
@@ -319,7 +339,7 @@
     "title": "Grid Scrabble",
     "homeTitle": "Grid Scrabble",
     "homeDesc": "Build words with a friend on a shared board, turn by turn.",
-    "intro": "Build words on a shared board with a friend, taking turns. Play anytime — they get notified when it’s their move.",
+    "intro": "Build words on a shared board with a friend, taking turns. Every move appears on their screen in real time.",
     "startTitle": "Start a game",
     "startBody": "We’ll deal your tiles and give you a code to share with a friend.",
     "createCta": "Start & invite a friend",
@@ -348,5 +368,62 @@
     "youWon": "You won!",
     "youLost": "You lost",
     "tie": "Tie"
+  },
+  "gomoku": {
+    "title": "Grid Connect",
+    "homeTitle": "Grid Connect",
+    "homeDesc": "Race a friend to line up five stones in a row.",
+    "intro": "Take turns placing stones. First to line up five in a row — across, down, or diagonally — wins. Your friend sees every move in real time.",
+    "startTitle": "Start a game",
+    "startBody": "You play first. We’ll give you a code to share with a friend.",
+    "createCta": "Start & invite a friend",
+    "createFailed": "Could not start a game. Please try again.",
+    "joinTitle": "Have a code?",
+    "codePlaceholder": "Enter game code",
+    "joinCta": "Join game",
+    "joinFailed": "Could not join that game. Check the code.",
+    "notFound": "Game not found.",
+    "yourTurn": "Your turn",
+    "theirTurn": "Their turn",
+    "waitingOpponent": "Waiting for a friend to join",
+    "sharePrompt": "Share this code so a friend can join:",
+    "shareCta": "Share code",
+    "shareMessage": "Play Grid Connect with me! Code: {{code}}",
+    "copied": "Code copied",
+    "invalidMove": "Invalid move",
+    "notYourTurn": "Wait for your friend to play.",
+    "youWon": "You won!",
+    "youLost": "You lost",
+    "tie": "Draw"
+  },
+  "battleship": {
+    "title": "Grid Battleships",
+    "homeTitle": "Grid Battleships",
+    "homeDesc": "Hunt and sink your friend’s hidden fleet.",
+    "intro": "Your fleet is hidden on a 10×10 grid. Take turns firing at the enemy waters — sink every ship to win. Hits and misses sync to both players instantly.",
+    "startTitle": "Start a game",
+    "startBody": "We’ll place your fleet and give you a code to share with a friend.",
+    "createCta": "Start & invite a friend",
+    "createFailed": "Could not start a game. Please try again.",
+    "joinTitle": "Have a code?",
+    "codePlaceholder": "Enter game code",
+    "joinCta": "Join game",
+    "joinFailed": "Could not join that game. Check the code.",
+    "notFound": "Game not found.",
+    "yourTurn": "Your turn — fire!",
+    "theirTurn": "Their turn",
+    "waitingOpponent": "Waiting for a friend to join",
+    "sharePrompt": "Share this code so a friend can join:",
+    "shareCta": "Share code",
+    "shareMessage": "Play Grid Battleships with me! Code: {{code}}",
+    "copied": "Code copied",
+    "invalidMove": "Invalid move",
+    "enemyWaters": "Enemy waters",
+    "yourFleet": "Your fleet",
+    "sunk": "💥 You sank a ship!",
+    "win": "🏆 You sank the whole fleet — you win!",
+    "youWon": "You won!",
+    "youLost": "You lost",
+    "tie": "Draw"
   }
 }

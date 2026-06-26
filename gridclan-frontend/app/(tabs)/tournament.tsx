@@ -78,9 +78,11 @@ export default function TournamentScreen() {
       {tournaments.length === 0 ? (
         <EmptyState icon="🏆" title={t('tournament.noneInState')} subtitle={t('tournament.checkBack')} />
       ) : (
-        tournaments.map(t => (
+        <View style={styles.tournGrid}>
+        {tournaments.map(t => (
           <TournamentCard key={t.id} tournament={t} />
-        ))
+        ))}
+        </View>
       )}
     </ScrollView>
   );
@@ -167,7 +169,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   tabText:     { color: Colors.textMuted, fontSize: Font.size.sm, fontWeight: Font.weight.medium },
   tabTextActive: { color: Colors.textPrimary },
 
-  card:       { marginBottom: Spacing.md, overflow: 'hidden' },
+  tournGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+  card:       { flexGrow: 1, flexBasis: 340, minWidth: 300, overflow: 'hidden' },
   cardAccent: { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: Spacing.xs, marginBottom: Spacing.md },
   cardTitles: { flex: 1 },

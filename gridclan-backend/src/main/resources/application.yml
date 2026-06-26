@@ -119,8 +119,8 @@ gridclan:
       v1: ${JWT_SECRET}
       v2: ${JWT_SECRET_V2:} # staged next rotation; blank = ignored
       v3: ${JWT_SECRET_V3:}
-    access-token-expiry-minutes: 15
-    refresh-token-expiry-days: 30
+    access-token-expiry-minutes: 5    # short window — a stolen access token dies fast (client auto-refreshes)
+    refresh-token-expiry-days: 7      # rotated + hashed + reuse-detected; re-login weekly if idle
   # ── Gems (closed-loop in-game currency; no real-world value, no cashout) ──
   gems:
     daily-gift-limit: 500 # max gems a user can gift per day (abuse guard)
@@ -129,9 +129,7 @@ gridclan:
     revive-cost: 20 # gems to revive a failed solo/casual game
     replay-cost: 15 # gems to replay a game with a friend
     reward: # gems awarded per solved puzzle, by game type
-      grid-lockdown: 5
-      sum-cipher: 4
-      linked-rush: 3
+      word-search: 5
   mail:
     from: noreply@gridclanpuzzle.win
     from-name: GridClan Puzzles

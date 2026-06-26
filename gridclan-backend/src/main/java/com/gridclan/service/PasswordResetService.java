@@ -95,7 +95,8 @@ public class PasswordResetService {
 
         // Update password + force logout of all sessions
         user.setPasswordHash(encoder.encode(newPassword));
-        user.setRefreshTokenHash(null);   // Invalidate all active sessions
+        user.setRefreshTokenHash(null);                      // kill refresh tokens
+        user.setTokenVersion(user.getTokenVersion() + 1);    // kill outstanding access tokens too
         user.setFailedLoginCount(0);
         user.setLockoutUntil(null);
         userRepo.save(user);

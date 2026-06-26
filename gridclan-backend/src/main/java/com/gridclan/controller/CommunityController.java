@@ -2,8 +2,12 @@ package com.gridclan.controller;
 
 import com.gridclan.entity.Community;
 import com.gridclan.entity.CommunityMember;
+import com.gridclan.entity.CommunityMessage;
+import com.gridclan.entity.User;
 import com.gridclan.repository.CommunityMemberRepository;
+import com.gridclan.repository.CommunityMessageRepository;
 import com.gridclan.repository.CommunityRepository;
+import com.gridclan.repository.UserRepository;
 import com.gridclan.service.AuditLogService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -19,12 +23,14 @@ import org.springframework.web.bind.annotation.*;
 
 import org.springframework.data.domain.PageRequest;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Community management endpoints.
@@ -38,9 +44,11 @@ import java.util.UUID;
 @Slf4j
 public class CommunityController {
 
-    private final CommunityRepository       communityRepo;
-    private final CommunityMemberRepository memberRepo;
-    private final AuditLogService           audit;
+    private final CommunityRepository        communityRepo;
+    private final CommunityMemberRepository  memberRepo;
+    private final CommunityMessageRepository messageRepo;
+    private final UserRepository             userRepo;
+    private final AuditLogService            audit;
 
     // ── List communities ──────────────────────────────────────────────────
 
@@ -160,6 +168,61 @@ public class CommunityController {
             .ifPresent(m -> memberRepo.delete(m));
 
         return ResponseEntity.ok(Map.of("status", "LEFT"));
+    }
+
+    // ── Member roster (everyone in the community, by name) ──────────────────
+
+    /** GET /community/{id}/members — every active member's name + role. */
+    @GetMapping("/{communityId}/members")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<List<Map<String, Object>>> members(@PathVariable UUID communityId) {
+        List<CommunityMember> members =
+            memberRepo.findByCommunityIdAndIsActiveTrueOrderByJoinedAtAsc(communityId);
+
+        Map<UUID, String> names = userRepo
+            .findAllById(members.stream().map(CommunityMember::getUserId).toList())
+            .stream()
+            .collect(Collectors.toMap(User::getId,
+                u -> u.getDisplayName() != null ? u.getDisplayName() : "Player"));
+
+        List<Map<String, Object>> out = members.stream().map(m -> {
+            Map<String, Object> mm = new LinkedHashMap<>();
+            mm.put("userId",      m.getUserId());
+            mm.put("displayName", names.getOrDefault(m.getUserId(), "Player"));
+            mm.put("role",        m.getRole());
+            return mm;
+        }).toList();
+
+        return ResponseEntity.ok(out);
+    }
+
+    // ── Chat history (persisted from the start) ─────────────────────────────
+
+    /** GET /community/{id}/messages — the saved chat history, oldest→newest. Members only. */
+    @GetMapping("/{communityId}/messages")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<List<Map<String, Object>>> messages(
+            @PathVariable UUID communityId, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        if (memberRepo.findByCommunityIdAndUserId(communityId, userId).isEmpty()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+        List<CommunityMessage> recent =
+            messageRepo.findTop200ByCommunityIdOrderBySentAtDesc(communityId);
+        Collections.reverse(recent);   // oldest → newest for natural display order
+
+        List<Map<String, Object>> out = recent.stream().map(m -> {
+            Map<String, Object> mm = new LinkedHashMap<>();
+            mm.put("type",       "CHAT");
+            mm.put("senderId",   m.getSenderId());
+            mm.put("senderName", m.getSenderName());
+            mm.put("content",    m.getContent());
+            mm.put("sentAt",     m.getSentAt());
+            return mm;
+        }).toList();
+
+        return ResponseEntity.ok(out);
     }
 
     /**

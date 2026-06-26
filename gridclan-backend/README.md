@@ -56,7 +56,7 @@ gridclan-backend/
     │   └── enums/                   ← GameType, GameTier, SessionStatus
     ├── anticheat/
     │   ├── AntiCheatEngine.java     ← Speed + logic validation
-    │   └── Validators.java          ← GridLockdown, SumCipher, LinkedRush
+    │   └── Validators.java          ← WordSearch (structural-legality) validator
     ├── service/
     │   ├── GameSessionService.java  ← Authoritative move processing
     │   ├── LedgerService.java       ← Pessimistic lock, ad idempotency

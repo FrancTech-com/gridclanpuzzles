@@ -96,7 +96,8 @@ export default function CommunityScreen() {
           subtitle={t('community.noneYetSubtitle')}
         />
       ) : (
-        communities.map(c => (
+        <View style={styles.communityGrid}>
+        {communities.map(c => (
           <Card key={c.id} style={styles.communityCard}>
             <Text style={styles.communityName}>{c.name}</Text>
             {c.description && <Text style={styles.communityDesc}>{c.description}</Text>}
@@ -107,7 +108,7 @@ export default function CommunityScreen() {
             {c.isMember ? (
               <TouchableOpacity
                 style={styles.chatBtn}
-                onPress={() => router.push(`/community/${c.id}/chat`)}
+                onPress={() => router.push({ pathname: '/community/[id]/chat', params: { id: c.id, name: c.name } })}
               >
                 <Text style={styles.chatBtnText}>💬 {t('community.openChat')}</Text>
               </TouchableOpacity>
@@ -120,7 +121,8 @@ export default function CommunityScreen() {
               />
             )}
           </Card>
-        ))
+        ))}
+        </View>
       )}
     </ScrollView>
   );
@@ -138,7 +140,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   createCard:  { marginBottom: Spacing.lg },
   createTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold, marginBottom: Spacing.md },
 
-  communityCard:   { marginBottom: Spacing.md },
+  communityGrid:   { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
+  communityCard:   { flexGrow: 1, flexBasis: 320, minWidth: 280, marginBottom: 0 },
   communityName:   { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
   communityDesc:   { color: Colors.textMuted,   fontSize: Font.size.sm, marginTop: 4 },
   communityStats:  { flexDirection: 'row', gap: Spacing.lg, marginTop: Spacing.sm, marginBottom: Spacing.sm },

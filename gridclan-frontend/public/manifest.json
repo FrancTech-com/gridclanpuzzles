@@ -1,7 +1,7 @@
 {
   "name": "GridClan Puzzles",
   "short_name": "GridClan",
-  "description": "A free, competitive, skill-based puzzle game. Play Grid Lockdown, Sum Cipher and Linked Rush, climb the leaderboards and join communities.",
+  "description": "A free, competitive, skill-based puzzle game with four games — Word Search Grid, Grid Connect, Grid Battleships and Grid Scrabble. Challenge a friend in real time, climb the leaderboards and join communities.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

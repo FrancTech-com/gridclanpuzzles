@@ -46,3 +46,10 @@ logs/
 # ── OS ───────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+
+# ── Claude Code — local agent files, not committed ───────────
+CLAUDE.md
+**/CLAUDE.md
+CLAUDE.local.md
+**/CLAUDE.local.md
+.claude/

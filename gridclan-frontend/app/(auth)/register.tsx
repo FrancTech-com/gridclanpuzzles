@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
-  StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -48,7 +48,6 @@ export default function RegisterScreen() {
   const [password,  setPassword]  = useState('');
   const [dobMonth,  setDobMonth]  = useState(0);            // 1-12, 0 = unset
   const [dobYear,   setDobYear]   = useState(0);            // full year, 0 = unset
-  const [marketing, setMarketing] = useState(false);
   const [country,   setCountry]   = useState('');           // ISO code, none preselected
   const [dobError,  setDobError]  = useState<string | null>(null);
   const [activePicker, setActivePicker] = useState<'country' | 'month' | 'year' | null>(null);
@@ -81,7 +80,6 @@ export default function RegisterScreen() {
       password,
       countryCode:       country,
       dateOfBirth:       dob,
-      marketingConsent:  marketing,
     }));
     if (registerThunk.fulfilled.match(result)) router.replace('/(tabs)');
   }
@@ -139,13 +137,6 @@ export default function RegisterScreen() {
           </TouchableOpacity>
         </View>
         {dobError && <Text style={styles.dobError}>{dobError}</Text>}
-
-        {/* GDPR marketing consent — explicit opt-in, off by default */}
-        <View style={styles.consentRow}>
-          <Switch value={marketing} onValueChange={setMarketing}
-            trackColor={{ true: Colors.primary }} />
-          <Text style={styles.consentText}>{t('auth.marketingOptIn')}</Text>
-        </View>
 
         {/* Country selector — searchable, any country */}
         <Text style={styles.sectionLabel}>{t('auth.yourCountry')}</Text>

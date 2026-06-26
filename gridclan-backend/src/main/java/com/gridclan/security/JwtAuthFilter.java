@@ -54,6 +54,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             Claims claims = jwtService.validateAndParse(header.substring(7));
             UUID userId   = UUID.fromString(claims.getSubject());
 
+            // ── Token revocation — reject tokens from a past session epoch ─
+            // Bumped on logout / password reset, so a stolen or stale access
+            // token stops working immediately even before it expires. Missing
+            // claim (pre-feature tokens) → 0, the default version.
+            Object tvClaim = claims.get("tv");
+            int tokenVersion = tvClaim instanceof Number n ? n.intValue() : 0;
+            if (!userService.isTokenVersionCurrent(userId, tokenVersion)) {
+                writeJson(res, 401, "{\"error\":\"Token revoked\"}");
+                return;
+            }
+
             // ── HARD BLOCK — account pending deletion cannot act ─────────
             if (userService.isPendingDeletion(userId)) {
                 writeJson(res, 403, "{\"error\":\"Account pending deletion\"}");

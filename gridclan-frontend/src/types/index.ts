@@ -15,8 +15,6 @@ export interface RegisterRequest {
   countryCode?:       string;
   /** YYYY-MM-DD — required by the backend COPPA age gate; never persisted. */
   dateOfBirth:        string;
-  /** GDPR Art. 6(1)(a) explicit opt-in; defaults to false server-side. */
-  marketingConsent?:  boolean;
 }
 
 export interface LoginRequest {
@@ -78,7 +76,7 @@ export interface GiftGemsRequest {
 }
 
 // ── Game ───────────────────────────────────────────────────────────────────
-export type GameType = 'GRID_LOCKDOWN' | 'SUM_CIPHER' | 'LINKED_RUSH';
+export type GameType = 'WORD_SEARCH';
 export type GameTier = 'SOLO' | 'FRIEND' | 'COMMUNITY_TOURNAMENT';
 export type SessionStatus = 'ACTIVE' | 'COMPLETED' | 'FLAGGED' | 'ABANDONED';
 
@@ -99,7 +97,7 @@ export interface SessionStartResponse {
 
 export interface MoveRequest {
   sessionId:       string;
-  move:            GridMove | SumMove | RushMove;
+  move:            WordSearchMove;
   clientTimestamp: number;
 }
 
@@ -118,54 +116,27 @@ export interface HintResponse {
 }
 
 // ── Board state types ──────────────────────────────────────────────────────
-export type BoardState = GridLockdownBoard | SumCipherBoard | LinkedRushBoard;
+export type BoardState = WordSearchBoard;
 
-export interface GridLockdownBoard {
-  type:          'GRID_LOCKDOWN';
-  rows:          number;
-  cols:          number;
-  grid:          number[][];
-  targetPattern: number[][];
-  solved:        boolean;
-}
-
-export interface SumCipherBoard {
-  type:       'SUM_CIPHER';
-  cells:      number[];
-  groups:     number[][];
-  targetSums: number[];
-  solved:     boolean;
-}
-
-export interface LinkedRushBoard {
-  type:         'LINKED_RUSH';
-  nodeCount:    number;
-  adjacency:    Record<string, number[]>;
-  currentNode:  number;
-  visitedNodes: number[];
-  targetScore:  number;
-  solved:       boolean;
+export interface WordSearchBoard {
+  type:   'WORD_SEARCH';
+  rows:   number;
+  cols:   number;
+  grid:   string[];     // one uppercase-letter string per row
+  words:  string[];     // words to find
+  found:  string[];     // words found so far
+  solved: boolean;
 }
 
 // ── Move types ─────────────────────────────────────────────────────────────
-export interface GridMove {
-  fromX: number; fromY: number;
-  toX:   number; toY:   number;
-}
-
-export interface SumMove {
-  cellIndex: number;
-  digit:     number;
-}
-
-export interface RushMove {
-  fromNode: number;
-  toNode:   number;
+export interface WordSearchMove {
+  fromRow: number; fromCol: number;
+  toRow:   number; toCol:   number;
 }
 
 // ── Hint data ──────────────────────────────────────────────────────────────
 export interface HintData {
-  type:    'MOVE_SUGGESTION' | 'DIGIT_SUGGESTION' | 'NODE_SUGGESTION' | 'STUCK' | 'NONE';
+  type:    'WORD_LOCATION' | 'NONE';
   message: string;
   [key: string]: unknown;
 }
@@ -210,6 +181,25 @@ export interface PlayerRank {
   total: number;
 }
 
+// The four games whose points feed the leaderboard.
+export type GameKey = 'WORD_SEARCH' | 'SCRABBLE' | 'GOMOKU' | 'BATTLESHIP';
+
+// Combined leaderboard row — ranked by total points across all games, with a
+// per-game breakdown. Display name + scores only (no PII).
+export interface GlobalLeaderboardEntry {
+  rank:        number;
+  displayName: string;
+  total:       number;
+  games:       Partial<Record<GameKey, number>>;
+}
+
+// Single-game leaderboard row.
+export interface GameLeaderboardEntry {
+  rank:        number;
+  displayName: string;
+  points:      number;
+}
+
 // ── Chat ───────────────────────────────────────────────────────────────────
 export type ChatMessageType = 'CHAT' | 'JOIN' | 'LEAVE' | 'SYSTEM';
 
@@ -218,8 +208,14 @@ export interface ChatMessage {
   content:      string;
   senderId:     string;
   senderName:   string;
-  communityId:  string;
+  communityId?: string;
   sentAt:       string;
+}
+
+export interface CommunityMemberInfo {
+  userId:      string;
+  displayName: string;
+  role:        string;
 }
 
 // ── Misc ───────────────────────────────────────────────────────────────────

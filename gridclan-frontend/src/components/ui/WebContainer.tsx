@@ -4,12 +4,13 @@ import { useColors } from '@theme/theme';
 /**
  * Web layout frame.
  *
- * On web the app is a mobile-first design, so on large desktop monitors we
- * centre it in a phone-width column (max 480px) over a darker backdrop —
- * a "phone frame" look. The column itself uses width:100% so it collapses
- * gracefully down to small phone widths (320px) with no fixed sizing, and it
- * re-flows automatically on window resize (flexbox, no JS resize handling
- * needed).
+ * On web we centre the app in a comfortable content column over a darker
+ * full-bleed backdrop, so it reads as a real desktop app rather than a stretched
+ * phone. The column is wide enough to feel like desktop (up to 1100px) but
+ * capped so single elements (forms, the play button, a lone card) don't blow out
+ * to the full width of a large monitor and look broken. Screens that show
+ * lists/cards reflow into multiple columns at this width (flexWrap), so the
+ * space is genuinely used; single-column content stays centred and readable.
  *
  * On native (iOS/Android) it is a no-op pass-through, so mobile builds are
  * completely unaffected.
@@ -33,11 +34,11 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
     backgroundColor: '#07070d', // darker than app bg, so the column reads as a frame
     alignItems: 'center',
   },
-  // The app itself — phone-width on desktop, full-width on small screens.
+  // The app itself — a comfortable content column on desktop, full-width on phones.
   column: {
     flex: 1,
     width: '100%',
-    maxWidth: 480,
+    maxWidth: 1100,
     backgroundColor: Colors.bg,
     // Subtle side edges visible only when the backdrop shows (desktop).
     borderLeftWidth: StyleSheet.hairlineWidth,

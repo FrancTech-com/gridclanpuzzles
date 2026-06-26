@@ -63,7 +63,7 @@ class IntegrationTest {
         pointsRepo.save(PlayerPoints.builder()
             .userId(userId).balance(5000L).build());
 
-        accessToken = jwtService.generateAccessToken(userId, "USER");
+        accessToken = jwtService.generateAccessToken(userId, "USER", user.getTokenVersion());
     }
 
     // ── Auth ─────────────────────────────────────────────────────────────
@@ -130,7 +130,7 @@ class IntegrationTest {
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "gameType", "GRID_LOCKDOWN",
+                    "gameType", "WORD_SEARCH",
                     "tier",     "SOLO"
                 ))))
             .andExpect(status().isOk())
@@ -146,7 +146,7 @@ class IntegrationTest {
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "gameType", "SUM_CIPHER",
+                    "gameType", "WORD_SEARCH",
                     "tier",     "COMMUNITY_TOURNAMENT"
                 ))))
             .andExpect(status().isOk())
@@ -163,7 +163,7 @@ class IntegrationTest {
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
-                    "gameType", "LINKED_RUSH",
+                    "gameType", "WORD_SEARCH",
                     "tier",     "COMMUNITY_TOURNAMENT"
                 ))))
             .andExpect(status().isOk())

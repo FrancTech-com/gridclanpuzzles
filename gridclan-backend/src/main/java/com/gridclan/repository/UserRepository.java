@@ -34,6 +34,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
            "AND (u.suspensionExpiresAt IS NULL OR u.suspensionExpiresAt > :now)")
     boolean isSuspended(@Param("id") UUID id, @Param("now") Instant now);
 
+    /** Current session epoch; an access token whose "tv" claim differs is revoked. */
+    @Query("SELECT u.tokenVersion FROM User u WHERE u.id = :id")
+    Integer tokenVersion(@Param("id") UUID id);
+
     // ── Monitoring queries ────────────────────────────────────────────────
 
     @Query("SELECT COUNT(u) FROM User u WHERE u.deletedAt IS NULL")

@@ -5,6 +5,7 @@ import {
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { scrabbleApi, type ScrabblePlacement, type ScrabbleView } from '@api/index';
+import { subscribeGame } from '@websocket/gameSocket';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -42,7 +43,17 @@ export default function ScrabbleGameScreen() {
     setLoading(false);
   }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Load once, then live-update: the server pings this game's topic whenever the
+  // opponent plays, joins, or the game ends — we just re-fetch our own view.
+  useFocusEffect(useCallback(() => {
+    load();
+    if (!id) return;
+    let active = true;
+    let cleanup: (() => void) | undefined;
+    subscribeGame('scrabble', id, () => { if (active) load(); })
+      .then(unsub => { if (active) cleanup = unsub; else unsub(); });
+    return () => { active = false; cleanup?.(); };
+  }, [load, id]));
 
   // Rack tiles still available (original rack minus tiles used by pending moves).
   const availableRack = useMemo(() => {

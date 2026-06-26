@@ -1,7 +1,11 @@
 package com.gridclan.entity.enums;
 
+/**
+ * Single-player (solo, scored) game types handled by the GameSession engine.
+ *
+ * The real-time 2-player games (Grid Scrabble, Battleship, Gomoku) are NOT here —
+ * they have their own entities/services and live-sync over WebSocket.
+ */
 public enum GameType {
-    GRID_LOCKDOWN,
-    SUM_CIPHER,
-    LINKED_RUSH
+    WORD_SEARCH
 }

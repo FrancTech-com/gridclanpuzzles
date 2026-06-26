@@ -1,7 +1,9 @@
 package com.gridclan.controller;
 
 import com.gridclan.dto.ChatMessage;
+import com.gridclan.entity.CommunityMessage;
 import com.gridclan.repository.CommunityMemberRepository;
+import com.gridclan.repository.CommunityMessageRepository;
 import com.gridclan.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +46,7 @@ public class ChatController {
 
     private final SimpMessagingTemplate      broker;
     private final CommunityMemberRepository  memberRepo;
+    private final CommunityMessageRepository messageRepo;
     private final UserRepository             userRepo;
     private final RedisTemplate<String, String> redis;
 
@@ -90,14 +93,30 @@ public class ChatController {
             content = content.substring(0, MAX_MSG_LEN);
         }
 
+        Instant sentAt = Instant.now();
         ChatMessage broadcast = ChatMessage.builder()
             .type(ChatMessage.Type.CHAT)
             .content(content)
             .senderId(userId)            // Server sets this — client field ignored
             .senderName(displayName)
             .communityId(communityId)
-            .sentAt(Instant.now())
+            .sentAt(sentAt)
             .build();
+
+        // ── Persist so the community keeps its full history ───────────────
+        if (content != null && !content.isBlank()) {
+            try {
+                messageRepo.save(CommunityMessage.builder()
+                    .communityId(communityId)
+                    .senderId(userId)
+                    .senderName(displayName)
+                    .content(content)
+                    .sentAt(sentAt)
+                    .build());
+            } catch (Exception e) {
+                log.warn("Failed to persist chat message: {}", e.getMessage());
+            }
+        }
 
         // ── Broadcast to all community subscribers ────────────────────────
         broker.convertAndSend("/topic/community/" + communityId, broadcast);

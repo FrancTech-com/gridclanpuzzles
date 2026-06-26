@@ -30,9 +30,7 @@ public class AntiCheatEngine {
 
     /** Human-possible minimum milliseconds between moves, per game type. */
     private static final Map<GameType, Long> MIN_MOVE_MS = Map.of(
-        GameType.GRID_LOCKDOWN, 300L,   // 300ms minimum per grid drag
-        GameType.SUM_CIPHER,   400L,    // 400ms minimum per digit entry
-        GameType.LINKED_RUSH,  200L     // 200ms minimum per node tap
+        GameType.WORD_SEARCH, 250L      // 250ms minimum per word selection
     );
 
     // ── Speed Check ────────────────────────────────────────────────────────
@@ -53,9 +51,7 @@ public class AntiCheatEngine {
                                   UUID userId,
                                   UUID sessionId) {
         boolean valid = switch (type) {
-            case GRID_LOCKDOWN -> GridLockdownValidator.isLegalMove(boardState, move);
-            case SUM_CIPHER    -> SumCipherValidator.isMathematicallyValid(boardState, move);
-            case LINKED_RUSH   -> LinkedRushValidator.isConnectedPath(boardState, move);
+            case WORD_SEARCH -> WordSearchValidator.isLegalMove(boardState, move);
         };
 
         if (!valid) {

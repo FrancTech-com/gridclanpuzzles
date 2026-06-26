@@ -29,8 +29,8 @@ gridclan:
       v1: test-secret-key-32-chars-minimum-ok   # overrides main yml's ${JWT_SECRET} placeholder
       v2: ""
       v3: ""
-    access-token-expiry-minutes: 15
-    refresh-token-expiry-days: 30
+    access-token-expiry-minutes: 5
+    refresh-token-expiry-days: 7
   gems:
     daily-gift-limit: 500
     ad-reward: 10
@@ -38,9 +38,7 @@ gridclan:
     revive-cost: 20
     replay-cost: 15
     reward:
-      grid-lockdown: 5
-      sum-cipher: 4
-      linked-rush: 3
+      word-search: 5
 
 logging:
   level:
