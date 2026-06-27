@@ -6,6 +6,7 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useTranslation } from 'react-i18next';
 import { gomokuApi, type GomokuView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
+import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -40,11 +41,16 @@ export default function GomokuGameScreen() {
     let cleanup: (() => void) | undefined;
     subscribeGame('gomoku', id, () => { if (active) load(); })
       .then(unsub => { if (active) cleanup = unsub; else unsub(); });
-    return () => { active = false; cleanup?.(); };
+    // Fallback poll so the board stays live even if the WebSocket can't connect.
+    const poll = setInterval(() => { if (active) load(); }, 4000);
+    return () => { active = false; cleanup?.(); clearInterval(poll); };
   }, [load, id]));
 
   async function tap(r: number, c: number) {
-    if (!id || !game || busy || !game.yourTurn) return;
+    if (!id || !game || busy) return;
+    if (game.status === 'WAITING_FOR_OPPONENT') { Alert.alert(t('gomoku.waitingOpponent', 'Waiting for a friend to join')); return; }
+    if (game.status === 'COMPLETE') return;
+    if (!game.yourTurn) { Alert.alert(t('gomoku.notYourTurn', "Hold on — it's your opponent's turn.")); return; }
     if (game.board[r]?.[c] !== '.') return;
     setBusy(true);
     const res = await gomokuApi.move(id, r, c).catch((e: any) => {
@@ -52,7 +58,12 @@ export default function GomokuGameScreen() {
       return null;
     });
     setBusy(false);
-    if (res?.data) setGame(res.data);
+    if (res?.data) {
+      setGame(res.data);
+      if (res.data.outcome === 'WON')      playSfx('win');
+      else if (res.data.outcome === 'LOST') playSfx('lose');
+      else                                  playSfx('move');
+    }
   }
 
   async function shareCode() {

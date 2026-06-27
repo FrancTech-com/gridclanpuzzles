@@ -145,6 +145,58 @@ public class AdminController {
         return ResponseEntity.ok(result);
     }
 
+    // ── User list / search ────────────────────────────────────────────────
+
+    /**
+     * GET /admin/users?query=&page=&size=
+     * Paginated, searchable list of non-deleted users for the admin dashboard.
+     * Search matches username / email / display name (case-insensitive).
+     */
+    @GetMapping("/users")
+    public ResponseEntity<Map<String, Object>> listUsers(
+            @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "25") int size) {
+
+        Pageable pageable = PageRequest.of(page, Math.min(Math.max(size, 1), 100),
+            Sort.by("createdAt").descending());
+        Page<User> result = userRepo.searchActive(query == null ? "" : query.trim(), pageable);
+
+        List<Map<String, Object>> users = result.getContent().stream()
+            .map(this::toUserSummary)
+            .collect(Collectors.toList());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("page",          result.getNumber());
+        body.put("size",          result.getSize());
+        body.put("totalElements", result.getTotalElements());
+        body.put("totalPages",    result.getTotalPages());
+        body.put("users",         users);
+        return ResponseEntity.ok(body);
+    }
+
+    private Map<String, Object> toUserSummary(User u) {
+        Instant now = Instant.now();
+        boolean activeSuspension = u.isSuspended()
+            && (u.getSuspensionExpiresAt() == null || u.getSuspensionExpiresAt().isAfter(now));
+
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id",                  u.getId().toString());
+        map.put("username",            u.getUsername());
+        map.put("displayName",         u.getDisplayName());
+        map.put("email",               u.getEmail());
+        map.put("role",                u.getRole());
+        map.put("countryCode",         u.getCountryCode());
+        map.put("active",              u.isActive());
+        map.put("suspended",           activeSuspension);
+        map.put("suspensionReason",    u.getSuspensionReason());
+        map.put("suspensionExpiresAt", u.getSuspensionExpiresAt() != null ? u.getSuspensionExpiresAt().toString() : null);
+        map.put("pendingDeletion",     u.getDeletionRequestedAt() != null && u.getDeletedAt() == null);
+        map.put("lastActiveAt",        u.getLastActiveAt() != null ? u.getLastActiveAt().toString() : null);
+        map.put("createdAt",           u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+        return map;
+    }
+
     // ── User monitoring ───────────────────────────────────────────────────
 
     /**

@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>GridClan Admin</title>
+<style>
+  :root {
+    --bg:#051124; --surface:#0c1f3a; --surface2:#0a1830; --border:#1d3357;
+    --text:#e7eefb; --muted:#8aa0c6; --primary:#19c37d; --danger:#ef5350; --warn:#f5a623;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--text); }
+  a { color:var(--primary); }
+  button { font:inherit; cursor:pointer; border:none; border-radius:8px; padding:8px 14px; font-weight:600; }
+  .btn-primary { background:var(--primary); color:#04210f; }
+  .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+  .btn-danger { background:var(--danger); color:#2a0606; }
+  .btn-sm { padding:5px 10px; font-size:13px; }
+  input { font:inherit; background:var(--surface2); color:var(--text);
+          border:1px solid var(--border); border-radius:8px; padding:9px 12px; width:100%; }
+  label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+
+  /* Login */
+  #login { max-width:380px; margin:12vh auto; padding:28px; background:var(--surface);
+           border:1px solid var(--border); border-radius:16px; }
+  #login h1 { margin:0 0 4px; font-size:22px; }
+  #login p  { margin:0 0 18px; color:var(--muted); font-size:14px; }
+  .err { color:var(--danger); font-size:14px; min-height:18px; margin-top:10px; }
+
+  /* App */
+  #app { display:none; max-width:1200px; margin:0 auto; padding:20px; }
+  header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  header h1 { font-size:20px; margin:0; }
+  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .metric { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .metric .n { font-size:26px; font-weight:700; }
+  .metric .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; margin-top:2px; }
+  .metric.online .n { color:var(--primary); }
+
+  .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+  .toolbar input { max-width:340px; }
+  .grow { flex:1; }
+
+  table { width:100%; border-collapse:collapse; background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  th,td { text-align:left; padding:10px 12px; font-size:14px; border-bottom:1px solid var(--border); }
+  th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; }
+  tr:last-child td { border-bottom:none; }
+  .sub { color:var(--muted); font-size:12px; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .b-active { background:rgba(25,195,125,.15); color:var(--primary); }
+  .b-susp   { background:rgba(239,83,80,.15); color:var(--danger); }
+  .b-del    { background:rgba(245,166,35,.15); color:var(--warn); }
+  .b-admin  { background:rgba(120,160,255,.18); color:#9ab8ff; }
+  .pager { display:flex; gap:10px; align-items:center; justify-content:flex-end; margin-top:12px; color:var(--muted); font-size:14px; }
+  .empty { padding:30px; text-align:center; color:var(--muted); }
+
+  /* Modal */
+  .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+              align-items:center; justify-content:center; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px;
+           padding:22px; width:380px; max-width:92vw; }
+  .modal h3 { margin:0 0 4px; }
+  .modal .who { color:var(--muted); font-size:13px; margin-bottom:8px; }
+  .row { display:flex; align-items:center; gap:8px; margin-top:12px; }
+  .row input[type=checkbox] { width:auto; }
+  .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:18px; }
+</style>
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────── -->
+<div id="login">
+  <h1>GridClan Admin</h1>
+  <p>Sign in with your admin account.</p>
+  <form id="loginForm">
+    <label for="identifier">Email</label>
+    <input id="identifier" type="email" autocomplete="username" required />
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" required />
+    <div class="err" id="loginErr"></div>
+    <button class="btn-primary" type="submit" style="width:100%;margin-top:14px">Sign in</button>
+  </form>
+</div>
+
+<!-- ── App ───────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <h1>🛡️ GridClan Admin <span class="sub" id="whoami"></span></h1>
+    <button class="btn-ghost" id="logoutBtn">Log out</button>
+  </header>
+
+  <div class="metrics" id="metrics"></div>
+
+  <div class="toolbar">
+    <input id="search" placeholder="Search username, email or display name…" />
+    <button class="btn-ghost" id="searchBtn">Search</button>
+    <span class="grow"></span>
+    <button class="btn-ghost" id="refreshBtn">↻ Refresh</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>User</th><th>Email</th><th>Country</th><th>Status</th><th>Last active</th><th>Joined</th><th></th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="pager">
+    <button class="btn-ghost btn-sm" id="prevBtn">‹ Prev</button>
+    <span id="pageInfo"></span>
+    <button class="btn-ghost btn-sm" id="nextBtn">Next ›</button>
+  </div>
+</div>
+
+<!-- ── Suspend modal ─────────────────────────────────────── -->
+<div class="modal-bg" id="suspendModal">
+  <div class="modal">
+    <h3>Suspend user</h3>
+    <div class="who" id="suspendWho"></div>
+    <label for="suspReason">Reason</label>
+    <input id="suspReason" placeholder="e.g. Cheating, abusive chat…" />
+    <label for="suspHours">Duration (hours)</label>
+    <input id="suspHours" type="number" min="1" value="24" />
+    <div class="row"><input type="checkbox" id="suspPerm" /><label for="suspPerm" style="margin:0">Permanent ban</label></div>
+    <div class="err" id="suspErr"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="suspCancel">Cancel</button>
+      <button class="btn-danger" id="suspConfirm">Suspend</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOKEN_KEY = 'gc_admin_token';
+let state = { page:0, size:25, query:'', totalPages:1, suspendId:null };
+
+const $ = id => document.getElementById(id);
+const token = () => sessionStorage.getItem(TOKEN_KEY);
+
+async function api(path, opts={}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token(), ...(opts.headers||{}) },
+  });
+  if (res.status === 401 || res.status === 403) { logout(); throw new Error('Session expired or not authorised.'); }
+  if (!res.ok) {
+    let msg = 'Request failed ('+res.status+')';
+    try { const j = await res.json(); msg = j.error || j.message || msg; } catch {}
+    throw new Error(msg);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+// ── Auth ──────────────────────────────────────────────────
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('loginErr').textContent = '';
+  try {
+    const res = await fetch('/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ identifier: $('identifier').value.trim(), password: $('password').value }),
+    });
+    if (!res.ok) { $('loginErr').textContent = 'Invalid credentials.'; return; }
+    const data = await res.json();
+    if (data.role !== 'ADMIN') { $('loginErr').textContent = 'This account is not an admin.'; return; }
+    sessionStorage.setItem(TOKEN_KEY, data.accessToken);
+    showApp();
+  } catch { $('loginErr').textContent = 'Could not sign in. Try again.'; }
+});
+
+$('logoutBtn').addEventListener('click', logout);
+function logout() { sessionStorage.removeItem(TOKEN_KEY); $('app').style.display='none'; $('login').style.display='block'; }
+
+function showApp() {
+  $('login').style.display='none';
+  $('app').style.display='block';
+  loadMetrics();
+  loadUsers();
+}
+
+// ── Metrics ───────────────────────────────────────────────
+async function loadMetrics() {
+  try {
+    const m = await api('/admin/metrics/users');
+    const cards = [
+      ['Total users', m.totalRegistered, ''],
+      ['Online now', m.currentlyOnline, 'online'],
+      ['Active today', m.activeToday, ''],
+      ['This week', m.activeThisWeek, ''],
+      ['This month', m.activeThisMonth, ''],
+      ['Inactive 30d+', m.inactive30d, ''],
+    ];
+    $('metrics').innerHTML = cards.map(([l,n,c]) =>
+      `<div class="metric ${c}"><div class="n">${n ?? 0}</div><div class="l">${l}</div></div>`).join('');
+  } catch(e) { $('metrics').innerHTML = `<div class="metric"><div class="l">${esc(e.message)}</div></div>`; }
+}
+
+// ── Users ─────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const q = encodeURIComponent(state.query);
+    const data = await api(`/admin/users?query=${q}&page=${state.page}&size=${state.size}`);
+    state.totalPages = data.totalPages || 1;
+    renderRows(data.users || []);
+    $('pageInfo').textContent = `Page ${data.page+1} of ${state.totalPages} · ${data.totalElements} users`;
+    $('prevBtn').disabled = state.page <= 0;
+    $('nextBtn').disabled = state.page >= state.totalPages - 1;
+  } catch(e) {
+    $('rows').innerHTML = `<tr><td colspan="7" class="empty">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderRows(users) {
+  if (!users.length) { $('rows').innerHTML = `<tr><td colspan="7" class="empty">No users found.</td></tr>`; return; }
+  $('rows').innerHTML = users.map(u => {
+    const status = u.role === 'ADMIN'
+      ? `<span class="badge b-admin">Admin</span>`
+      : u.suspended
+        ? `<span class="badge b-susp">Suspended</span>`
+        : u.pendingDeletion
+          ? `<span class="badge b-del">Pending deletion</span>`
+          : `<span class="badge b-active">Active</span>`;
+    const action = u.role === 'ADMIN'
+      ? ''
+      : u.suspended
+        ? `<button class="btn-ghost btn-sm" onclick="liftUser('${u.id}')">Lift</button>`
+        : `<button class="btn-danger btn-sm" onclick="openSuspend('${u.id}','${esc(u.displayName||u.username||'')}')">Suspend</button>`;
+    return `<tr>
+      <td>${esc(u.displayName||'—')}<div class="sub">@${esc(u.username||'—')}</div></td>
+      <td>${esc(u.email||'—')}</td>
+      <td>${esc(u.countryCode||'—')}</td>
+      <td>${status}${u.suspended && u.suspensionReason ? `<div class="sub">${esc(u.suspensionReason)}</div>` : ''}</td>
+      <td>${fmt(u.lastActiveAt)}</td>
+      <td>${fmt(u.createdAt)}</td>
+      <td style="text-align:right">${action}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Suspend / lift ────────────────────────────────────────
+function openSuspend(id, name) {
+  state.suspendId = id;
+  $('suspendWho').textContent = name;
+  $('suspReason').value = ''; $('suspHours').value = 24; $('suspPerm').checked = false; $('suspErr').textContent = '';
+  $('suspendModal').style.display = 'flex';
+}
+$('suspCancel').addEventListener('click', () => $('suspendModal').style.display='none');
+$('suspConfirm').addEventListener('click', async () => {
+  const reason = $('suspReason').value.trim();
+  if (!reason) { $('suspErr').textContent = 'A reason is required.'; return; }
+  try {
+    await api(`/admin/suspend/${state.suspendId}`, {
+      method:'POST',
+      body: JSON.stringify({ reason, durationHours: Number($('suspHours').value)||24, permanent: $('suspPerm').checked }),
+    });
+    $('suspendModal').style.display='none';
+    loadUsers();
+  } catch(e) { $('suspErr').textContent = e.message; }
+});
+async function liftUser(id) {
+  if (!confirm('Lift suspension for this user?')) return;
+  try { await api(`/admin/suspend/${id}`, { method:'DELETE' }); loadUsers(); }
+  catch(e) { alert(e.message); }
+}
+
+// ── Controls ──────────────────────────────────────────────
+$('searchBtn').addEventListener('click', () => { state.query = $('search').value.trim(); state.page = 0; loadUsers(); });
+$('search').addEventListener('keydown', e => { if (e.key === 'Enter') $('searchBtn').click(); });
+$('refreshBtn').addEventListener('click', () => { loadMetrics(); loadUsers(); });
+$('prevBtn').addEventListener('click', () => { if (state.page>0){ state.page--; loadUsers(); } });
+$('nextBtn').addEventListener('click', () => { if (state.page<state.totalPages-1){ state.page++; loadUsers(); } });
+
+// ── Helpers ───────────────────────────────────────────────
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmt(iso){ if(!iso) return '<span class="sub">never</span>'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+
+// Make inline-handler functions reachable
+window.openSuspend = openSuspend;
+window.liftUser = liftUser;
+
+// Auto-resume if a token is already in this tab session
+if (token()) showApp();
+</script>
+</body>
+</html>

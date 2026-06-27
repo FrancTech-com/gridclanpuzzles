@@ -56,6 +56,15 @@ public class Tournament {
     @Column(name = "created_by")
     private UUID createdBy;
 
+    /** Champion once the bracket resolves (null until COMPLETED). */
+    @Column(name = "winner_id")
+    private UUID winnerId;
+
+    /** 0 while UPCOMING; 1-based once the bracket is running. */
+    @Column(name = "current_round", nullable = false)
+    @Builder.Default
+    private int currentRound = 0;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
