@@ -2,14 +2,17 @@ package com.gridclan.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.*;
-import java.util.UUID;
 
 /** Gift gems to a friend. A gift is NOT a sale — no money is involved. */
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class GiftGemsRequest {
 
-    @NotNull(message = "recipientId is required")
-    private UUID recipientId;
+    /**
+     * The recipient, identified by username (what players actually know) or,
+     * for back-compat, a raw user-id UUID. Resolved server-side.
+     */
+    @NotBlank(message = "recipient is required")
+    private String recipient;
 
     @Min(value = 1, message = "amount must be at least 1")
     @Max(value = 500, message = "amount exceeds the per-gift maximum")

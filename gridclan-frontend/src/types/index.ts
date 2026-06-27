@@ -70,9 +70,10 @@ export interface GemTransaction {
 }
 
 export interface GiftGemsRequest {
-  recipientId: string;
-  amount:      number;
-  note?:       string;
+  /** Recipient's username (or, for back-compat, a raw user-id). */
+  recipient: string;
+  amount:    number;
+  note?:     string;
 }
 
 // ── Game ───────────────────────────────────────────────────────────────────
