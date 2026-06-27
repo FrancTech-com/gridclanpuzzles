@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View,
+  KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text,
 } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -22,29 +22,31 @@ export default function GiftGemsScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const balance = useSelector((s: RootState) => s.gems.balance);
 
-  const [recipientId, setRecipientId] = useState('');
+  const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Inline feedback — Alert.alert is invisible on RN-Web, so we render it.
+  const [error, setError] = useState<string | null>(null);
 
   const amountNum = parseInt(amount, 10);
-  const valid = recipientId.trim().length > 0 && amountNum > 0 &&
+  const valid = recipient.trim().length > 0 && amountNum > 0 &&
     (balance ? amountNum <= balance.balance : true);
 
   async function handleSend() {
-    if (!valid) return;
+    if (!valid || submitting) return;
+    setError(null);
     setSubmitting(true);
     const result = await dispatch(giftGemsThunk({
-      recipientId: recipientId.trim(),
+      recipient: recipient.trim(),
       amount: amountNum,
       note: note.trim() || undefined,
     }));
     setSubmitting(false);
     if (giftGemsThunk.fulfilled.match(result)) {
-      Alert.alert(t('gems.giftSent'));
       router.back();
     } else {
-      Alert.alert(t('gems.giftFailed'), (result.payload as string) ?? '');
+      setError((result.payload as string) || t('gems.giftFailed'));
     }
   }
 
@@ -58,16 +60,17 @@ export default function GiftGemsScreen() {
 
           <Input
             label={t('gems.recipient')}
-            placeholder="user-id"
-            value={recipientId}
-            onChangeText={setRecipientId}
+            placeholder={t('gems.recipientPlaceholder')}
+            value={recipient}
+            onChangeText={(v) => { setRecipient(v); if (error) setError(null); }}
             autoCapitalize="none"
+            autoCorrect={false}
           />
           <Input
             label={t('gems.amount')}
             placeholder="50"
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(v) => { setAmount(v); if (error) setError(null); }}
             keyboardType="number-pad"
           />
           <Input
@@ -77,6 +80,8 @@ export default function GiftGemsScreen() {
             onChangeText={setNote}
             maxLength={200}
           />
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
           <Button
             title={t('gems.send')}
@@ -97,5 +102,6 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   card:     { padding: Spacing.lg },
   subtitle: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.semi, marginBottom: 4 },
   balance:  { color: Colors.textMuted, fontSize: Font.size.sm, marginBottom: Spacing.lg },
+  error:    { color: Colors.error, fontSize: Font.size.sm, marginTop: Spacing.sm },
   btn:      { marginTop: Spacing.md },
 });
