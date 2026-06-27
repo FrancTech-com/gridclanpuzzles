@@ -5,37 +5,48 @@ import { Platform } from 'react-native';
 // (any code reading Colors.* directly stays dark); themed screens read the
 // active palette via useColors() from '@theme/theme'.
 export const darkColors = {
-  // Backgrounds — deep navy, matching the GridClan emblem
-  bg:          '#07172e',   // App background — deep navy
-  surface:     '#0e2440',   // Cards / sheets
-  surfaceHigh: '#173458',   // Elevated surfaces
-  border:      '#214568',   // Dividers, input borders
+  // Backgrounds — deep, slightly brighter navy so the vibrant accents pop
+  bg:          '#0a1b38',   // App background — deep navy
+  surface:     '#122a4f',   // Cards / sheets
+  surfaceHigh: '#1c3a65',   // Elevated surfaces
+  border:      '#2a4d78',   // Dividers, input borders
 
-  // Brand — teal primary, gold secondary (from the emblem)
-  primary:     '#2bbf9a',   // GridClan teal
-  primaryDim:  '#1f9a7d',   // Pressed state
-  accent:      '#e8c45a',   // Gold — score / win / highlight
-  accentDim:   '#c9a23f',
+  // Vibrant brand quartet — green / red / blue / yellow. These four are the
+  // game's signature colours; the semantic keys below alias into them.
+  green:    '#22c55e',
+  greenDim: '#16a34a',
+  red:      '#ef4444',
+  redDim:   '#dc2626',
+  blue:     '#3b82f6',
+  blueDim:  '#2563eb',
+  yellow:   '#facc15',
+  yellowDim:'#eab308',
 
-  // Game type colours
-  wordSearch:  '#7c6dff',   // Violet — Word Search
+  // Brand — green primary, yellow highlight
+  primary:     '#22c55e',   // Vibrant green
+  primaryDim:  '#16a34a',   // Pressed state
+  accent:      '#facc15',   // Yellow — score / win / highlight
+  accentDim:   '#eab308',
+
+  // Game type colours — one signature colour per game
+  wordSearch:  '#facc15',   // Yellow — Word Search
 
   // Text
   textPrimary:   '#ffffff',
-  textSecondary: '#a8c2dc',
-  textMuted:     '#5d7894',
+  textSecondary: '#b6cde6',
+  textMuted:     '#6d88a6',
 
   // Status
-  error:   '#ff5a5a',
-  warning: '#e8c45a',
-  success: '#37d9a3',
-  info:    '#44ccff',
+  error:   '#ef4444',
+  warning: '#facc15',
+  success: '#22c55e',
+  info:    '#3b82f6',
 
   // Points / currency
-  points:  '#e8c45a',
-  ugx:     '#37d9a3',
-  kes:     '#44ccff',
-  tzs:     '#ff9944',
+  points:  '#facc15',
+  ugx:     '#22c55e',
+  kes:     '#3b82f6',
+  tzs:     '#fb923c',
 
   // Overlay
   overlay:     'rgba(3,9,20,0.65)',
@@ -52,26 +63,36 @@ export const lightColors: ThemeColors = {
   surfaceHigh: '#eaf1f8',
   border:      '#d3e0ec',
 
-  primary:     '#1aa183',
-  primaryDim:  '#15866d',
-  accent:      '#bd962f',
-  accentDim:   '#9c7d28',
+  // Same vibrant quartet, slightly deepened for contrast on white
+  green:    '#16a34a',
+  greenDim: '#15803d',
+  red:      '#dc2626',
+  redDim:   '#b91c1c',
+  blue:     '#2563eb',
+  blueDim:  '#1d4ed8',
+  yellow:   '#d97706',
+  yellowDim:'#b45309',
 
-  wordSearch:  '#5a4ad1',
+  primary:     '#16a34a',
+  primaryDim:  '#15803d',
+  accent:      '#d97706',
+  accentDim:   '#b45309',
+
+  wordSearch:  '#d97706',
 
   textPrimary:   '#0c2138',
   textSecondary: '#3d5a78',
   textMuted:     '#6c829a',
 
-  error:   '#d6453f',
-  warning: '#b98421',
-  success: '#1f9d74',
-  info:    '#1f93cf',
+  error:   '#dc2626',
+  warning: '#d97706',
+  success: '#16a34a',
+  info:    '#2563eb',
 
-  points:  '#bd962f',
-  ugx:     '#1f9d74',
-  kes:     '#1f93cf',
-  tzs:     '#cf7a2f',
+  points:  '#d97706',
+  ugx:     '#16a34a',
+  kes:     '#2563eb',
+  tzs:     '#ea7317',
 
   overlay:     'rgba(12,33,56,0.45)',
   overlayLight: 'rgba(12,33,56,0.2)',
@@ -101,14 +122,15 @@ export const Radius = {
 
 // ── Typography ─────────────────────────────────────────────────────────────
 export const Font = {
+  // Bumped up across the board — the old scale read too small on phones.
   size: {
-    xs:   11,
-    sm:   13,
-    md:   15,
-    lg:   18,
-    xl:   22,
-    xxl:  28,
-    hero: 40,
+    xs:   12,
+    sm:   14,
+    md:   16,
+    lg:   20,
+    xl:   25,
+    xxl:  34,
+    hero: 48,
   },
   weight: {
     regular: '400' as const,
@@ -117,8 +139,21 @@ export const Font = {
     bold:    '700' as const,
     black:   '900' as const,
   },
+  // Two bundled families (loaded in app/_layout via expo-font):
+  //  • body    → Nunito  — soft, very readable; the app-wide default text font
+  //  • display → Fredoka — rounded & chunky; titles, buttons, scores, headings
+  // Each weight is its own family name (RN/Android doesn't synthesise weights
+  // for custom fonts), so pick the right one rather than relying on fontWeight.
   family: {
-    sans:  Platform.OS === 'ios' ? 'System' : 'Roboto',
+    body:        'Nunito_400Regular',
+    bodySemi:    'Nunito_600SemiBold',
+    bodyBold:    'Nunito_700Bold',
+    bodyBlack:   'Nunito_800ExtraBold',
+    display:     'Fredoka_500Medium',
+    displaySemi: 'Fredoka_600SemiBold',
+    displayBold: 'Fredoka_700Bold',
+    // Back-compat aliases
+    sans:  'Nunito_400Regular',
     mono:  Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
 } as const;
@@ -175,7 +210,7 @@ export const GameMeta = {
 // The three real-time 2-player games tournaments run on. `route` is the
 // expo-router folder for the live game screen ( /{route}/{gameId} ).
 export const TournamentGameMeta = {
-  SCRABBLE:   { label: 'Grid Scrabble',    icon: '🔤', route: 'scrabble',   color: '#19c37d' },
-  GOMOKU:     { label: 'Grid Connect',     icon: '⚫', route: 'gomoku',     color: '#6c8cff' },
-  BATTLESHIP: { label: 'Grid Battleships', icon: '🚢', route: 'battleship', color: '#f5a623' },
+  SCRABBLE:   { label: 'Grid Scrabble',    icon: '🔤', route: 'scrabble',   color: Colors.green },
+  GOMOKU:     { label: 'Grid Connect',     icon: '⚫', route: 'gomoku',     color: Colors.blue },
+  BATTLESHIP: { label: 'Grid Battleships', icon: '🚢', route: 'battleship', color: Colors.red },
 } as const;

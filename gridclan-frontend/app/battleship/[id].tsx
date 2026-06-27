@@ -8,7 +8,7 @@ import { battleshipApi, type BattleshipView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
-import { Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 const SIZE = 10;
@@ -153,7 +153,7 @@ export default function BattleshipGameScreen() {
 
         {/* Your fleet */}
         <Text style={[styles.boardLabel, { marginTop: Spacing.lg }]}>{t('battleship.yourFleet', 'Your fleet')}</Text>
-        <View style={styles.board}>
+        <View style={[styles.board, styles.boardOwn]}>
           {game.yourBoard.map((row, r) => (
             <View key={r} style={styles.boardRow}>
               {row.split('').map((ch, c) => (
@@ -182,17 +182,18 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   shareCard: { padding: Spacing.md, marginBottom: Spacing.md, width: BOARD_W, alignItems: 'center' },
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
 
-  board:    { width: BOARD_W, borderWidth: 1, borderColor: Colors.border, alignSelf: 'center' },
+  board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.red, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface, alignSelf: 'center', ...Shadow.md },
+  boardOwn: { borderColor: Colors.blue },
   boardRow: { flexDirection: 'row' },
   cell: {
     width: CELL, height: CELL,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border,
+    borderWidth: 1, borderColor: '#2a4d7855',
     alignItems: 'center', justifyContent: 'center',
   },
-  cellWater: { backgroundColor: '#1f6f9e22' },
-  cellShip:  { backgroundColor: Colors.textMuted },
-  cellHit:   { backgroundColor: '#d6453f' },
+  cellWater: { backgroundColor: '#1f6f9e33' },
+  cellShip:  { backgroundColor: Colors.textSecondary },
+  cellHit:   { backgroundColor: Colors.red },
   cellMiss:  { backgroundColor: Colors.surfaceHigh },
-  mark:      { color: '#fff', fontSize: CELL * 0.6, fontWeight: Font.weight.bold },
+  mark:      { color: '#fff', fontSize: CELL * 0.62, fontFamily: Font.family.displayBold },
   missDot:   { width: CELL * 0.28, height: CELL * 0.28, borderRadius: CELL, backgroundColor: Colors.textMuted },
 });
