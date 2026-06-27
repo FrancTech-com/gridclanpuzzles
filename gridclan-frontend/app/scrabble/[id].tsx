@@ -6,6 +6,7 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useTranslation } from 'react-i18next';
 import { scrabbleApi, type ScrabblePlacement, type ScrabbleView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
+import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -52,7 +53,9 @@ export default function ScrabbleGameScreen() {
     let cleanup: (() => void) | undefined;
     subscribeGame('scrabble', id, () => { if (active) load(); })
       .then(unsub => { if (active) cleanup = unsub; else unsub(); });
-    return () => { active = false; cleanup?.(); };
+    // Fallback poll so the board stays live even if the WebSocket can't connect.
+    const poll = setInterval(() => { if (active) load(); }, 4000);
+    return () => { active = false; cleanup?.(); clearInterval(poll); };
   }, [load, id]));
 
   // Rack tiles still available (original rack minus tiles used by pending moves).
@@ -104,7 +107,12 @@ export default function ScrabbleGameScreen() {
       return null;
     });
     setBusy(false);
-    if (res?.data) { setGame(res.data); setPending([]); setSelChar(null); }
+    if (res?.data) {
+      setGame(res.data); setPending([]); setSelChar(null);
+      if (res.data.outcome === 'WON')      playSfx('win');
+      else if (res.data.outcome === 'LOST') playSfx('lose');
+      else                                  playSfx('move');
+    }
   }
 
   async function doPass() {

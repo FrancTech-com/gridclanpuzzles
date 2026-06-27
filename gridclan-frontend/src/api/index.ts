@@ -8,7 +8,7 @@ import type {
   GameType,
   UserProfile,
   Community, CommunityMemberInfo, ChatMessage,
-  Tournament, LeaderboardEntry, PlayerRank,
+  Tournament, TournamentGame, TournamentMe, LeaderboardEntry, PlayerRank,
   GlobalLeaderboardEntry, GameLeaderboardEntry, GameKey,
 } from '@gridtypes/index';
 
@@ -117,7 +117,7 @@ export const tournamentApi = {
 
   create: (payload: {
     name: string;
-    gameType: GameType;
+    gameType: TournamentGame;
     communityId?: string;
     maxPlayers?: number;
     startsAt: string;   // ISO-8601
@@ -130,13 +130,18 @@ export const tournamentApi = {
   get: (id: string) =>
     apiClient.get<Tournament>(`/tournament/${id}`),
 
-  getLeaderboard: (id: string, limit = 100) =>
-    apiClient.get<{ leaderboard: LeaderboardEntry[]; totalPlayers: number }>(
-      `/tournament/${id}/leaderboard?limit=${limit}`
-    ),
+  /** Enter a tournament while it's UPCOMING. */
+  join: (id: string) =>
+    apiClient.post<{ tournamentId: string; joined: boolean }>(`/tournament/${id}/join`),
 
-  getMyRank: (id: string) =>
-    apiClient.get<PlayerRank>(`/tournament/${id}/rank`),
+  /** Viewer's state — drives "go straight to your match" / waiting / result. */
+  getMe: (id: string) =>
+    apiClient.get<TournamentMe>(`/tournament/${id}/me`),
+
+  /** Bracket view: rounds → matches. */
+  getBracket: (id: string) =>
+    apiClient.get<{ tournamentId: string; rounds: Record<string, any[]> }>(
+      `/tournament/${id}/bracket`),
 };
 
 // ── Grid Scrabble (async shared-board 2-player) ─────────────────────────────

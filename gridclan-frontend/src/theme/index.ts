@@ -171,3 +171,11 @@ export const GameMeta = {
     icon:        'search',
   },
 } as const;
+
+// The three real-time 2-player games tournaments run on. `route` is the
+// expo-router folder for the live game screen ( /{route}/{gameId} ).
+export const TournamentGameMeta = {
+  SCRABBLE:   { label: 'Grid Scrabble',    icon: '🔤', route: 'scrabble',   color: '#19c37d' },
+  GOMOKU:     { label: 'Grid Connect',     icon: '⚫', route: 'gomoku',     color: '#6c8cff' },
+  BATTLESHIP: { label: 'Grid Battleships', icon: '🚢', route: 'battleship', color: '#f5a623' },
+} as const;

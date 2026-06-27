@@ -6,6 +6,7 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useTranslation } from 'react-i18next';
 import { battleshipApi, type BattleshipView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
+import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -39,11 +40,23 @@ export default function BattleshipGameScreen() {
     let cleanup: (() => void) | undefined;
     subscribeGame('battleship', id, () => { if (active) load(); })
       .then(unsub => { if (active) cleanup = unsub; else unsub(); });
-    return () => { active = false; cleanup?.(); };
+    // Fallback poll: keeps the board live even if the WebSocket can't connect,
+    // so a player always sees the game become ACTIVE / their turn arrive.
+    const poll = setInterval(() => { if (active) load(); }, 4000);
+    return () => { active = false; cleanup?.(); clearInterval(poll); };
   }, [load, id]));
 
   async function fire(r: number, c: number) {
-    if (!id || !game || busy || !game.yourTurn) return;
+    if (!id || !game || busy) return;
+    if (game.status === 'WAITING_FOR_OPPONENT') {
+      Alert.alert(t('battleship.waitingOpponent', 'Waiting for a friend to join'));
+      return;
+    }
+    if (game.status === 'COMPLETE') return;
+    if (!game.yourTurn) {
+      Alert.alert(t('battleship.notYourTurn', "Hold on — it's your opponent's turn."));
+      return;
+    }
     if (game.trackingBoard[r]?.[c] !== '.') return;   // already fired here
     setBusy(true);
     const res = await battleshipApi.move(id, r, c).catch((e: any) => {
@@ -54,8 +67,10 @@ export default function BattleshipGameScreen() {
     if (res?.data) {
       setGame(res.data);
       const shot = res.data.lastShot;
-      if (shot === 'SUNK') Alert.alert(t('battleship.sunk', '💥 You sank a ship!'));
-      else if (shot === 'WIN') Alert.alert(t('battleship.win', '🏆 You sank the whole fleet — you win!'));
+      if (shot === 'WIN')        { playSfx('win');  Alert.alert(t('battleship.win', '🏆 You sank the whole fleet — you win!')); }
+      else if (shot === 'SUNK')  { playSfx('hit');  Alert.alert(t('battleship.sunk', '💥 You sank a ship!')); }
+      else if (shot === 'HIT')   playSfx('hit');
+      else                       playSfx('move');
     }
   }
 

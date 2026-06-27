@@ -1,6 +1,8 @@
 package com.gridclan.repository;
 
 import com.gridclan.entity.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -52,6 +54,21 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u.countryCode, COUNT(u) FROM User u WHERE u.deletedAt IS NULL GROUP BY u.countryCode")
     List<Object[]> countByCountry();
+
+    /**
+     * Admin user list / search. Non-deleted users, optionally filtered by a
+     * case-insensitive substring of username / email / display name. An empty
+     * query returns everyone (paged).
+     */
+    @Query("""
+        SELECT u FROM User u
+        WHERE u.deletedAt IS NULL
+          AND (:q = ''
+               OR LOWER(u.username)    LIKE LOWER(CONCAT('%', :q, '%'))
+               OR LOWER(u.email)       LIKE LOWER(CONCAT('%', :q, '%'))
+               OR LOWER(u.displayName) LIKE LOWER(CONCAT('%', :q, '%')))
+        """)
+    Page<User> searchActive(@Param("q") String q, Pageable pageable);
 
     @Modifying
     @Query("UPDATE User u SET u.lastActiveAt = :now WHERE u.id = :id")

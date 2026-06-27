@@ -14,6 +14,7 @@ import { WebContainer } from '@components/ui/WebContainer';
 import { installGlobalErrorHandlers } from '@services/errorReporter';
 import { startActivityTracker, stopActivityTracker } from '@services/activityTracker';
 import { installDeepLinkValidation, warnIfDeviceRooted } from '@services/deviceSecurity';
+import { loadSoundPref } from '@services/sound';
 import { loadPersistedLanguage } from '@i18n/index'; // also runs i18next init before first render
 
 SplashScreen.preventAutoHideAsync();
@@ -44,6 +45,7 @@ function RootNavigator() {
   useEffect(() => {
     dispatch(hydrateAuth()).finally(() => SplashScreen.hideAsync());
     loadPersistedLanguage();                    // user's language choice, if any
+    loadSoundPref();                            // restore mute preference
     warnIfDeviceRooted();                       // soft warning, never blocks
     return installDeepLinkValidation();
   }, []);

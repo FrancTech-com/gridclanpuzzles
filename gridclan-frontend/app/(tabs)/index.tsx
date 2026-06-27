@@ -12,6 +12,7 @@ import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index'
 import { RegisterBanner } from '@components/AuthGate';
 import { BouncingEmblem } from '@components/BouncingEmblem';
 import { pointsApi } from '@api/index';
+import { playSfx } from '@services/sound';
 import { Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type {
@@ -74,6 +75,7 @@ export default function HomeScreen() {
   }, [lbFilter]);
 
   async function handlePlay() {
+    playSfx('tap');
     // Guests must register to play: Friend/Tournament always; Solo until the
     // on-device trial demo lands (the guest trial counter is wired for that).
     if (isGuest) {
