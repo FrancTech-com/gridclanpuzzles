@@ -319,7 +319,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.lg },
   headerTitleWrap: { flex: 1 },
   greeting: { color: Colors.textMuted, fontSize: Font.size.md },
-  title:    { color: Colors.textPrimary, fontSize: Font.size.xl, fontWeight: Font.weight.bold, marginTop: 2 },
+  title:    { color: Colors.textPrimary, fontSize: Font.size.xxl, fontFamily: Font.family.displayBold, marginTop: 2 },
 
   authBtns:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   signInText:     { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
@@ -340,7 +340,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
     ...Shadow.sm,
   },
   gameAccent:   { position: 'absolute', top: 0, left: 0, right: 0, height: 3, borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg },
-  gameLabel:    { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold, marginTop: Spacing.sm },
+  gameLabel:    { color: Colors.textPrimary, fontSize: Font.size.lg, fontFamily: Font.family.displaySemi, marginTop: Spacing.sm },
   gameDesc:     { color: Colors.textMuted,   fontSize: Font.size.sm, marginTop: 4 },
   selectedDot:  { position: 'absolute', top: Spacing.md, right: Spacing.md, width: 10, height: 10, borderRadius: 5 },
 
@@ -367,7 +367,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   },
   scrabbleIcon:  { fontSize: 28 },
   scrabbleText:  { flex: 1 },
-  scrabbleTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
+  scrabbleTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontFamily: Font.family.displaySemi },
   scrabbleDesc:  { color: Colors.textMuted, fontSize: Font.size.sm, marginTop: 2 },
   scrabbleArrow: { color: Colors.textMuted, fontSize: Font.size.xl },
 

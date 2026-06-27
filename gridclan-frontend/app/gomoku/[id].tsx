@@ -8,7 +8,7 @@ import { gomokuApi, type GomokuView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
-import { Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 const SIZE = 15;
@@ -151,14 +151,14 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   shareCard: { padding: Spacing.md, marginBottom: Spacing.md, width: BOARD_W, alignItems: 'center' },
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
 
-  board:    { width: BOARD_W, borderWidth: 1, borderColor: Colors.border, backgroundColor: '#c9a86a22', alignSelf: 'center' },
+  board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.blue, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: '#caa86a33', alignSelf: 'center', ...Shadow.md },
   boardRow: { flexDirection: 'row' },
   cell: {
     width: CELL, height: CELL,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border,
+    borderWidth: 1, borderColor: '#00000033',
     alignItems: 'center', justifyContent: 'center',
   },
-  stone:   { width: CELL * 0.78, height: CELL * 0.78, borderRadius: CELL },
-  stoneP1: { backgroundColor: '#1b1b1b' },
-  stoneP2: { backgroundColor: '#f5f5f5', borderWidth: 1, borderColor: '#888' },
+  stone:   { width: CELL * 0.8, height: CELL * 0.8, borderRadius: CELL, ...Shadow.sm },
+  stoneP1: { backgroundColor: '#15181c', borderWidth: 1, borderColor: '#000' },
+  stoneP2: { backgroundColor: '#fbfbfb', borderWidth: 1, borderColor: '#9aa' },
 });

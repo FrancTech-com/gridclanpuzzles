@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
+  Alert, PanResponder, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -8,7 +8,7 @@ import { scrabbleApi, type ScrabblePlacement, type ScrabbleView } from '@api/ind
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
-import { Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 // Standard 15×15 premium layout (mirrors backend Premiums): T/D/t/d.
@@ -25,8 +25,9 @@ export default function ScrabbleGameScreen() {
   const { t } = useTranslation();
   const Colors = useColors();
   const { width } = useWindowDimensions();
-  const boardW = Math.min(width || 360, 480) - Spacing.lg * 2;
-  const cell = Math.floor(boardW / SIZE);
+  const maxW = Math.min(width || 360, 480) - Spacing.lg * 2;
+  const cell = Math.floor(maxW / SIZE);
+  const boardW = cell * SIZE;                       // exact, so drop coords map to cells
   const styles = useMemo(() => makeStyles(Colors, cell, boardW), [Colors, cell, boardW]);
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -36,6 +37,77 @@ export default function ScrabbleGameScreen() {
   const [pending, setPending] = useState<ScrabblePlacement[]>([]);
   const [selChar, setSelChar] = useState<{ char: string; rackIdx: number } | null>(null);
   const [blankAt, setBlankAt] = useState<{ row: number; col: number; rackIdx: number } | null>(null);
+
+  // ── Drag-and-drop (rack tile → board cell) ────────────────────────────────
+  // A tile can be dragged onto the board; a quick tap with no drag still works
+  // (selects the tile, then tap a cell to place it — the original flow).
+  const [drag, setDrag] = useState<{ char: string; rackIdx: number; x: number; y: number; moved: boolean } | null>(null);
+  const boardRef = useRef<View>(null);
+  const boardRect = useRef<{ x: number; y: number } | null>(null);
+
+  // Live values the (stable) gesture handlers read at fire time. The handlers
+  // must NOT be recreated each render — doing so resets PanResponder's gesture
+  // state mid-drag — so everything dynamic flows through refs.
+  const pendingRef = useRef<ScrabblePlacement[]>([]);
+  const gameRef = useRef(game);
+  const cellRef = useRef(cell);
+  const boardWRef = useRef(boardW);
+  useEffect(() => { pendingRef.current = pending; }, [pending]);
+  useEffect(() => { gameRef.current = game; }, [game]);
+  useEffect(() => { cellRef.current = cell; boardWRef.current = boardW; }, [cell, boardW]);
+
+  const measureBoard = useCallback(() => {
+    boardRef.current?.measureInWindow((x, y) => { boardRect.current = { x, y }; });
+  }, []);
+
+  // Drop a tile onto (r,c); reads board/pending via refs so it's always current.
+  const placeRef = useRef<(r: number, c: number, char: string, rackIdx: number) => void>(() => {});
+  placeRef.current = (r, c, char, rackIdx) => {
+    if (r < 0 || r >= SIZE || c < 0 || c >= SIZE) return;
+    const occupied = pendingRef.current.some(p => p.row === r && p.col === c)
+      || !!(gameRef.current?.board[r]?.[c] && gameRef.current!.board[r][c] !== '.');
+    if (occupied) return;
+    if (char === '_') { setBlankAt({ row: r, col: c, rackIdx }); return; }
+    setPending([...pendingRef.current, { row: r, col: c, letter: char, blank: false }]);
+    playSfx('move');
+  };
+
+  // One stable PanResponder per rack slot (0–6), built once. The dragged tile's
+  // letter comes from the current rack via its slot index.
+  const tilePansRef = useRef<ReturnType<typeof PanResponder.create>[] | null>(null);
+  if (!tilePansRef.current) {
+    tilePansRef.current = Array.from({ length: 7 }, (_u, rackIdx) =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => !!gameRef.current?.yourTurn && gameRef.current?.status !== 'COMPLETE',
+        onMoveShouldSetPanResponder: (_e, g) => Math.hypot(g.dx, g.dy) > 6,
+        // Keep the drag even though the rack sits inside a ScrollView.
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => {
+          measureBoard();
+          setDrag({ char: gameRef.current?.yourRack[rackIdx] ?? '', rackIdx, x: 0, y: 0, moved: false });
+        },
+        onPanResponderMove: (_e, g) => {
+          setDrag({ char: gameRef.current?.yourRack[rackIdx] ?? '', rackIdx, x: g.moveX, y: g.moveY, moved: Math.hypot(g.dx, g.dy) > 8 });
+        },
+        onPanResponderRelease: (_e, g) => {
+          const char = gameRef.current?.yourRack[rackIdx] ?? '';
+          if (Math.hypot(g.dx, g.dy) > 8 && boardRect.current) {
+            const lx = g.moveX - boardRect.current.x;
+            const ly = g.moveY - boardRect.current.y;
+            if (lx >= 0 && ly >= 0 && lx < boardWRef.current && ly < boardWRef.current) {
+              placeRef.current(Math.floor(ly / cellRef.current), Math.floor(lx / cellRef.current), char, rackIdx);
+            }
+          } else {
+            // No real drag → toggle selection (original tap-to-place flow).
+            setSelChar(prev => (prev?.rackIdx === rackIdx ? null : { char, rackIdx }));
+          }
+          setDrag(null);
+        },
+        onPanResponderTerminate: () => setDrag(null),
+      }),
+    );
+  }
+  const tilePans = tilePansRef.current;
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -178,7 +250,7 @@ export default function ScrabbleGameScreen() {
         )}
 
         {/* Board */}
-        <View style={styles.board}>
+        <View ref={boardRef} onLayout={measureBoard} style={styles.board}>
           {Array.from({ length: SIZE }).map((_, r) => (
             <View key={r} style={styles.boardRow}>
               {Array.from({ length: SIZE }).map((__, c) => {
@@ -207,16 +279,24 @@ export default function ScrabbleGameScreen() {
         {!complete && (
           <>
             <View style={styles.rack}>
-              {availableRack.map((tile, i) => (
-                <TouchableOpacity
-                  key={`${tile.idx}-${i}`}
-                  onPress={() => setSelChar(selChar?.rackIdx === tile.idx ? null : { char: tile.char, rackIdx: tile.idx })}
-                  style={[styles.rackTile, selChar?.rackIdx === tile.idx && styles.rackTileSel]}
-                >
-                  <Text style={styles.rackTileText}>{tile.char === '_' ? '▢' : tile.char}</Text>
-                </TouchableOpacity>
-              ))}
+              {availableRack.map((tile, i) => {
+                const isDragging = drag?.moved && drag.rackIdx === tile.idx;
+                return (
+                  <View
+                    key={`${tile.idx}-${i}`}
+                    {...tilePans[tile.idx].panHandlers}
+                    style={[
+                      styles.rackTile,
+                      selChar?.rackIdx === tile.idx && styles.rackTileSel,
+                      isDragging && styles.rackTileGhostSlot,
+                    ]}
+                  >
+                    <Text style={styles.rackTileText}>{tile.char === '_' ? '▢' : tile.char}</Text>
+                  </View>
+                );
+              })}
             </View>
+            <Text style={styles.dragHint}>{t('scrabble.dragHint', 'Drag a tile onto the board — or tap a tile then a square')}</Text>
 
             {/* Actions */}
             <View style={styles.actions}>
@@ -228,6 +308,13 @@ export default function ScrabbleGameScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Floating tile that follows the finger while dragging. */}
+      {drag?.moved && (
+        <View pointerEvents="none" style={[styles.dragGhost, { left: drag.x - cell * 0.6, top: drag.y - cell * 0.75 }]}>
+          <Text style={styles.dragGhostText}>{drag.char === '_' ? '▢' : drag.char}</Text>
+        </View>
+      )}
 
       {/* Blank letter picker */}
       {blankAt && (
@@ -289,19 +376,24 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
   cardTitle: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold, textAlign: 'center' },
 
-  board:     { width: BOARD_W, borderWidth: 1, borderColor: Colors.border, alignSelf: 'center' },
+  board:     { width: BOARD_W, borderWidth: 3, borderColor: Colors.accent, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface, alignSelf: 'center', ...Shadow.md },
   boardRow:  { flexDirection: 'row' },
-  cell:      { width: CELL, height: CELL, borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  cellPending: { backgroundColor: Colors.accent },
-  tileText:  { color: Colors.textPrimary, fontSize: CELL * 0.5, fontWeight: Font.weight.bold },
+  cell:      { width: CELL, height: CELL, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  cellPending: { backgroundColor: Colors.accent, borderColor: Colors.accentDim },
+  tileText:  { color: Colors.textPrimary, fontSize: CELL * 0.56, fontFamily: Font.family.displayBold },
   blankText: { color: Colors.primary },
-  premText:  { color: Colors.textMuted, fontSize: CELL * 0.28 },
-  starText:  { color: Colors.accent, fontSize: CELL * 0.6 },
+  premText:  { color: Colors.textSecondary, fontSize: CELL * 0.3, fontFamily: Font.family.bodyBold },
+  starText:  { color: Colors.accent, fontSize: CELL * 0.66 },
 
   rack:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, justifyContent: 'center', marginTop: Spacing.lg },
-  rackTile:  { width: 40, height: 44, borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  rackTileSel:{ borderColor: Colors.primary, backgroundColor: Colors.primary + '33' },
-  rackTileText:{ color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
+  rackTile:  { width: 44, height: 48, borderRadius: Radius.sm, backgroundColor: Colors.accent, borderWidth: 1, borderColor: Colors.accentDim, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'grab' } as any : null) },
+  rackTileSel:{ borderColor: Colors.primary, borderWidth: 2, transform: [{ translateY: -4 }] },
+  rackTileGhostSlot: { opacity: 0.25 },
+  rackTileText:{ color: '#1a1206', fontSize: Font.size.lg, fontFamily: Font.family.displayBold },
+
+  dragHint:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: Spacing.sm, textAlign: 'center' },
+  dragGhost: { position: 'absolute', width: CELL * 1.2, height: CELL * 1.2, borderRadius: Radius.sm, backgroundColor: Colors.accent, borderWidth: 1, borderColor: Colors.accentDim, alignItems: 'center', justifyContent: 'center', ...Shadow.md },
+  dragGhostText: { color: '#1a1206', fontSize: CELL * 0.6, fontFamily: Font.family.displayBold },
 
   actions:   { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg, width: BOARD_W },
   actionBtn: { flex: 1 },
