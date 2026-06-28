@@ -162,7 +162,14 @@ $('loginForm').addEventListener('submit', async e => {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ identifier: $('identifier').value.trim(), password: $('password').value }),
     });
-    if (!res.ok) { $('loginErr').textContent = 'Invalid credentials.'; return; }
+    if (!res.ok) {
+      let msg = res.status === 429
+        ? 'Too many attempts — this account is temporarily locked. Wait a few minutes and try again.'
+        : 'Invalid credentials.';
+      try { const j = await res.json(); if (j.error || j.message) msg = j.error || j.message; } catch {}
+      $('loginErr').textContent = msg;
+      return;
+    }
     const data = await res.json();
     if (data.role !== 'ADMIN') { $('loginErr').textContent = 'This account is not an admin.'; return; }
     sessionStorage.setItem(TOKEN_KEY, data.accessToken);
