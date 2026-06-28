@@ -53,6 +53,7 @@ export default function RegisterScreen() {
   const [dobYear,   setDobYear]   = useState(0);            // full year, 0 = unset
   const [country,   setCountry]   = useState('');           // ISO code, none preselected
   const [dobError,  setDobError]  = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [activePicker, setActivePicker] = useState<'country' | 'month' | 'year' | null>(null);
   const [search,     setSearch]     = useState('');
 
@@ -70,6 +71,12 @@ export default function RegisterScreen() {
   async function handleRegister() {
     if (!email.trim() || !password) return;
 
+    // Username is required by the backend (3–32 chars, letters/numbers/_).
+    // Validate client-side so the user gets a clear message, not a generic fail.
+    const handle = username.trim();
+    if (!/^[a-zA-Z0-9_]{3,32}$/.test(handle)) { setUsernameError(t('auth.usernameInvalid')); return; }
+    setUsernameError(null);
+
     // COPPA pre-check — the server re-validates and is authoritative
     const age = ageFromDob(dob);
     if (age === null) { setDobError(t('auth.dobInvalid')); return; }
@@ -77,7 +84,7 @@ export default function RegisterScreen() {
     setDobError(null);
 
     const result = await dispatch(registerThunk({
-      username:          username.trim() || undefined,
+      username:          handle,
       email:             email.trim(),
       phoneNumber:       phone.trim() || undefined,
       password,
@@ -103,8 +110,11 @@ export default function RegisterScreen() {
           </View>
         )}
 
-        <Input label={t('auth.usernameOptional')} placeholder="puzzleplayer99"
-          value={username} onChangeText={setUsername} autoCapitalize="none" />
+        <Input label={`${t('auth.username')} *`} placeholder="puzzleplayer99"
+          value={username}
+          onChangeText={txt => { setUsername(txt); if (usernameError) setUsernameError(null); }}
+          autoCapitalize="none" />
+        {usernameError && <Text style={styles.dobError}>{usernameError}</Text>}
 
         <Input label={`${t('auth.email')} *`} placeholder="you@example.com"
           value={email} onChangeText={setEmail}
@@ -163,7 +173,7 @@ export default function RegisterScreen() {
           title={t('auth.register')}
           onPress={handleRegister}
           loading={isLoading}
-          disabled={!email || !password || !dob || !country}
+          disabled={!username.trim() || !email || !password || !dob || !country}
           style={styles.submitBtn}
         />
 
