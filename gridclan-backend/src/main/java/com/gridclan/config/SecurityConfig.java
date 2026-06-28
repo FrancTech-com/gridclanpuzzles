@@ -49,6 +49,9 @@ public class SecurityConfig {
                 // Global leaderboard is public so the guest-browsable home can
                 // show the top-players panel (display name + score only, no PII)
                 .requestMatchers("/leaderboard/**").permitAll()
+                // Admin dashboard page (static HTML) loads anonymously; it logs in
+                // via /auth/login and every /admin/** API stays ADMIN-only.
+                .requestMatchers("/admin.html").permitAll()
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )

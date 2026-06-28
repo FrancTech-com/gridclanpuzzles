@@ -70,9 +70,10 @@ export interface GemTransaction {
 }
 
 export interface GiftGemsRequest {
-  recipientId: string;
-  amount:      number;
-  note?:       string;
+  /** Recipient's username (or, for back-compat, a raw user-id). */
+  recipient: string;
+  amount:    number;
+  note?:     string;
 }
 
 // ── Game ───────────────────────────────────────────────────────────────────
@@ -154,11 +155,14 @@ export interface Community {
 }
 
 // ── Tournament ─────────────────────────────────────────────────────────────
+// Tournaments run on the three real-time 2-player games (not solo Word Search).
+export type TournamentGame = 'SCRABBLE' | 'GOMOKU' | 'BATTLESHIP';
+
 export interface Tournament {
   id:           string;
   name:         string;
-  gameType:     GameType;
-  status:       'UPCOMING' | 'ACTIVE' | 'COMPLETED';
+  gameType:     TournamentGame;
+  status:       'UPCOMING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
   /** Always 0 — entry is free, enforced by a DB CHECK constraint. */
   entryFeePts:  number;
   hintsAllowed: false;          // Always false — enforced by server
@@ -166,6 +170,32 @@ export interface Tournament {
   startsAt:     string;
   endsAt:       string;
   communityId:  string | null;
+  currentRound?: number;
+  winnerId?:    string | null;
+  joinedCount?: number;
+  joined?:      boolean;        // is the caller entered (only on GET /{id})
+}
+
+// Where the viewer stands in a tournament (drives the detail "hub").
+export type TournamentState =
+  | 'NOT_JOINED' | 'WAITING_START' | 'CANCELLED'
+  | 'PLAYING' | 'WAITING_NEXT' | 'ELIMINATED' | 'CHAMPION' | 'DONE';
+
+export interface TournamentMe {
+  tournamentId:     string;
+  tournamentStatus: Tournament['status'];
+  gameType:         TournamentGame;
+  currentRound:     number;
+  joined:           boolean;
+  state:            TournamentState;
+  eliminatedRound?: number;
+  currentMatch?: {
+    matchId:      string;
+    round:        number;
+    gameType:     TournamentGame;
+    gameId:       string | null;
+    opponentName: string | null;
+  };
 }
 
 export interface LeaderboardEntry {

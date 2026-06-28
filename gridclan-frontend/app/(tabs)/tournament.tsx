@@ -10,7 +10,7 @@ import { tournamentApi } from '@api/index';
 import { RootState } from '@store/index';
 import { Badge, Card, EmptyState, LoadingSpinner } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
-import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing, TournamentGameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { Tournament } from '@gridtypes/index';
 
@@ -92,11 +92,15 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
   const { t } = useTranslation();
   const Colors = useColors();
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
-  const meta = GameMeta[tournament.gameType];
+  const meta = TournamentGameMeta[tournament.gameType] ?? TournamentGameMeta.SCRABBLE;
 
   const handleEnter = () => {
     router.push(`/tournament/${tournament.id}`);
   };
+
+  const cta = tournament.status === 'ACTIVE'    ? t('tournament.goToMatch', 'Go to my match')
+            : tournament.status === 'UPCOMING'  ? t('tournament.viewAndJoin', 'View & join')
+            : t('tournament.viewResult', 'View result');
 
   return (
     <Card style={styles.card}>
@@ -126,16 +130,12 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
         </Text>
       </View>
 
-      {tournament.status === 'ACTIVE' && (
-        <TouchableOpacity style={[styles.enterBtn, { backgroundColor: meta.color }]} onPress={handleEnter}>
-          <Text style={styles.enterBtnText}>{t('tournament.viewAndEnter')}</Text>
-        </TouchableOpacity>
-      )}
-      {tournament.status !== 'ACTIVE' && (
-        <TouchableOpacity style={styles.viewBtn} onPress={handleEnter}>
-          <Text style={styles.viewBtnText}>{t('tournament.viewLeaderboard')} →</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={tournament.status === 'ACTIVE' ? [styles.enterBtn, { backgroundColor: meta.color }] : styles.viewBtn}
+        onPress={handleEnter}
+      >
+        <Text style={tournament.status === 'ACTIVE' ? styles.enterBtnText : styles.viewBtnText}>{cta} →</Text>
+      </TouchableOpacity>
     </Card>
   );
 }

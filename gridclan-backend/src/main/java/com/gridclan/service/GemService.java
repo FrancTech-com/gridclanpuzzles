@@ -92,14 +92,16 @@ public class GemService {
     // ── Gift (player → player, NOT a sale — no money changes hands) ────────
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
-    public void giftGems(UUID senderId, UUID recipientId, long amount, String note) {
+    public void giftGems(UUID senderId, String recipientIdentifier, long amount, String note) {
         if (amount <= 0) throw new IllegalArgumentException("Gift amount must be positive");
+
+        // Recipient is identified by username (what players know) or, for
+        // back-compat, a raw user-id UUID.
+        User recipient = resolveRecipient(recipientIdentifier);
+        UUID recipientId = recipient.getId();
+
         if (senderId.equals(recipientId))
             throw new IllegalArgumentException("You cannot gift gems to yourself.");
-
-        // Recipient must exist and be in good standing.
-        User recipient = userRepo.findById(recipientId)
-            .orElseThrow(() -> new IllegalArgumentException("Recipient not found."));
         if (recipient.isPendingDeletion() || !recipient.isActive() || recipient.isSuspended())
             throw new IllegalArgumentException("Recipient cannot receive gems.");
 
@@ -152,6 +154,26 @@ public class GemService {
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * Resolve a recipient from what the user typed: a username (the common
+     * case, case-insensitive) or a raw user-id UUID (back-compat / power users).
+     */
+    private User resolveRecipient(String identifier) {
+        if (identifier == null || identifier.isBlank())
+            throw new IllegalArgumentException("Recipient is required.");
+        String id = identifier.trim();
+
+        return userRepo.findByUsernameIgnoreCase(id)
+            .or(() -> {
+                try {
+                    return userRepo.findById(UUID.fromString(id));
+                } catch (IllegalArgumentException notAUuid) {
+                    return java.util.Optional.empty();
+                }
+            })
+            .orElseThrow(() -> new IllegalArgumentException("No player found with that username."));
+    }
 
     private PlayerGems lockOrCreate(UUID userId) {
         return gemsRepo.findByUserIdForUpdate(userId).orElseGet(() ->

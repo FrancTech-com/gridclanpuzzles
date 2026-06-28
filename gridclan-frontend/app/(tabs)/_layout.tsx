@@ -1,20 +1,23 @@
 import React from 'react';
+import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Font } from '@theme/index';
 import { useColors } from '@theme/theme';
+import { FloatingControls } from '@components/ui/FloatingControls';
 export default function TabsLayout() {
   const { t } = useTranslation();
   const Colors = useColors();
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown:          false,
         tabBarStyle:          { backgroundColor: Colors.surface, borderTopColor: Colors.border, height: 60, paddingBottom: 8 },
         tabBarActiveTintColor:   Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
-        tabBarLabelStyle:     { fontSize: Font.size.xs, fontWeight: Font.weight.medium },
+        tabBarLabelStyle:     { fontSize: Font.size.xs, fontFamily: Font.family.displaySemi },
       }}
     >
       <Tabs.Screen
@@ -53,5 +56,7 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    <FloatingControls />
+    </View>
   );
 }

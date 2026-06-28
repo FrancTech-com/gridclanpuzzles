@@ -56,6 +56,37 @@ public class BattleshipGameService {
         return view(userId, g, null);
     }
 
+    // ── Tournament match support ─────────────────────────────────────────────
+
+    /** Create a fully-initialized, pre-paired ACTIVE game for a bracket match. */
+    @Transactional
+    public UUID createMatch(UUID p1, UUID p2) {
+        BattleshipGame g = BattleshipGame.builder()
+            .inviteCode(uniqueCode())
+            .player1Id(p1).player2Id(p2)
+            .status("ACTIVE")
+            .currentPlayer((short) 1)
+            .board1(serialize(placeFleet()))
+            .board2(serialize(placeFleet()))
+            .build();
+        repo.save(g);
+        return g.getId();
+    }
+
+    /** True once the backing game has finished. */
+    @Transactional(readOnly = true)
+    public boolean isMatchComplete(UUID gameId) {
+        return repo.findById(gameId).map(g -> "COMPLETE".equals(g.getStatus())).orElse(false);
+    }
+
+    /** Winner of a finished game (battleship has no draws); falls back to player1. */
+    @Transactional(readOnly = true)
+    public UUID matchWinner(UUID gameId) {
+        return repo.findById(gameId)
+            .map(g -> g.getWinnerId() != null ? g.getWinnerId() : g.getPlayer1Id())
+            .orElse(null);
+    }
+
     @Transactional
     public Map<String, Object> join(UUID userId, String code) {
         BattleshipGame g = byCode(code);
