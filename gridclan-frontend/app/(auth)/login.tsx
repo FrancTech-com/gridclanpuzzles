@@ -3,11 +3,12 @@ import {
   Image, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
 import { loginThunk, clearError } from '@store/slices/authSlice';
+import { safeNextPath } from '@utils/invite';
 import { Button, Input } from '@components/ui/index';
 import { Font, Spacing, Radius } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -17,13 +18,15 @@ export default function LoginScreen() {
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((s: RootState) => s.auth);
+  // Carried from an invite link so sign-in drops the user back into the game.
+  const { next } = useLocalSearchParams<{ next?: string }>();
   const [identifier, setIdentifier] = useState('');
   const [password,   setPassword]   = useState('');
 
   async function handleLogin() {
     if (!identifier.trim() || !password) return;
     const result = await dispatch(loginThunk({ identifier: identifier.trim(), password }));
-    if (loginThunk.fulfilled.match(result)) router.replace('/(tabs)');
+    if (loginThunk.fulfilled.match(result)) router.replace((safeNextPath(next) ?? '/(tabs)') as never);
   }
 
   return (
@@ -81,7 +84,7 @@ export default function LoginScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
-          <Link href="/(auth)/register" style={styles.footerLink}>{t('auth.createOne')}</Link>
+          <Link href={{ pathname: '/(auth)/register', params: next ? { next } : {} }} style={styles.footerLink}>{t('auth.createOne')}</Link>
         </View>
 
       </ScrollView>

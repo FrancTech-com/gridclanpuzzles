@@ -16,6 +16,8 @@
   NODE_VERSION = "20"
   API_BASE_URL = "https://api.gridclanpuzzle.win"
   WS_URL = "wss://api.gridclanpuzzle.win/ws"
+  # Public origin of this web deploy — used to build tappable game-invite links.
+  WEB_BASE_URL = "https://gridclanpuzzle.win"
 
 # expo-router is a client-side router: every deep link must serve index.html
 # so the JS router can resolve the route. REQUIRED for /game/..., /community/...
