@@ -77,7 +77,7 @@ public class GemController {
             @Valid @RequestBody GiftGemsRequest req,
             Authentication auth) {
         UUID senderId = (UUID) auth.getPrincipal();
-        gemService.giftGems(senderId, req.getRecipientId(), req.getAmount(), req.getNote());
+        gemService.giftGems(senderId, req.getRecipient(), req.getAmount(), req.getNote());
         PlayerGems g = gemService.getBalance(senderId);
         return ResponseEntity.ok(Map.of(
             "status",  "GIFT_SENT",

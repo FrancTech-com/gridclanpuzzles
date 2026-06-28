@@ -166,7 +166,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   },
   btnGhost:    { borderWidth: 1, borderColor: Colors.primary },
   btnDisabled: { opacity: 0.5 },
-  btnText:     { fontWeight: Font.weight.semi, letterSpacing: 0.3 },
+  btnText:     { fontFamily: Font.family.displaySemi, letterSpacing: 0.3 },
 
   card: {
     backgroundColor: Colors.surface,
@@ -218,7 +218,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
     gap: 4,
   },
   pointsIcon: { color: Colors.points, fontSize: Font.size.md },
-  pointsText: { color: Colors.points, fontWeight: Font.weight.bold, fontSize: Font.size.md },
+  pointsText: { color: Colors.points, fontFamily: Font.family.displayBold, fontSize: Font.size.md },
 
   spinner: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
 
@@ -226,6 +226,6 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
 
   emptyState: { alignItems: 'center', padding: Spacing.xxl, gap: Spacing.sm },
   emptyIcon:     { fontSize: 48 },
-  emptyTitle:    { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.semi },
+  emptyTitle:    { color: Colors.textPrimary, fontSize: Font.size.lg, fontFamily: Font.family.displaySemi },
   emptySubtitle: { color: Colors.textMuted,   fontSize: Font.size.md, textAlign: 'center' },
 });
