@@ -4,14 +4,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 /**
  * Lightweight game audio.
  *
- * On **web** this synthesizes short sound effects with the Web Audio API (no
- * asset files needed) and loops optional background music from
- * `/audio/background.mp3` (silently no-ops if that file isn't present).
- * Browser autoplay rules require a user gesture, so music starts on the first
- * `playSfx` (i.e. the first tap/move).
+ * On **web** this synthesizes everything with the Web Audio API — no asset
+ * files needed:
+ *   • short sound effects (tap / move / hit / win / lose), and
+ *   • a gentle looping background music bed (procedural arpeggio + bass).
  *
- * On **native** it is currently a no-op — adding mobile sound needs `expo-av`
- * plus packaged audio files (a follow-up).
+ * Mobile browsers (iOS Safari especially) block audio until the user
+ * interacts, so we lazily resume the AudioContext and install a one-time
+ * "first gesture" listener that unlocks + starts the music on the very first
+ * tap anywhere — including the opening screen.
+ *
+ * On **native** it is currently a no-op — adding mobile-app sound needs
+ * `expo-audio` plus packaged assets (a follow-up).
  *
  * A single mute flag is persisted via AsyncStorage and respected everywhere.
  */
@@ -20,8 +24,6 @@ const isWeb = Platform.OS === 'web';
 
 let muted = false;
 let ctx: any = null;            // AudioContext (web)
-let bgm: any = null;            // HTMLAudioElement (web)
-let bgmStarted = false;
 
 export async function loadSoundPref(): Promise<void> {
   try { muted = (await AsyncStorage.getItem(MUTE_KEY)) === '1'; } catch { /* default on */ }
@@ -41,11 +43,14 @@ function audioCtx(): any {
     const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
     if (!AC) return null;
     if (!ctx) ctx = new AC();
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') ctx.resume();   // mobile browsers start suspended
     return ctx;
   } catch { return null; }
 }
 
+// ---------------------------------------------------------------------------
+// Sound effects
+// ---------------------------------------------------------------------------
 export type Sfx = 'tap' | 'move' | 'hit' | 'win' | 'lose';
 
 // Each effect is a tiny sequence of tones — cheap, no assets, "game-y".
@@ -61,12 +66,12 @@ export function playSfx(name: Sfx): void {
   if (muted) return;
   const c = audioCtx();
   if (!c) return;                  // native / unsupported → silent
-  if (!bgmStarted) startMusic();   // first gesture also kicks off ambient music
+  startMusic();                    // first gesture also kicks off ambient music
   let t = c.currentTime;
   for (const note of TONES[name]) {
     const osc = c.createOscillator();
     const gain = c.createGain();
-    osc.type = note.type;
+    osc.type = note.type as OscillatorType;
     osc.frequency.value = note.freq;
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(0.16, t + 0.01);
@@ -79,20 +84,90 @@ export function playSfx(name: Sfx): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Background music — synthesized, looping (no audio file required)
+// ---------------------------------------------------------------------------
+const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
+
+// Four-bar progression: Am – F – C – G. Each bar = one bass note + a 4-step
+// arpeggio of the chord tones. Mellow, low-volume, loops forever.
+const BARS = [
+  { bass: 45, chord: [69, 72, 76] },  // Am  (A2 · A4 C5 E5)
+  { bass: 41, chord: [65, 69, 72] },  // F   (F2 · F4 A4 C5)
+  { bass: 48, chord: [72, 76, 79] },  // C   (C3 · C4 E5 G5)
+  { bass: 43, chord: [67, 71, 74] },  // G   (G2 · G4 B4 D5)
+];
+const STEP = 0.30;                 // seconds per arpeggio step (~100 BPM eighths)
+const STEPS_PER_BAR = 4;
+
+let musicGain: any = null;         // master gain for music (separate from SFX)
+let musicTimer: any = null;        // lookahead scheduler interval
+let nextStepTime = 0;              // when the next note should fire (ctx time)
+let stepIndex = 0;                 // global step counter
+
+function scheduleStep(c: any, step: number, time: number): void {
+  const bar = BARS[Math.floor(step / STEPS_PER_BAR) % BARS.length];
+  const inBar = step % STEPS_PER_BAR;
+
+  // Bass note on the first step of each bar (longer, softer).
+  if (inBar === 0) voice(c, mtof(bar.bass), 'sine', time, STEP * STEPS_PER_BAR * 0.9, 0.10);
+
+  // Arpeggiate the chord across the bar.
+  const melody = bar.chord[inBar % bar.chord.length];
+  voice(c, mtof(melody), 'triangle', time, STEP * 0.85, 0.06);
+}
+
+function voice(c: any, freq: number, type: string, time: number, dur: number, peak: number): void {
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type = type as OscillatorType;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(peak, time + 0.04);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+  osc.connect(gain);
+  gain.connect(musicGain);
+  osc.start(time);
+  osc.stop(time + dur + 0.02);
+}
+
 export function startMusic(): void {
-  if (muted || !isWeb || typeof window === 'undefined') return;
-  try {
-    if (!bgm) {
-      bgm = new (window as any).Audio('/audio/background.mp3');
-      bgm.loop = true;
-      bgm.volume = 0.22;
+  if (muted) return;
+  const c = audioCtx();
+  if (!c || musicTimer) return;    // native/unsupported, or already running
+  if (!musicGain) {
+    musicGain = c.createGain();
+    musicGain.gain.value = 0.35;   // overall music level (quiet under SFX)
+    musicGain.connect(c.destination);
+  }
+  nextStepTime = c.currentTime + 0.1;
+  // Lookahead scheduler: schedule any notes due within the next 200ms.
+  musicTimer = setInterval(() => {
+    if (muted) { stopMusic(); return; }
+    while (nextStepTime < c.currentTime + 0.2) {
+      scheduleStep(c, stepIndex, nextStepTime);
+      nextStepTime += STEP;
+      stepIndex++;
     }
-    const p = bgm.play();
-    if (p && p.catch) p.catch(() => { /* autoplay blocked until a gesture */ });
-    bgmStarted = true;
-  } catch { /* no music file or unsupported */ }
+  }, 60);
 }
 
 export function stopMusic(): void {
-  try { bgm?.pause(); } catch { /* ignore */ }
+  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+
+// ---------------------------------------------------------------------------
+// Mobile autoplay unlock: start audio on the very first user interaction.
+// ---------------------------------------------------------------------------
+if (isWeb && typeof window !== 'undefined') {
+  const unlock = () => {
+    audioCtx();        // create + resume the context inside the gesture
+    startMusic();      // begin the ambient bed (no-ops if muted)
+    window.removeEventListener('pointerdown', unlock);
+    window.removeEventListener('touchstart', unlock);
+    window.removeEventListener('keydown', unlock);
+  };
+  window.addEventListener('pointerdown', unlock, { once: false });
+  window.addEventListener('touchstart', unlock, { once: false });
+  window.addEventListener('keydown', unlock, { once: false });
 }
