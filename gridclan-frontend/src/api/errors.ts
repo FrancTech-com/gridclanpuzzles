@@ -5,7 +5,7 @@ import { AxiosError } from 'axios';
 // is no `response`, so falling back to a generic "X failed" hides the real
 // problem. Distinguish that from an actual server-returned error.
 export function apiErrorMessage(e: unknown, fallback: string): string {
-  const err = e as AxiosError<{ message?: string }>;
+  const err = e as AxiosError<{ message?: string; error?: string }>;
 
   // Request was made but no response — connectivity/timeout/server down.
   if (err?.isAxiosError && !err.response) {
@@ -16,8 +16,11 @@ export function apiErrorMessage(e: unknown, fallback: string): string {
   }
 
   // Server responded: prefer its message; soften opaque 5xx errors.
+  // Controllers return the human-readable text under either `message` or
+  // `error` (e.g. 409 conflicts use `{"error": "Email already registered."}`),
+  // so check both before falling back.
   const status = err?.response?.status;
-  const serverMessage = err?.response?.data?.message;
+  const serverMessage = err?.response?.data?.message ?? err?.response?.data?.error;
   if (serverMessage) return serverMessage;
   if (status && status >= 500) {
     return 'The server is having problems. Please try again in a moment.';

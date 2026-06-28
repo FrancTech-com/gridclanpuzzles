@@ -46,6 +46,7 @@
     "joinTitle": "Join GridClan Puzzles",
     "createSubtitle": "Create your account",
     "usernameOptional": "Username (optional)",
+    "usernameInvalid": "Username must be 3–32 letters, numbers or underscores.",
     "phoneOptional": "Phone number (optional)",
     "passwordPlaceholder": "At least 8 characters",
     "dobInvalid": "Enter a valid date as YYYY-MM-DD.",
