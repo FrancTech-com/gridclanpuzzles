@@ -12,6 +12,10 @@
 
 const PROD_API = 'https://api.gridclanpuzzle.win';
 const PROD_WS = 'wss://api.gridclanpuzzle.win/ws';
+// Public web origin where the Expo Web export is served (Netlify). Used to build
+// tappable invite links (e.g. https://gridclanpuzzle.win/j/gomoku/ABC123) so a
+// friend can join straight from a link instead of typing a code.
+const PROD_WEB = 'https://gridclanpuzzle.win';
 
 module.exports = ({ config }) => ({
   ...config,
@@ -25,6 +29,7 @@ module.exports = ({ config }) => ({
     ...config.extra,
     API_BASE_URL: process.env.API_BASE_URL ?? config.extra?.API_BASE_URL ?? PROD_API,
     WS_URL: process.env.WS_URL ?? config.extra?.WS_URL ?? PROD_WS,
+    WEB_BASE_URL: process.env.WEB_BASE_URL ?? config.extra?.WEB_BASE_URL ?? PROD_WEB,
     SENTRY_DSN: process.env.SENTRY_DSN ?? config.extra?.SENTRY_DSN ?? '',
   },
 });

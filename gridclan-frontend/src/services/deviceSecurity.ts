@@ -43,6 +43,11 @@ const ALLOWED_PATH_PREFIXES = [
   'community',
   'tournament',
   'profile',
+  'j',           // friend-invite auto-join links: /j/<game>/<code>
+  'challenge',   // async friend-challenge hub + invite links
+  'scrabble',    // real-time game hubs (also reachable via invite links)
+  'gomoku',
+  'battleship',
 ];
 
 export function isAllowedDeepLink(url: string): boolean {
