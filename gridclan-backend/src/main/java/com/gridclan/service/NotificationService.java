@@ -50,6 +50,20 @@ public class NotificationService {
     }
 
     @Async
+    public void sendPasswordResetOtp(String email, String otp, long ttlMinutes) {
+        if (email == null) return;
+        try {
+            Context ctx = new Context();
+            ctx.setVariable("otp", otp);
+            ctx.setVariable("expiresIn", ttlMinutes + " minutes");
+            send(email, "Your GridClan Puzzles password reset code", "email/password-reset-otp", ctx);
+            log.info("Password reset OTP email sent to {}", mask(email));
+        } catch (Exception e) {
+            log.warn("Password reset OTP email failed for {}: {}", mask(email), e.getMessage());
+        }
+    }
+
+    @Async
     public void sendDeletionConfirmation(String email, UUID tombstoneId) {
         if (email == null) return;
         try {

@@ -41,7 +41,7 @@ public class PasswordResetService {
 
     private final UserRepository             userRepo;
     private final RedisTemplate<String, String> redis;
-    // Notification sending is handled elsewhere; no direct dependency needed here.
+    private final NotificationService        notifications;
     private final AuditLogService            audit;
     private final BCryptPasswordEncoder      encoder;
 
@@ -68,9 +68,10 @@ public class PasswordResetService {
 
         redis.opsForValue().set(key, otp, OTP_TTL);
 
-        // Call notification API with the resolved user and OTP
-        // NotificationService does not expose a sendPasswordResetOtp(User,String) method in this build;
-        // leave notification sending to implementation or other component. OTP is stored in Redis.
+        // Email the OTP to the account's email (async; failures are logged, not
+        // surfaced, to preserve the no-enumeration contract).
+        notifications.sendPasswordResetOtp(u.getEmail(), otp, OTP_TTL.toMinutes());
+
         audit.record(u.getId(), "PASSWORD_RESET_REQUESTED", "identifier=" + maskId(identifier));
         log.info("Password reset OTP sent: userId={}", u.getId());
     }
