@@ -86,6 +86,12 @@ public class GlobalExceptionHandler {
         return body(400, "BAD_REQUEST", e.getMessage());
     }
 
+    @ExceptionHandler(org.springframework.security.authorization.AuthorizationDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(
+            org.springframework.security.authorization.AuthorizationDeniedException e) {
+        return body(403, "FORBIDDEN", "You don't have permission to do that.");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception e) {
         log.error("Unhandled exception: {}", e.getMessage(), e);
