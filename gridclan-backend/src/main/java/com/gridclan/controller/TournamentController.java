@@ -1,10 +1,11 @@
 package com.gridclan.controller;
 
 import com.gridclan.entity.Tournament;
-import com.gridclan.entity.enums.GameType;
+import com.gridclan.repository.TournamentParticipantRepository;
 import com.gridclan.repository.TournamentRepository;
 import com.gridclan.service.AuditLogService;
 import com.gridclan.service.LeaderboardService;
+import com.gridclan.service.TournamentBracketService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -32,9 +33,11 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TournamentController {
 
-    private final TournamentRepository tournamentRepo;
-    private final AuditLogService      audit;
-    private final LeaderboardService   leaderboardService;
+    private final TournamentRepository            tournamentRepo;
+    private final TournamentParticipantRepository participantRepo;
+    private final TournamentBracketService        bracketService;
+    private final AuditLogService                  audit;
+    private final LeaderboardService               leaderboardService;
 
     // ── List active / upcoming tournaments ────────────────────────────────
 
@@ -64,10 +67,45 @@ public class TournamentController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<Map<String, Object>> getTournament(@PathVariable UUID id) {
+    public ResponseEntity<Map<String, Object>> getTournament(@PathVariable UUID id, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
         return tournamentRepo.findById(id)
-            .map(t -> ResponseEntity.ok(toSummary(t)))
+            .map(t -> {
+                Map<String, Object> m = toSummary(t);
+                m.put("joined", participantRepo.existsByTournamentIdAndUserId(id, userId));
+                return ResponseEntity.ok(m);
+            })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ── Join (while UPCOMING) ──────────────────────────────────────────────
+
+    @PostMapping("/{id}/join")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> join(@PathVariable UUID id, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        bracketService.join(userId, id);
+        audit.record(userId, "TOURNAMENT_JOINED", "id=" + id);
+        return ResponseEntity.ok(Map.of("tournamentId", id, "joined", true));
+    }
+
+    // ── My status: where to go (play / wait / eliminated / champion) ───────
+
+    @GetMapping("/{id}/me")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> myStatus(@PathVariable UUID id, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        if (!tournamentRepo.existsById(id)) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(bracketService.myStatus(userId, id));
+    }
+
+    // ── Bracket view ───────────────────────────────────────────────────────
+
+    @GetMapping("/{id}/bracket")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> bracket(@PathVariable UUID id) {
+        if (!tournamentRepo.existsById(id)) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(bracketService.bracket(id));
     }
 
     // ── Create tournament (community owner / ADMIN only) ──────────────────
@@ -80,11 +118,17 @@ public class TournamentController {
             Authentication auth) {
         UUID userId = (UUID) auth.getPrincipal();
 
+        // Tournaments run on the three 2-player games only (no solo Word Search).
+        String gameType = req.getGameType() == null ? "" : req.getGameType().trim().toUpperCase();
+        if (!TournamentBracketService.GAME_KEYS.contains(gameType))
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "gameType must be one of SCRABBLE, GOMOKU, BATTLESHIP"));
+
         // hints_allowed is ALWAYS false for tournaments — enforced here and in DB
         Tournament t = Tournament.builder()
             .name(req.getName())
             .communityId(req.getCommunityId())
-            .gameType(req.getGameType().name())
+            .gameType(gameType)
             .tier("COMMUNITY_TOURNAMENT")
             .status("UPCOMING")
             .entryFeePts(req.getEntryFeePts() != null ? req.getEntryFeePts() : 0)
@@ -154,6 +198,9 @@ public class TournamentController {
         m.put("startsAt",     t.getStartsAt() != null ? t.getStartsAt().toString() : null);
         m.put("endsAt",       t.getEndsAt()   != null ? t.getEndsAt().toString()   : null);
         m.put("communityId",  t.getCommunityId());
+        m.put("currentRound", t.getCurrentRound());
+        m.put("winnerId",     t.getWinnerId() != null ? t.getWinnerId().toString() : null);
+        m.put("joinedCount",  participantRepo.countByTournamentId(t.getId()));
         return m;
     }
 
@@ -165,8 +212,9 @@ public class TournamentController {
         @NotBlank @Size(min = 3, max = 150)
         private String name;
 
-        @NotNull
-        private GameType gameType;
+        /** SCRABBLE | GOMOKU | BATTLESHIP (validated in createTournament). */
+        @NotBlank
+        private String gameType;
 
         private UUID    communityId;
         private Integer entryFeePts;

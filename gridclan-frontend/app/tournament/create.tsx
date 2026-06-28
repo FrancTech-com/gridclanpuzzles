@@ -6,11 +6,11 @@ import { router, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { tournamentApi, communityApi } from '@api/index';
 import { Button, Card, Input } from '@components/ui/index';
-import { Font, GameMeta, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Spacing, TournamentGameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
-import type { Community, GameType } from '@gridtypes/index';
+import type { Community, TournamentGame } from '@gridtypes/index';
 
-const GAME_ORDER: GameType[] = ['WORD_SEARCH'];
+const GAME_ORDER: TournamentGame[] = ['SCRABBLE', 'GOMOKU', 'BATTLESHIP'];
 
 // Duration presets (hours) — avoids a native date-picker dependency and keeps
 // the flow one-tap. The tournament starts now and ends now + duration.
@@ -26,7 +26,7 @@ export default function CreateTournamentScreen() {
   const { t } = useTranslation();
 
   const [name, setName]             = useState('');
-  const [gameType, setGameType]     = useState<GameType>('WORD_SEARCH');
+  const [gameType, setGameType]     = useState<TournamentGame>('SCRABBLE');
   const [durationH, setDurationH]   = useState(24);
   const [maxPlayers, setMaxPlayers] = useState('');
   const [communityId, setCommunityId] = useState<string | undefined>(undefined);
@@ -91,11 +91,11 @@ export default function CreateTournamentScreen() {
             {GAME_ORDER.map(type => (
               <TouchableOpacity
                 key={type}
-                style={[styles.chip, gameType === type && { borderColor: GameMeta[type].color, backgroundColor: GameMeta[type].color + '22' }]}
+                style={[styles.chip, gameType === type && { borderColor: TournamentGameMeta[type].color, backgroundColor: TournamentGameMeta[type].color + '22' }]}
                 onPress={() => setGameType(type)}
               >
-                <Text style={[styles.chipText, gameType === type && { color: GameMeta[type].color }]}>
-                  {GameMeta[type].label}
+                <Text style={[styles.chipText, gameType === type && { color: TournamentGameMeta[type].color }]}>
+                  {TournamentGameMeta[type].icon} {TournamentGameMeta[type].label}
                 </Text>
               </TouchableOpacity>
             ))}

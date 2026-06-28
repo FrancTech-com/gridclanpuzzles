@@ -6,8 +6,9 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useTranslation } from 'react-i18next';
 import { battleshipApi, type BattleshipView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
+import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
-import { Font, Radius, Spacing } from '@theme/index';
+import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 const SIZE = 10;
@@ -39,11 +40,23 @@ export default function BattleshipGameScreen() {
     let cleanup: (() => void) | undefined;
     subscribeGame('battleship', id, () => { if (active) load(); })
       .then(unsub => { if (active) cleanup = unsub; else unsub(); });
-    return () => { active = false; cleanup?.(); };
+    // Fallback poll: keeps the board live even if the WebSocket can't connect,
+    // so a player always sees the game become ACTIVE / their turn arrive.
+    const poll = setInterval(() => { if (active) load(); }, 4000);
+    return () => { active = false; cleanup?.(); clearInterval(poll); };
   }, [load, id]));
 
   async function fire(r: number, c: number) {
-    if (!id || !game || busy || !game.yourTurn) return;
+    if (!id || !game || busy) return;
+    if (game.status === 'WAITING_FOR_OPPONENT') {
+      Alert.alert(t('battleship.waitingOpponent', 'Waiting for a friend to join'));
+      return;
+    }
+    if (game.status === 'COMPLETE') return;
+    if (!game.yourTurn) {
+      Alert.alert(t('battleship.notYourTurn', "Hold on — it's your opponent's turn."));
+      return;
+    }
     if (game.trackingBoard[r]?.[c] !== '.') return;   // already fired here
     setBusy(true);
     const res = await battleshipApi.move(id, r, c).catch((e: any) => {
@@ -54,8 +67,10 @@ export default function BattleshipGameScreen() {
     if (res?.data) {
       setGame(res.data);
       const shot = res.data.lastShot;
-      if (shot === 'SUNK') Alert.alert(t('battleship.sunk', '💥 You sank a ship!'));
-      else if (shot === 'WIN') Alert.alert(t('battleship.win', '🏆 You sank the whole fleet — you win!'));
+      if (shot === 'WIN')        { playSfx('win');  Alert.alert(t('battleship.win', '🏆 You sank the whole fleet — you win!')); }
+      else if (shot === 'SUNK')  { playSfx('hit');  Alert.alert(t('battleship.sunk', '💥 You sank a ship!')); }
+      else if (shot === 'HIT')   playSfx('hit');
+      else                       playSfx('move');
     }
   }
 
@@ -138,7 +153,7 @@ export default function BattleshipGameScreen() {
 
         {/* Your fleet */}
         <Text style={[styles.boardLabel, { marginTop: Spacing.lg }]}>{t('battleship.yourFleet', 'Your fleet')}</Text>
-        <View style={styles.board}>
+        <View style={[styles.board, styles.boardOwn]}>
           {game.yourBoard.map((row, r) => (
             <View key={r} style={styles.boardRow}>
               {row.split('').map((ch, c) => (
@@ -167,17 +182,18 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   shareCard: { padding: Spacing.md, marginBottom: Spacing.md, width: BOARD_W, alignItems: 'center' },
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
 
-  board:    { width: BOARD_W, borderWidth: 1, borderColor: Colors.border, alignSelf: 'center' },
+  board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.red, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface, alignSelf: 'center', ...Shadow.md },
+  boardOwn: { borderColor: Colors.blue },
   boardRow: { flexDirection: 'row' },
   cell: {
     width: CELL, height: CELL,
-    borderWidth: StyleSheet.hairlineWidth, borderColor: Colors.border,
+    borderWidth: 1, borderColor: '#2a4d7855',
     alignItems: 'center', justifyContent: 'center',
   },
-  cellWater: { backgroundColor: '#1f6f9e22' },
-  cellShip:  { backgroundColor: Colors.textMuted },
-  cellHit:   { backgroundColor: '#d6453f' },
+  cellWater: { backgroundColor: '#1f6f9e33' },
+  cellShip:  { backgroundColor: Colors.textSecondary },
+  cellHit:   { backgroundColor: Colors.red },
   cellMiss:  { backgroundColor: Colors.surfaceHigh },
-  mark:      { color: '#fff', fontSize: CELL * 0.6, fontWeight: Font.weight.bold },
+  mark:      { color: '#fff', fontSize: CELL * 0.62, fontFamily: Font.family.displayBold },
   missDot:   { width: CELL * 0.28, height: CELL * 0.28, borderRadius: CELL, backgroundColor: Colors.textMuted },
 });
