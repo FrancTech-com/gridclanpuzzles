@@ -1,12 +1,13 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
+  Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { gomokuApi, type GomokuView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
+import { gameInviteLink, shareInvite } from '@utils/invite';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -66,15 +67,14 @@ export default function GomokuGameScreen() {
     }
   }
 
-  async function shareCode() {
+  async function shareInviteLink() {
     if (!game) return;
-    const msg = t('gomoku.shareMessage', { code: game.inviteCode, defaultValue: `Play Grid Connect with me! Code: {{code}}` });
-    try {
-      if (Platform.OS === 'web') {
-        if ((navigator as any).share) await (navigator as any).share({ text: msg });
-        else if ((navigator as any).clipboard) { await (navigator as any).clipboard.writeText(game.inviteCode); Alert.alert(t('gomoku.copied', 'Code copied')); }
-      } else { await Share.share({ message: msg }); }
-    } catch { /* cancelled */ }
+    const link = gameInviteLink('gomoku', game.inviteCode);
+    const msg = t('gomoku.shareMessage', {
+      code: game.inviteCode, link,
+      defaultValue: `Play Grid Connect with me! Tap to join: {{link}}  (or enter code {{code}} in the app)`,
+    });
+    await shareInvite({ message: msg, link, onCopied: () => Alert.alert(t('gomoku.linkCopied', 'Invite link copied')) });
   }
 
   const header = {
@@ -108,9 +108,10 @@ export default function GomokuGameScreen() {
 
         {waiting && (
           <Card style={styles.shareCard}>
-            <Text style={styles.muted}>{t('gomoku.sharePrompt', 'Share this code so a friend can join:')}</Text>
+            <Text style={styles.muted}>{t('gomoku.sharePrompt', 'Send your friend the link — one tap drops them into this game:')}</Text>
             <Text selectable style={styles.code}>{game.inviteCode}</Text>
-            <Button title={t('gomoku.shareCta', 'Share code')} onPress={shareCode} variant="secondary" style={{ marginTop: Spacing.sm }} />
+            <Text selectable style={styles.link}>{gameInviteLink('gomoku', game.inviteCode)}</Text>
+            <Button title={t('gomoku.shareCta', 'Share invite link')} onPress={shareInviteLink} variant="secondary" style={{ marginTop: Spacing.sm }} />
           </Card>
         )}
 
@@ -150,6 +151,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
 
   shareCard: { padding: Spacing.md, marginBottom: Spacing.md, width: BOARD_W, alignItems: 'center' },
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
+  link:      { color: Colors.textMuted, fontSize: Font.size.xs, textAlign: 'center', marginBottom: Spacing.xs },
 
   board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.blue, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: '#caa86a33', alignSelf: 'center', ...Shadow.md },
   boardRow: { flexDirection: 'row' },

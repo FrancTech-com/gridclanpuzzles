@@ -3,11 +3,12 @@ import {
   FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
 import { registerThunk, clearError } from '@store/slices/authSlice';
+import { safeNextPath } from '@utils/invite';
 import { Button, Input, Card } from '@components/ui/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -41,6 +42,8 @@ export default function RegisterScreen() {
   const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((s: RootState) => s.auth);
+  // Carried from an invite link so sign-up drops the user back into the game.
+  const { next } = useLocalSearchParams<{ next?: string }>();
 
   const [username,  setUsername]  = useState('');
   const [email,     setEmail]     = useState('');
@@ -81,7 +84,7 @@ export default function RegisterScreen() {
       countryCode:       country,
       dateOfBirth:       dob,
     }));
-    if (registerThunk.fulfilled.match(result)) router.replace('/(tabs)');
+    if (registerThunk.fulfilled.match(result)) router.replace((safeNextPath(next) ?? '/(tabs)') as never);
   }
 
   return (
@@ -168,7 +171,7 @@ export default function RegisterScreen() {
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>{t('auth.haveAccount')} </Text>
-          <Link href="/(auth)/login" style={styles.footerLink}>{t('auth.login')}</Link>
+          <Link href={{ pathname: '/(auth)/login', params: next ? { next } : {} }} style={styles.footerLink}>{t('auth.login')}</Link>
         </View>
 
       </ScrollView>
