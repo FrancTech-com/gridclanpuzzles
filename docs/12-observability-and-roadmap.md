@@ -8,7 +8,8 @@
 
 | Concern | Mechanism |
 |---------|-----------|
-| Crash/error reporting (frontend) | **Sentry** via `@sentry/react-native` — no-op until `SENTRY_DSN` is set in app config `extra`; never sends PII |
+| Crash/error reporting (frontend) | **Sentry** via `@sentry/react-native` — DSN baked into app config `extra.SENTRY_DSN`; disabled in `__DEV__`; never sends PII |
+| Crash/error reporting (backend) | **Sentry** via `sentry-spring-boot-starter-jakarta` — DSN baked into `application.yml` (`sentry.dsn`), `SENTRY_DSN` env overrides; 10% trace sampling; never sends PII |
 | In-house error reporting | `src/services/errorReporter.ts` installs global unhandled-error/rejection handlers and feeds the backend `/ops/error-report` (complements, doesn't replace, Sentry) |
 | User activity / presence | `src/services/activityTracker.ts` + `presenceApi.heartbeat`; server-side `UserActivityService` |
 | Audit trail | `AuditLogService` (server) |
