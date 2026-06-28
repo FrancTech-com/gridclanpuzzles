@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Platform, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { challengeApi, type ChallengeView } from '@api/index';
+import { challengeInviteLink, shareInvite } from '@utils/invite';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { Font, GameMeta, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -41,20 +42,14 @@ export default function ChallengeHubScreen() {
     else Alert.alert(t('challenge.joinFailed', 'Could not join this challenge.'));
   }
 
-  async function shareCode() {
+  async function shareInviteLink() {
     if (!code) return;
-    const message = t('challenge.shareMessage', { code, defaultValue: `Play my GridClan puzzle challenge! Code: {{code}}` });
-    try {
-      if (Platform.OS === 'web') {
-        if ((navigator as any).share) await (navigator as any).share({ text: message });
-        else if ((navigator as any).clipboard) {
-          await (navigator as any).clipboard.writeText(code);
-          Alert.alert(t('challenge.copied', 'Code copied to clipboard'));
-        }
-      } else {
-        await Share.share({ message });
-      }
-    } catch { /* user cancelled */ }
+    const link = challengeInviteLink(code);
+    const message = t('challenge.shareMessage', {
+      code, link,
+      defaultValue: `Play my GridClan puzzle challenge! Tap to join: {{link}}  (or enter code {{code}} in the app)`,
+    });
+    await shareInvite({ message, link, onCopied: () => Alert.alert(t('challenge.linkCopied', 'Invite link copied')) });
   }
 
   const headerOptions = {
@@ -146,9 +141,10 @@ export default function ChallengeHubScreen() {
         {/* Share code */}
         {showCode && (
           <Card style={styles.card}>
-            <Text style={styles.muted}>{t('challenge.sharePrompt', 'Share this code so a friend can join:')}</Text>
+            <Text style={styles.muted}>{t('challenge.sharePrompt', 'Send your friend the link — one tap opens this challenge:')}</Text>
             <Text selectable style={styles.code}>{data.code}</Text>
-            <Button title={t('challenge.shareCta', 'Share code')} onPress={shareCode} variant="secondary" style={styles.btn} />
+            <Text selectable style={styles.link}>{challengeInviteLink(data.code)}</Text>
+            <Button title={t('challenge.shareCta', 'Share invite link')} onPress={shareInviteLink} variant="secondary" style={styles.btn} />
           </Card>
         )}
       </View>
@@ -191,4 +187,5 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   vs:         { color: Colors.textMuted, fontSize: Font.size.md },
 
   code: { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, textAlign: 'center', marginVertical: Spacing.sm },
+  link: { color: Colors.textMuted, fontSize: Font.size.xs, textAlign: 'center', marginBottom: Spacing.xs },
 });
