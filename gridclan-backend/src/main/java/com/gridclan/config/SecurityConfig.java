@@ -5,6 +5,10 @@ import com.gridclan.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
+import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -25,6 +29,25 @@ public class SecurityConfig {
 
     private final RateLimitFilter rateLimitFilter;
     private final JwtAuthFilter   jwtAuthFilter;
+
+    /**
+     * Role hierarchy: an ADMIN is also a USER. Without this, accounts whose JWT
+     * carries only ROLE_ADMIN fail every @PreAuthorize("hasRole('USER')") check
+     * (profile, gems, points, sessions, …) — so an admin could not load their
+     * own profile. ADMIN now implies USER everywhere (web + method security).
+     */
+    @Bean
+    static RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.fromHierarchy("ROLE_ADMIN > ROLE_USER");
+    }
+
+    /** Wire the hierarchy into @PreAuthorize/@PostAuthorize evaluation. */
+    @Bean
+    static MethodSecurityExpressionHandler methodSecurityExpressionHandler(RoleHierarchy roleHierarchy) {
+        DefaultMethodSecurityExpressionHandler handler = new DefaultMethodSecurityExpressionHandler();
+        handler.setRoleHierarchy(roleHierarchy);
+        return handler;
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {

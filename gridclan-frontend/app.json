@@ -57,7 +57,7 @@
       "API_BASE_URL": "https://api.gridclanpuzzle.win",
       "WS_URL": "wss://api.gridclanpuzzle.win/ws",
       "WEB_BASE_URL": "https://gridclanpuzzle.win",
-      "SENTRY_DSN": "",
+      "SENTRY_DSN": "https://ffe0af65b5213192d60235cc5ecf7f89@o4511615067619328.ingest.de.sentry.io/4511623088046160",
       "sslPinningEnabled": false,
       "eas": {
         "projectId": "gridclan-app"
