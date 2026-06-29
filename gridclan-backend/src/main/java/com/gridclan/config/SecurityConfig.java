@@ -91,10 +91,15 @@ public class SecurityConfig {
         // Allowed browser origins. Native iOS/Android apps send no Origin header
         // so CORS does not apply to them; this list is the web surface only:
         //   - the GridClan Puzzles web app on Netlify (gridclanpuzzle.win)
+        //   - the backend host itself — the admin dashboard (/admin.html) is
+        //     served from api.gridclanpuzzle.win, and browsers attach that
+        //     Origin to its POST /auth/login, so it must be allowed or the
+        //     admin page can't log in (was rejected with 403).
         //   - localhost during web development (any port).
         cfg.setAllowedOriginPatterns(List.of(
             "https://gridclanpuzzle.win",
             "https://www.gridclanpuzzle.win",
+            "https://api.gridclanpuzzle.win",
             "http://localhost:*"));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of(
