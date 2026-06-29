@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
@@ -14,6 +14,16 @@ import { useColors } from '@theme/theme';
 
 const SIZE = 10;
 
+// Diff a board against its previous snapshot → set of "r,c" squares that changed.
+function diffBoard(prev: string[] | null, next: string[]): Set<string> {
+  const changed = new Set<string>();
+  if (!prev) return changed;
+  for (let r = 0; r < next.length; r++)
+    for (let c = 0; c < next[r].length; c++)
+      if (prev[r]?.[c] !== next[r][c]) changed.add(`${r},${c}`);
+  return changed;
+}
+
 export default function BattleshipGameScreen() {
   const { t } = useTranslation();
   const Colors = useColors();
@@ -26,13 +36,30 @@ export default function BattleshipGameScreen() {
   const [game, setGame] = useState<BattleshipView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Last shot on each board → highlighted until the next move: your shot on the
+  // enemy grid, your friend's shot on your fleet.
+  const [lastEnemy, setLastEnemy] = useState<Set<string>>(() => new Set());
+  const [lastOwn, setLastOwn] = useState<Set<string>>(() => new Set());
+  const prevTrackingRef = useRef<string[] | null>(null);
+  const prevOwnRef = useRef<string[] | null>(null);
+
+  // Funnel new game state through here so both highlights stay in sync.
+  const commitGame = useCallback((next: BattleshipView) => {
+    const enemy = diffBoard(prevTrackingRef.current, next.trackingBoard);
+    const own = diffBoard(prevOwnRef.current, next.yourBoard);
+    if (enemy.size) setLastEnemy(enemy);   // keep prior highlight if nothing changed
+    if (own.size) setLastOwn(own);
+    prevTrackingRef.current = next.trackingBoard;
+    prevOwnRef.current = next.yourBoard;
+    setGame(next);
+  }, []);
 
   const load = useCallback(async () => {
     if (!id) return;
     const res = await battleshipApi.get(id).catch(() => null);
-    if (res?.data) setGame(res.data);
+    if (res?.data) commitGame(res.data);
     setLoading(false);
-  }, [id]);
+  }, [id, commitGame]);
 
   useFocusEffect(useCallback(() => {
     load();
@@ -66,7 +93,7 @@ export default function BattleshipGameScreen() {
     });
     setBusy(false);
     if (res?.data) {
-      setGame(res.data);
+      commitGame(res.data);
       const shot = res.data.lastShot;
       if (shot === 'WIN')        { playSfx('win');  Alert.alert(t('battleship.win', '🏆 You sank the whole fleet — you win!')); }
       else if (shot === 'SUNK')  { playSfx('hit');  Alert.alert(t('battleship.sunk', '💥 You sank a ship!')); }
@@ -142,7 +169,7 @@ export default function BattleshipGameScreen() {
                   key={c}
                   activeOpacity={0.7}
                   onPress={() => fire(r, c)}
-                  style={[styles.cell, enemyCell(ch)]}
+                  style={[styles.cell, enemyCell(ch), lastEnemy.has(`${r},${c}`) && styles.cellLastMove]}
                 >
                   {ch === 'X' && <Text style={styles.mark}>✸</Text>}
                   {ch === 'O' && <View style={styles.missDot} />}
@@ -158,7 +185,7 @@ export default function BattleshipGameScreen() {
           {game.yourBoard.map((row, r) => (
             <View key={r} style={styles.boardRow}>
               {row.split('').map((ch, c) => (
-                <View key={c} style={[styles.cell, ownCell(ch)]}>
+                <View key={c} style={[styles.cell, ownCell(ch), lastOwn.has(`${r},${c}`) && styles.cellLastMove]}>
                   {ch === 'X' && <Text style={styles.mark}>✸</Text>}
                   {ch === 'O' && <View style={styles.missDot} />}
                 </View>
@@ -196,6 +223,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   cellShip:  { backgroundColor: Colors.textSecondary },
   cellHit:   { backgroundColor: Colors.red },
   cellMiss:  { backgroundColor: Colors.surfaceHigh },
+  cellLastMove: { borderColor: Colors.accent, borderWidth: 2 },
   mark:      { color: '#fff', fontSize: CELL * 0.62, fontFamily: Font.family.displayBold },
   missDot:   { width: CELL * 0.28, height: CELL * 0.28, borderRadius: CELL, backgroundColor: Colors.textMuted },
 });
