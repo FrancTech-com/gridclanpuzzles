@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
@@ -38,6 +38,29 @@ export default function ScrabbleGameScreen() {
   const [pending, setPending] = useState<ScrabblePlacement[]>([]);
   const [selChar, setSelChar] = useState<{ char: string; rackIdx: number } | null>(null);
   const [blankAt, setBlankAt] = useState<{ row: number; col: number; rackIdx: number } | null>(null);
+  // Cells filled by the most recent move (yours or your friend's) → highlighted
+  // until the next move, so you can see what just changed on the board.
+  const [lastMove, setLastMove] = useState<Set<string>>(() => new Set());
+  const prevBoardRef = useRef<string[] | null>(null);
+
+  // Single funnel for new game state: diff the board against the previous one and
+  // remember which squares just got a tile, then store the state. Always route
+  // server responses through here so the highlight stays in sync.
+  const commitGame = useCallback((next: ScrabbleView) => {
+    const prev = prevBoardRef.current;
+    if (prev) {
+      const changed = new Set<string>();
+      for (let r = 0; r < next.board.length; r++) {
+        for (let c = 0; c < next.board[r].length; c++) {
+          const ch = next.board[r][c];
+          if (ch !== '.' && prev[r]?.[c] !== ch) changed.add(`${r},${c}`);
+        }
+      }
+      if (changed.size) setLastMove(changed);   // keep prior highlight if nothing changed
+    }
+    prevBoardRef.current = next.board;
+    setGame(next);
+  }, []);
 
   // Tap a rack tile to pick it up (a second tap drops it back), then tap a
   // board square to place it. No dragging — taps feel instant and never lag.
@@ -50,9 +73,9 @@ export default function ScrabbleGameScreen() {
   const load = useCallback(async () => {
     if (!id) return;
     const res = await scrabbleApi.get(id).catch(() => null);
-    if (res?.data) setGame(res.data);
+    if (res?.data) commitGame(res.data);
     setLoading(false);
-  }, [id]);
+  }, [id, commitGame]);
 
   // Load once, then live-update: the server pings this game's topic whenever the
   // opponent plays, joins, or the game ends — we just re-fetch our own view.
@@ -120,7 +143,7 @@ export default function ScrabbleGameScreen() {
     });
     setBusy(false);
     if (res?.data) {
-      setGame(res.data); setPending([]); setSelChar(null);
+      commitGame(res.data); setPending([]); setSelChar(null);
       if (res.data.outcome === 'WON')      playSfx('win');
       else if (res.data.outcome === 'LOST') playSfx('lose');
       else                                  playSfx('move');
@@ -132,7 +155,7 @@ export default function ScrabbleGameScreen() {
     setBusy(true);
     const res = await scrabbleApi.pass(id).catch(() => null);
     setBusy(false);
-    if (res?.data) { setGame(res.data); setPending([]); setSelChar(null); }
+    if (res?.data) { commitGame(res.data); setPending([]); setSelChar(null); }
   }
 
   async function shareInviteLink() {
@@ -201,7 +224,12 @@ export default function ScrabbleGameScreen() {
                     key={c}
                     activeOpacity={0.7}
                     onPress={() => tapCell(r, c)}
-                    style={[styles.cell, { backgroundColor: premColor(prem, Colors) }, cell?.pending && styles.cellPending]}
+                    style={[
+                      styles.cell,
+                      { backgroundColor: premColor(prem, Colors) },
+                      cell && !cell.pending && lastMove.has(`${r},${c}`) && styles.cellLastMove,
+                      cell?.pending && styles.cellPending,
+                    ]}
                   >
                     {cell
                       ? <Text style={[styles.tileText, cell.blank && styles.blankText]}>{cell.letter}</Text>
@@ -308,6 +336,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   boardRow:  { flexDirection: 'row' },
   cell:      { width: CELL, height: CELL, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   cellPending: { backgroundColor: Colors.accent, borderColor: Colors.accentDim },
+  cellLastMove: { backgroundColor: Colors.primary + '4D', borderColor: Colors.primary, borderWidth: 2 },
   tileText:  { color: Colors.textPrimary, fontSize: CELL * 0.56, fontFamily: Font.family.displayBold },
   blankText: { color: Colors.primary },
   premText:  { color: Colors.textSecondary, fontSize: CELL * 0.3, fontFamily: Font.family.bodyBold },

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
@@ -26,13 +26,35 @@ export default function GomokuGameScreen() {
   const [game, setGame] = useState<GomokuView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Square of the most recent stone (yours or your friend's) → highlighted until
+  // the next move, so the latest play is easy to spot.
+  const [lastMove, setLastMove] = useState<Set<string>>(() => new Set());
+  const prevBoardRef = useRef<string[] | null>(null);
+
+  // Funnel new game state through here: diff the board to find the square(s) that
+  // just got a stone, then store the state.
+  const commitGame = useCallback((next: GomokuView) => {
+    const prev = prevBoardRef.current;
+    if (prev) {
+      const changed = new Set<string>();
+      for (let r = 0; r < next.board.length; r++) {
+        for (let c = 0; c < next.board[r].length; c++) {
+          const v = next.board[r][c];
+          if (v !== '.' && prev[r]?.[c] !== v) changed.add(`${r},${c}`);
+        }
+      }
+      if (changed.size) setLastMove(changed);   // keep prior highlight if nothing changed
+    }
+    prevBoardRef.current = next.board;
+    setGame(next);
+  }, []);
 
   const load = useCallback(async () => {
     if (!id) return;
     const res = await gomokuApi.get(id).catch(() => null);
-    if (res?.data) setGame(res.data);
+    if (res?.data) commitGame(res.data);
     setLoading(false);
-  }, [id]);
+  }, [id, commitGame]);
 
   // Load once, then live-update when the opponent plays/joins.
   useFocusEffect(useCallback(() => {
@@ -60,7 +82,7 @@ export default function GomokuGameScreen() {
     });
     setBusy(false);
     if (res?.data) {
-      setGame(res.data);
+      commitGame(res.data);
       if (res.data.outcome === 'WON')      playSfx('win');
       else if (res.data.outcome === 'LOST') playSfx('lose');
       else                                  playSfx('move');
@@ -120,10 +142,12 @@ export default function GomokuGameScreen() {
             <View key={r} style={styles.boardRow}>
               {Array.from({ length: SIZE }).map((__, c) => {
                 const v = game.board[r]?.[c];
+                const isLast = v !== '.' && lastMove.has(`${r},${c}`);
                 return (
-                  <TouchableOpacity key={c} activeOpacity={0.7} onPress={() => tap(r, c)} style={styles.cell}>
+                  <TouchableOpacity key={c} activeOpacity={0.7} onPress={() => tap(r, c)} style={[styles.cell, isLast && styles.cellLastMove]}>
                     {v === '1' && <View style={[styles.stone, styles.stoneP1]} />}
                     {v === '2' && <View style={[styles.stone, styles.stoneP2]} />}
+                    {isLast && <View style={styles.lastDot} />}
                   </TouchableOpacity>
                 );
               })}
@@ -160,6 +184,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
     borderWidth: 1, borderColor: '#00000033',
     alignItems: 'center', justifyContent: 'center',
   },
+  cellLastMove: { backgroundColor: Colors.accent + '33' },
+  lastDot: { position: 'absolute', width: CELL * 0.22, height: CELL * 0.22, borderRadius: CELL, backgroundColor: Colors.accent },
   stone:   { width: CELL * 0.8, height: CELL * 0.8, borderRadius: CELL, ...Shadow.sm },
   stoneP1: { backgroundColor: '#15181c', borderWidth: 1, borderColor: '#000' },
   stoneP2: { backgroundColor: '#fbfbfb', borderWidth: 1, borderColor: '#9aa' },
