@@ -92,6 +92,31 @@ public class GlobalExceptionHandler {
         return body(403, "FORBIDDEN", "You don't have permission to do that.");
     }
 
+    /**
+     * Controllers that throw {@code ResponseStatusException} (e.g. game/challenge
+     * lookups throwing 404 "Game not found.") were previously caught by the
+     * catch-all below and turned into 500s — polluting the error log + Sentry
+     * with fake crashes. Honour the intended status instead. Only true 5xx keep
+     * the stacktrace.
+     */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatus(
+            org.springframework.web.server.ResponseStatusException e) {
+        int status = e.getStatusCode().value();
+        String reason = e.getReason() != null ? e.getReason() : "Request failed.";
+        if (status >= 500) log.error("ResponseStatusException: {}", e.getMessage(), e);
+        return body(status, status == 404 ? "NOT_FOUND" : "REQUEST_FAILED", reason);
+    }
+
+    /** Missing query param or unparseable/invalid JSON body → 400, not 500. */
+    @ExceptionHandler({
+            org.springframework.web.bind.MissingServletRequestParameterException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class
+    })
+    public ResponseEntity<Map<String, Object>> handleBadInput(Exception e) {
+        return body(400, "BAD_REQUEST", "Request was malformed or missing required fields.");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception e) {
         log.error("Unhandled exception: {}", e.getMessage(), e);
