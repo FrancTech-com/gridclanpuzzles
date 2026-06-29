@@ -79,8 +79,12 @@ export default function ScrabbleGameScreen() {
   if (!tilePansRef.current) {
     tilePansRef.current = Array.from({ length: 7 }, (_u, rackIdx) =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => !!gameRef.current?.yourTurn && gameRef.current?.status !== 'COMPLETE',
-        onMoveShouldSetPanResponder: (_e, g) => Math.hypot(g.dx, g.dy) > 6,
+        // Don't claim the touch on a simple tap — let the tile's onPress handle
+        // selection (reliable everywhere, incl. web/ScrollView). Only become the
+        // responder once the finger actually drags.
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponder: (_e, g) =>
+          !!gameRef.current?.yourTurn && gameRef.current?.status !== 'COMPLETE' && Math.hypot(g.dx, g.dy) > 6,
         // Keep the drag even though the rack sits inside a ScrollView.
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {
@@ -283,9 +287,12 @@ export default function ScrabbleGameScreen() {
               {availableRack.map((tile, i) => {
                 const isDragging = drag?.moved && drag.rackIdx === tile.idx;
                 return (
-                  <View
+                  <TouchableOpacity
                     key={`${tile.idx}-${i}`}
                     {...tilePans[tile.idx].panHandlers}
+                    activeOpacity={0.8}
+                    disabled={!game.yourTurn}
+                    onPress={() => setSelChar(prev => (prev?.rackIdx === tile.idx ? null : { char: tile.char, rackIdx: tile.idx }))}
                     style={[
                       styles.rackTile,
                       selChar?.rackIdx === tile.idx && styles.rackTileSel,
@@ -293,7 +300,7 @@ export default function ScrabbleGameScreen() {
                     ]}
                   >
                     <Text style={styles.rackTileText}>{tile.char === '_' ? '▢' : tile.char}</Text>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
