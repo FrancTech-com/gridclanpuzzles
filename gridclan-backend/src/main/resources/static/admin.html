@@ -134,16 +134,37 @@
 
 <script>
 const TOKEN_KEY = 'gc_admin_token';
+const PROD_API  = 'https://api.gridclanpuzzle.win';   // backend host (fallback)
 let state = { page:0, size:25, query:'', totalPages:1, suspendId:null };
 
 const $ = id => document.getElementById(id);
 const token = () => sessionStorage.getItem(TOKEN_KEY);
 
+// Where the admin API lives. When this page is served by the backend itself
+// (same origin), relative calls are best. When it's opened anywhere else — a
+// local file, or the game domain — target the production API host explicitly.
+const API_BASE = (() => {
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return PROD_API; // file://
+  const h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1' || h.startsWith('api.')) return '';        // same origin
+  return PROD_API;
+})();
+
+// Message shown when a request never reaches the server (network / CORS / file://).
+function networkHint() {
+  if (location.protocol === 'file:')
+    return 'Open this page at ' + PROD_API + '/admin.html — it can’t sign in from a local file.';
+  return 'Can’t reach the server. Check your connection and try again.';
+}
+
 async function api(path, opts={}) {
-  const res = await fetch(path, {
-    ...opts,
-    headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token(), ...(opts.headers||{}) },
-  });
+  let res;
+  try {
+    res = await fetch(API_BASE + path, {
+      ...opts,
+      headers: { 'Content-Type':'application/json', 'Authorization':'Bearer '+token(), ...(opts.headers||{}) },
+    });
+  } catch { throw new Error(networkHint()); }
   if (res.status === 401 || res.status === 403) { logout(); throw new Error('Session expired or not authorised.'); }
   if (!res.ok) {
     let msg = 'Request failed ('+res.status+')';
@@ -157,24 +178,29 @@ async function api(path, opts={}) {
 $('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   $('loginErr').textContent = '';
+  let res;
   try {
-    const res = await fetch('/auth/login', {
+    res = await fetch(API_BASE + '/auth/login', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ identifier: $('identifier').value.trim(), password: $('password').value }),
     });
-    if (!res.ok) {
-      let msg = res.status === 429
-        ? 'Too many attempts — this account is temporarily locked. Wait a few minutes and try again.'
-        : 'Invalid credentials.';
-      try { const j = await res.json(); if (j.error || j.message) msg = j.error || j.message; } catch {}
-      $('loginErr').textContent = msg;
-      return;
-    }
+  } catch { $('loginErr').textContent = networkHint(); return; }
+
+  if (!res.ok) {
+    let msg = res.status === 429
+      ? 'Too many attempts — this account is temporarily locked. Wait a few minutes and try again.'
+      : res.status === 401 ? 'Invalid email or password.'
+      : 'Sign-in failed (' + res.status + ').';
+    try { const j = await res.json(); if (j.error || j.message) msg = j.error || j.message; } catch {}
+    $('loginErr').textContent = msg;
+    return;
+  }
+  try {
     const data = await res.json();
-    if (data.role !== 'ADMIN') { $('loginErr').textContent = 'This account is not an admin.'; return; }
+    if (data.role !== 'ADMIN') { $('loginErr').textContent = 'This account is not an admin. Promote it to ADMIN first.'; return; }
     sessionStorage.setItem(TOKEN_KEY, data.accessToken);
     showApp();
-  } catch { $('loginErr').textContent = 'Could not sign in. Try again.'; }
+  } catch { $('loginErr').textContent = 'Unexpected response from server. Make sure you’re on ' + PROD_API + '/admin.html.'; }
 });
 
 $('logoutBtn').addEventListener('click', logout);
@@ -286,6 +312,15 @@ function fmt(iso){ if(!iso) return '<span class="sub">never</span>'; const d=new
 // Make inline-handler functions reachable
 window.openSuspend = openSuspend;
 window.liftUser = liftUser;
+
+// Warn upfront if the page is opened as a local file (sign-in can't work).
+if (location.protocol === 'file:') {
+  const p = document.querySelector('#login p');
+  if (p) {
+    p.innerHTML = '⚠️ Open this dashboard at <b>' + PROD_API + '/admin.html</b> — it can’t sign in when opened as a local file.';
+    p.style.color = 'var(--warn)';
+  }
+}
 
 // Auto-resume if a token is already in this tab session
 if (token()) showApp();
