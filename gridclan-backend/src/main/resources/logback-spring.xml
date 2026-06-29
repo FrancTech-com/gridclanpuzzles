@@ -5,12 +5,14 @@
     • logs/gridclan.log  – everything (rolling, 7 days kept)
     • logs/error.log     – ONLY warnings/errors + full stacktraces ("crash file")
 
-  Log dir defaults to ./logs (gitignored); override with -DLOG_DIR=/var/log/gridclan
-  or the LOG_DIR env var. Levels still come from application.yml (logging.level.*).
+  Log dir defaults to a writable temp dir (works on read-only / ephemeral
+  containers like Railway, where ./logs can't be created and a logback error
+  would otherwise abort startup). Override with -DLOG_DIR=/var/log/gridclan or
+  the LOG_DIR env var. Levels still come from application.yml (logging.level.*).
 -->
 <configuration>
 
-    <property name="LOG_DIR" value="${LOG_DIR:-logs}"/>
+    <property name="LOG_DIR" value="${LOG_DIR:-${java.io.tmpdir}/gridclan-logs}"/>
     <property name="PATTERN"
               value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n%ex"/>
 
