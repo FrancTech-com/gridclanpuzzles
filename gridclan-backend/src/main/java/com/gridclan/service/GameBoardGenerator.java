@@ -1,9 +1,12 @@
 package com.gridclan.service;
 
 import com.gridclan.entity.enums.GameType;
+import com.gridclan.gridscrabble.WordList;
 import lombok.Getter;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -22,11 +25,35 @@ public class GameBoardGenerator {
 
     private final Random rng = new Random();
 
+    // Word-search words are drawn from the bundled dictionary (length 4–8), built
+    // once on first use — endless variety with no hardcoded list. Falls back to
+    // WordSearch's built-in pool if the dictionary resource is missing.
+    private volatile List<String> wordSearchPool;
+
+    private List<String> wordSearchPool() {
+        List<String> p = wordSearchPool;
+        if (p == null) {
+            synchronized (this) {
+                if ((p = wordSearchPool) == null) {
+                    List<String> list = new ArrayList<>();
+                    for (String w : WordList.fromResource().all()) {
+                        int len = w.length();
+                        if (len >= 4 && len <= 8 && w.chars().allMatch(ch -> ch >= 'A' && ch <= 'Z')) {
+                            list.add(w);
+                        }
+                    }
+                    wordSearchPool = p = list;
+                }
+            }
+        }
+        return p;
+    }
+
     // ── Board Generation ───────────────────────────────────────────────────
 
     public Map<String, Object> generate(GameType type) {
         return switch (type) {
-            case WORD_SEARCH -> WordSearch.generate(rng);
+            case WORD_SEARCH -> WordSearch.generate(rng, wordSearchPool());
         };
     }
 
