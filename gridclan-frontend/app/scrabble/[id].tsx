@@ -1,14 +1,17 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { scrabbleApi, type ScrabblePlacement, type ScrabbleView } from '@api/index';
+import { scrabbleApi, type ScrabblePlacement, type ScrabbleView, type ScrabbleHint } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
+import { VoiceControl } from '@components/VoiceControl';
+import { GameResultOverlay } from '@components/GameResultOverlay';
+import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
@@ -42,6 +45,18 @@ export default function ScrabbleGameScreen() {
   // until the next move, so you can see what just changed on the board.
   const [lastMove, setLastMove] = useState<Set<string>>(() => new Set());
   const prevBoardRef = useRef<string[] | null>(null);
+  // Big win/lose popup — shown once when the game finishes.
+  const [showResult, setShowResult] = useState(false);
+  const announced = useRef(false);
+  // Solo hint: the AI's suggested word, ghosted on the board until you move.
+  const [hint, setHint] = useState<ScrabbleHint | null>(null);
+  const [hinting, setHinting] = useState(false);
+  useEffect(() => {
+    if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
+      announced.current = true;
+      setShowResult(true);
+    }
+  }, [game?.status, game?.outcome]);
 
   // Single funnel for new game state: diff the board against the previous one and
   // remember which squares just got a tile, then store the state. Always route
@@ -56,7 +71,7 @@ export default function ScrabbleGameScreen() {
           if (ch !== '.' && prev[r]?.[c] !== ch) changed.add(`${r},${c}`);
         }
       }
-      if (changed.size) setLastMove(changed);   // keep prior highlight if nothing changed
+      if (changed.size) { setLastMove(changed); setHint(null); }   // a move landed → drop the hint
     }
     prevBoardRef.current = next.board;
     setGame(next);
@@ -158,6 +173,19 @@ export default function ScrabbleGameScreen() {
     if (res?.data) { commitGame(res.data); setPending([]); setSelChar(null); }
   }
 
+  async function handleHint() {
+    if (!id || hinting) return;
+    setHinting(true);
+    try {
+      const res = await scrabbleApi.hint(id);
+      setHint(res.data);
+      setGame(g => g ? { ...g, hintsRemaining: res.data.hintsRemaining } : g);
+    } catch (e: any) {
+      Alert.alert(t('scrabble.hintTitle', 'Hint'), e?.response?.data?.error ?? t('scrabble.noHint', 'No strong word found — try exchanging tiles.'));
+    }
+    setHinting(false);
+  }
+
   async function shareInviteLink() {
     if (!game) return;
     const link = gameInviteLink('scrabble', game.inviteCode);
@@ -184,6 +212,10 @@ export default function ScrabbleGameScreen() {
   const complete = game.status === 'COMPLETE';
   const waiting = game.status === 'WAITING_FOR_OPPONENT';
 
+  // Suggested-cell lookup for the ghosted hint letters.
+  const hintMap = new Map<string, string>();
+  if (hint) for (const p of hint.placements) hintMap.set(`${p.row},${p.col}`, p.letter);
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={header} />
@@ -193,7 +225,7 @@ export default function ScrabbleGameScreen() {
           <Score label={t('scrabble.you', 'You')} value={game.yourScore} hi={game.outcome === 'WON'} styles={styles} Colors={Colors} />
           <View style={styles.statusMid}>
             <Text style={styles.statusText}>
-              {complete ? (game.outcome === 'WON' ? `🏆 ${t('scrabble.youWon', 'You won!')}` : game.outcome === 'LOST' ? `😅 ${t('scrabble.youLost', 'You lost')}` : `🤝 ${t('scrabble.tie', 'Tie')}`)
+              {complete ? (game.outcome === 'WON' ? t('scrabble.youWon', 'You won!') : game.outcome === 'LOST' ? t('scrabble.youLost', 'You lost') : t('scrabble.tie', 'Tie'))
                 : waiting ? t('scrabble.waitingOpponent', 'Waiting for a friend to join')
                 : game.yourTurn ? `▶ ${t('scrabble.yourTurn', 'Your turn')}` : t('scrabble.theirTurn', 'Their turn')}
             </Text>
@@ -201,6 +233,25 @@ export default function ScrabbleGameScreen() {
           </View>
           <Score label={t('scrabble.friend', 'Friend')} value={game.opponentScore} hi={game.outcome === 'LOST'} styles={styles} Colors={Colors} />
         </View>
+
+        {game.vsComputer && !complete && (
+          <View style={styles.soloBar}>
+            <Text style={styles.soloLabel}>🤖 {t('scrabble.vsComputer', 'vs Computer')}</Text>
+            {game.yourTurn && (game.hintsRemaining ?? 0) > 0 ? (
+              <TouchableOpacity style={styles.hintBtn} onPress={handleHint} disabled={hinting}>
+                <Text style={styles.hintBtnText}>💡 {t('scrabble.hint', 'Hint')} ({game.hintsRemaining})</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.soloLabel}>{t('scrabble.hintsLeft', { count: game.hintsRemaining ?? 0, defaultValue: '💡 {{count}} hints' })}</Text>
+            )}
+          </View>
+        )}
+
+        {hint && (
+          <Text style={styles.hintBanner}>
+            💡 {t('scrabble.hintTry', { word: hint.word, score: hint.score, defaultValue: 'Try {{word}} for {{score}} pts — tap the glowing squares' })}
+          </Text>
+        )}
 
         {/* Share code while waiting */}
         {waiting && (
@@ -219,6 +270,7 @@ export default function ScrabbleGameScreen() {
               {Array.from({ length: SIZE }).map((__, c) => {
                 const cell = cellAt(r, c);
                 const prem = PREMIUMS[r][c];
+                const hintLetter = !cell ? hintMap.get(`${r},${c}`) : undefined;
                 return (
                   <TouchableOpacity
                     key={c}
@@ -229,13 +281,16 @@ export default function ScrabbleGameScreen() {
                       { backgroundColor: premColor(prem, Colors) },
                       cell && !cell.pending && lastMove.has(`${r},${c}`) && styles.cellLastMove,
                       cell?.pending && styles.cellPending,
+                      !!hintLetter && styles.cellHint,
                     ]}
                   >
                     {cell
                       ? <Text style={[styles.tileText, cell.blank && styles.blankText]}>{cell.letter}</Text>
-                      : r === 7 && c === 7
-                        ? <Text style={styles.starText}>★</Text>
-                        : <Text style={styles.premText}>{premLabel(prem)}</Text>}
+                      : hintLetter
+                        ? <Text style={styles.hintGhost}>{hintLetter}</Text>
+                        : r === 7 && c === 7
+                          ? <Text style={styles.starText}>★</Text>
+                          : <Text style={styles.premText}>{premLabel(prem)}</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -269,7 +324,17 @@ export default function ScrabbleGameScreen() {
             {!game.yourTurn && !waiting && <Text style={styles.muted}>{t('scrabble.notYourTurn', 'Wait for your friend to play.')}</Text>}
           </>
         )}
+
+        {!waiting && !game.vsComputer && id && (
+          <View style={styles.chatWrap}><GameChat kind="scrabble" gameId={id} /></View>
+        )}
       </ScrollView>
+
+      {!waiting && !game.vsComputer && id && (
+        <View style={styles.voiceFloat} pointerEvents="box-none">
+          <VoiceControl kind="scrabble" gameId={id} />
+        </View>
+      )}
 
       {/* Blank letter picker */}
       {blankAt && (
@@ -287,6 +352,12 @@ export default function ScrabbleGameScreen() {
           </Card>
         </View>
       )}
+
+      <GameResultOverlay
+        visible={showResult}
+        outcome={complete ? (game.outcome ?? 'TIE') : null}
+        onClose={() => setShowResult(false)}
+      />
     </View>
   );
 }
@@ -332,6 +403,16 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   link:      { color: Colors.textMuted, fontSize: Font.size.xs, textAlign: 'center', marginBottom: Spacing.xs },
   cardTitle: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold, textAlign: 'center' },
 
+  voiceFloat: { position: 'absolute', top: 64, right: Spacing.md, alignItems: 'flex-end', zIndex: 20 },
+  chatWrap:  { width: BOARD_W, marginTop: Spacing.lg },
+
+  soloBar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: BOARD_W, marginBottom: Spacing.md, gap: Spacing.sm },
+  soloLabel:  { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  hintBtn:    { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.primary },
+  hintBtnText:{ color: Colors.primary, fontWeight: Font.weight.bold, fontSize: Font.size.sm },
+  hintBanner: { color: Colors.primary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, textAlign: 'center', marginBottom: Spacing.sm, width: BOARD_W },
+  cellHint:   { borderColor: Colors.primary, borderWidth: 2 },
+  hintGhost:  { color: Colors.primary, fontWeight: Font.weight.bold, fontSize: CELL * 0.5, opacity: 0.7 },
   board:     { width: BOARD_W, borderWidth: 3, borderColor: Colors.accent, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface, alignSelf: 'center', ...Shadow.md },
   boardRow:  { flexDirection: 'row' },
   cell:      { width: CELL, height: CELL, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },

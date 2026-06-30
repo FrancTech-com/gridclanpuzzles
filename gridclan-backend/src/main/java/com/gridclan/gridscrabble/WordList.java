@@ -29,6 +29,9 @@ public final class WordList {
 
     public int size() { return words.size(); }
 
+    /** Read-only view of every word — used by the AI to build its move index. */
+    public Set<String> all() { return java.util.Collections.unmodifiableSet(words); }
+
     /** Load from the bundled resource (empty set if the file is absent). */
     public static WordList fromResource() {
         Set<String> set = new HashSet<>();

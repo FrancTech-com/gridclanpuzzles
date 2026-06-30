@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import Constants from 'expo-constants';
 import { AppDispatch, RootState } from '@store/index';
 import { logoutThunk } from '@store/slices/authSlice';
-import { profileApi } from '@api/index';
+import { profileApi, feedbackApi, type RankInfo } from '@api/index';
 import { confirm } from '@utils/confirm';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '@i18n/index';
 import { Button, Card, Input, LoadingSpinner, Separator } from '@components/ui/index';
@@ -31,6 +31,10 @@ export default function ProfileScreen() {
   const [editing,    setEditing]    = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [saving,     setSaving]     = useState(false);
+  const [rank,       setRank]       = useState<RankInfo | null>(null);
+  const [feedback,   setFeedback]   = useState('');
+  const [sendingFb,  setSendingFb]  = useState(false);
+  const [fbSent,     setFbSent]     = useState(false);
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
@@ -39,7 +43,21 @@ export default function ProfileScreen() {
       setDisplayName(r.data.displayName ?? '');
       setLoading(false);
     }).catch(() => setLoading(false));
+    profileApi.getRank().then(r => setRank(r.data)).catch(() => {});
   }, [userId]);
+
+  async function handleSendFeedback() {
+    if (!feedback.trim()) return;
+    setSendingFb(true);
+    try {
+      await feedbackApi.send(feedback.trim());
+      setFeedback('');
+      setFbSent(true);
+    } catch (e: any) {
+      Alert.alert(t('common.error'), e.response?.data?.error ?? t('feedback.error', 'Could not send. Please try again.'));
+    }
+    setSendingFb(false);
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -120,6 +138,34 @@ export default function ProfileScreen() {
         <Text style={styles.username}>@{profile?.username ?? 'user'}</Text>
       </View>
 
+      {/* Rank / progression */}
+      {rank && (
+        <Card style={styles.rankCard}>
+          <View style={styles.rankHeader}>
+            <Text style={styles.rankEmoji}>{rankEmoji(rank.rank)}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rankName}>{t(`rank.${rank.rank.toLowerCase()}`, rank.rankLabel)}</Text>
+              <Text style={styles.rankPts}>{rank.points.toLocaleString()} {t('common.pts', 'pts')}</Text>
+            </View>
+          </View>
+          {rank.nextRank ? (
+            <>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${Math.round(rank.progress * 100)}%` }]} />
+              </View>
+              <Text style={styles.rankHint}>
+                {t('rank.toNext', { points: rank.pointsToNext.toLocaleString(), next: rank.nextRankLabel, defaultValue: '{{points}} pts to {{next}}' })}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.rankHint}>{t('rank.maxed', 'Top rank reached 👑')}</Text>
+          )}
+          <Text style={styles.rankPerks}>
+            {t('rank.perks', { gems: rank.gemsPerWin, hints: rank.soloHints, defaultValue: '⬡ {{gems}} gems / win · 💡 {{hints}} hints vs computer' })}
+          </Text>
+        </Card>
+      )}
+
       {/* Profile details */}
       <Card style={styles.detailsCard}>
         <DetailRow label={t('profile.country')}  value={profile?.countryCode ?? '—'} />
@@ -147,6 +193,23 @@ export default function ProfileScreen() {
         ))}
       </View>
 
+      {/* Feedback — goes straight to the admin team */}
+      <Text style={styles.sectionLabel}>{t('feedback.title', 'Send feedback')}</Text>
+      <Card style={styles.detailsCard}>
+        <Text style={styles.fbHint}>{t('feedback.hint', 'Tell us what you think about the app and games. This goes straight to the team.')}</Text>
+        <TextInput
+          style={styles.fbInput}
+          value={feedback}
+          onChangeText={(v) => { setFeedback(v); setFbSent(false); }}
+          placeholder={t('feedback.placeholder', 'Your comments…')}
+          placeholderTextColor={Colors.textMuted}
+          multiline
+          maxLength={2000}
+        />
+        {fbSent && <Text style={styles.fbSent}>{t('feedback.sent', 'Thanks! Your feedback was sent. 🙌')}</Text>}
+        <Button title={t('feedback.send', 'Send feedback')} onPress={handleSendFeedback} loading={sendingFb} disabled={!feedback.trim()} size="sm" />
+      </Card>
+
       {/* Privacy */}
       <Text style={styles.sectionLabel}>{t('settings.privacyAndData')}</Text>
       <Button title={t('settings.privacyPolicy')} variant="secondary"
@@ -167,6 +230,10 @@ export default function ProfileScreen() {
       <Text style={styles.legalNote}>{t('profile.legalNote')}</Text>
     </ScrollView>
   );
+}
+
+function rankEmoji(rank: RankInfo['rank']): string {
+  return rank === 'PROFESSIONAL' ? '👑' : rank === 'AMATEUR' ? '⭐' : '🌱';
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -206,6 +273,25 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   saveBtn:   { marginBottom: 0 },
 
   detailsCard: { marginBottom: Spacing.lg },
+
+  rankCard:   { marginBottom: Spacing.lg },
+  rankHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm },
+  rankEmoji:  { fontSize: 34 },
+  rankName:   { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.black },
+  rankPts:    { color: Colors.accent, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginTop: 2 },
+  progressTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.surfaceHigh, overflow: 'hidden' },
+  progressFill:  { height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  rankHint:   { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: 6 },
+  rankPerks:  { color: Colors.textSecondary, fontSize: Font.size.xs, marginTop: Spacing.sm },
+
+  fbHint:  { color: Colors.textMuted, fontSize: Font.size.sm, marginBottom: Spacing.sm },
+  fbInput: {
+    minHeight: 80, color: Colors.textPrimary, fontSize: Font.size.sm,
+    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.border, padding: Spacing.sm,
+    marginBottom: Spacing.sm, textAlignVertical: 'top',
+  },
+  fbSent:  { color: Colors.primary, fontSize: Font.size.sm, marginBottom: Spacing.sm },
 
   sectionLabel: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 },
 

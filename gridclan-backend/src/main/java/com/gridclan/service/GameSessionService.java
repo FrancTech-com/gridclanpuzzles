@@ -42,6 +42,7 @@ public class GameSessionService {
     private final AntiCheatEngine         antiCheat;
     private final PlayerPointsService     pointsService;
     private final GemService              gemService;
+    private final RankService             rankService;
     private final TournamentService       tournamentService;
     private final GameBoardGenerator      boardGenerator;
     private final ScoreEngine             scoreEngine;
@@ -56,9 +57,6 @@ public class GameSessionService {
 
     @Value("${gridclan.gems.replay-cost:15}")
     private long replayCostGems;
-
-    @Value("${gridclan.gems.reward.word-search:5}")
-    private long rewardWordSearch;
 
     // ── Start Session ──────────────────────────────────────────────────────
 
@@ -160,8 +158,9 @@ public class GameSessionService {
             // Points → leaderboard / progression only (no value). Tagged
             // WORD_SEARCH so it feeds the per-game leaderboard breakdown.
             pointsService.creditGamePoints(userId, "WORD_SEARCH", newScore, "GAME_WIN", session.getId());
-            // Gems → small in-game reward for solving the puzzle.
-            gemService.creditGems(userId, gemRewardFor(session.getGameType()),
+            // Gems → reward for solving, scaled by the player's rank
+            // (Beginner 5 / Amateur 10 / Professional 15).
+            gemService.creditGems(userId, rankService.gemsPerWin(userId),
                 "GAME_REWARD", session.getId());
             if (session.getTournamentId() != null) {
                 leaderboard.submitScore(session.getTournamentId(), userId,
@@ -261,9 +260,4 @@ public class GameSessionService {
         return SessionStartResponse.from(session);
     }
 
-    private long gemRewardFor(GameType gameType) {
-        return switch (gameType) {
-            case WORD_SEARCH -> rewardWordSearch;
-        };
-    }
 }

@@ -36,6 +36,20 @@ public class ScrabbleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
     }
 
+    /** POST /scrabble/solo — start a game against the computer (you move first). */
+    @PostMapping("/solo")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> solo(Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createSolo(userId(auth)));
+    }
+
+    /** POST /scrabble/{id}/hint — solo only; suggests the best word (rank-limited). */
+    @PostMapping("/{id}/hint")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> hint(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.hint(userId(auth), id));
+    }
+
     /** POST /scrabble/{code}/join — join as the opponent. */
     @PostMapping("/{code}/join")
     @PreAuthorize("hasRole('USER')")

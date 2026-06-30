@@ -16,6 +16,7 @@ module.exports = function(api) {
           '@gridtypes': './src/types',
           '@utils': './src/utils',
           '@websocket': './src/websocket',
+          '@webrtc': './src/webrtc',
           '@services': './src/services',
           '@i18n': './src/i18n',
           '@data': './src/data',
