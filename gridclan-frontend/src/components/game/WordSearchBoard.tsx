@@ -168,7 +168,7 @@ export function WordSearchBoard({ board, onMove, disabled, hint }: Props) {
         Animated.timing(flash, { toValue: 1,    duration: 320, useNativeDriver: true }),
         Animated.timing(flash, { toValue: 0.15, duration: 320, useNativeDriver: true }),
       ]),
-      { iterations: 6 },
+      { iterations: 14 },
     );
     anim.start(() => flash.setValue(0));
     return () => anim.stop();
