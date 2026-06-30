@@ -35,6 +35,15 @@ export function challengeInviteLink(code: string): string {
 }
 
 /**
+ * Tappable link inviting someone to join the app itself (not a specific game).
+ * Points at the public web home so anyone can play instantly with no install,
+ * and a `ref` carries who invited them for future referral attribution.
+ */
+export function appInviteLink(ref?: string): string {
+  return ref ? `${WEB_BASE_URL}/?ref=${encodeURIComponent(ref)}` : WEB_BASE_URL;
+}
+
+/**
  * Share an invite via the best channel available, falling back gracefully:
  *   native → OS share sheet
  *   web    → Web Share API → clipboard (copy the link)

@@ -9,6 +9,7 @@ import { AppDispatch, RootState } from '@store/index';
 import { logoutThunk } from '@store/slices/authSlice';
 import { profileApi, feedbackApi, type RankInfo } from '@api/index';
 import { confirm } from '@utils/confirm';
+import { appInviteLink, shareInvite } from '@utils/invite';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '@i18n/index';
 import { Button, Card, Input, LoadingSpinner, Separator } from '@components/ui/index';
 import { RegisterGate } from '@components/AuthGate';
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const [feedback,   setFeedback]   = useState('');
   const [sendingFb,  setSendingFb]  = useState(false);
   const [fbSent,     setFbSent]     = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
@@ -57,6 +59,23 @@ export default function ProfileScreen() {
       Alert.alert(t('common.error'), e.response?.data?.error ?? t('feedback.error', 'Could not send. Please try again.'));
     }
     setSendingFb(false);
+  }
+
+  async function handleInviteFriends() {
+    const link = appInviteLink(profile?.username ?? undefined);
+    const name = profile?.displayName ?? profile?.username;
+    await shareInvite({
+      message: t('invite.message', {
+        name: name ?? 'A friend',
+        link,
+        defaultValue: '{{name}} is challenging you on GridClan Puzzles! Play free, no install needed: {{link}}',
+      }),
+      link,
+      onCopied: () => {
+        setInviteCopied(true);
+        setTimeout(() => setInviteCopied(false), 2500);
+      },
+    });
   }
 
   async function handleSave() {
@@ -192,6 +211,16 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Invite friends */}
+      <Text style={styles.sectionLabel}>{t('invite.title', 'Invite friends')}</Text>
+      <Card style={styles.detailsCard}>
+        <Text style={styles.fbHint}>
+          {t('invite.hint', 'Share GridClan Puzzles with friends — they can play instantly in the browser, no install required.')}
+        </Text>
+        {inviteCopied && <Text style={styles.fbSent}>{t('invite.copied', 'Invite link copied to clipboard! 🔗')}</Text>}
+        <Button title={t('invite.cta', 'Invite friends')} onPress={handleInviteFriends} size="sm" />
+      </Card>
 
       {/* Feedback — goes straight to the admin team */}
       <Text style={styles.sectionLabel}>{t('feedback.title', 'Send feedback')}</Text>
