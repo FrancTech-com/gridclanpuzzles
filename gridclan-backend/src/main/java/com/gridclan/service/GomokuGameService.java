@@ -175,6 +175,37 @@ public class GomokuGameService {
         gemService.creditGems(winnerId, rankService.gemsPerWin(winnerId), "GAME_REWARD", g.getId());
     }
 
+    /**
+     * Forfeit (resign): the current player concedes, handing the win to their
+     * opponent. Allowed any time the game is live. The opponent banks the base
+     * win points (no speed bonus — there's no board basis on a concession) plus
+     * the rank-scaled gems of a normal win. Solo games end with the computer
+     * "winning" and earning nothing.
+     */
+    @Transactional
+    public Map<String, Object> forfeit(UUID userId, UUID gameId) {
+        GomokuGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        int me = turnOf(g, userId);   // validates the caller is a player
+        if (!"ACTIVE".equals(g.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPlayer2Id() == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No opponent to forfeit to yet.");
+
+        UUID opponentId = me == 1 ? g.getPlayer2Id() : g.getPlayer1Id();
+        g.setStatus("COMPLETE");
+        g.setWinnerId(opponentId);
+        g.setLastMoveAt(Instant.now());
+        if (!COMPUTER_ID.equals(opponentId)) {
+            pointsService.creditGamePoints(opponentId, "GOMOKU", WIN_POINTS, "GAME_FORFEIT", g.getId());
+            gemService.creditGems(opponentId, rankService.gemsPerWin(opponentId), "GAME_REWARD", g.getId());
+        }
+        repo.save(g);
+        broadcast(g);
+        log.info("Gomoku forfeit: game={} forfeiter={} winner={}", g.getId(), userId, opponentId);
+        return view(userId, g);
+    }
+
     /** The computer (player 2) plays its best reply, updating the game in place. */
     private void aiRespond(GomokuGame g, char[][] board) {
         int[] mv = ai.bestMove(board, '2', '1');   // computer is player 2

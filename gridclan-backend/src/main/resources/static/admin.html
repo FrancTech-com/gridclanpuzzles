@@ -39,6 +39,15 @@
   .metric .n { font-size:26px; font-weight:700; }
   .metric .l { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.6px; margin-top:2px; }
   .metric.online .n { color:var(--primary); }
+  .metric.playing .n { color:var(--warn); }
+
+  /* Live games */
+  .live-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--primary); margin-right:6px; vertical-align:middle; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+  .kind { display:inline-block; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:600; background:var(--surface2); border:1px solid var(--border); text-transform:capitalize; }
+  .vs { color:var(--muted); margin:0 6px; }
+  .cpu { color:var(--muted); }
+  tr.row-wait td { opacity:.55; }
 
   .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
   .toolbar input { max-width:340px; }
@@ -101,7 +110,21 @@
 
   <div class="metrics" id="metrics"></div>
 
+  <!-- ── Live games (really playing right now) ────────────── -->
   <div class="toolbar">
+    <h2 style="font-size:17px;margin:0"><span class="live-dot"></span>Playing right now <span class="sub" id="liveCount"></span></h2>
+    <span class="grow"></span>
+    <span class="sub" id="liveUpdated"></span>
+    <button class="btn-ghost btn-sm" id="liveRefresh">↻ Refresh</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Game</th><th>Players</th><th>Started</th><th>Last move</th></tr>
+    </thead>
+    <tbody id="liveRows"></tbody>
+  </table>
+
+  <div class="toolbar" style="margin-top:30px">
     <input id="search" placeholder="Search username, email or display name…" />
     <button class="btn-ghost" id="searchBtn">Search</button>
     <span class="grow"></span>
@@ -224,7 +247,11 @@ $('loginForm').addEventListener('submit', async e => {
 });
 
 $('logoutBtn').addEventListener('click', logout);
-function logout() { sessionStorage.removeItem(TOKEN_KEY); $('app').style.display='none'; $('login').style.display='block'; }
+function logout() {
+  sessionStorage.removeItem(TOKEN_KEY);
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  $('app').style.display='none'; $('login').style.display='block';
+}
 
 function showApp() {
   $('login').style.display='none';
@@ -232,6 +259,10 @@ function showApp() {
   loadMetrics();
   loadUsers();
   loadFeedback();
+  loadLiveGames();
+  // Keep the "playing now" view and counter live without a manual refresh.
+  if (liveTimer) clearInterval(liveTimer);
+  liveTimer = setInterval(() => { loadLiveGames(); loadMetrics(); }, 5000);
 }
 
 // ── Metrics ───────────────────────────────────────────────
@@ -241,6 +272,7 @@ async function loadMetrics() {
     const cards = [
       ['Total users', m.totalRegistered, ''],
       ['Online now', m.currentlyOnline, 'online'],
+      ['Playing now', m.currentlyPlaying, 'playing'],
       ['Active today', m.activeToday, ''],
       ['This week', m.activeThisWeek, ''],
       ['This month', m.activeThisMonth, ''],
@@ -249,6 +281,38 @@ async function loadMetrics() {
     $('metrics').innerHTML = cards.map(([l,n,c]) =>
       `<div class="metric ${c}"><div class="n">${n ?? 0}</div><div class="l">${l}</div></div>`).join('');
   } catch(e) { $('metrics').innerHTML = `<div class="metric"><div class="l">${esc(e.message)}</div></div>`; }
+}
+
+// ── Live games (auto-refreshing) ──────────────────────────
+let liveTimer = null;
+async function loadLiveGames() {
+  try {
+    const data = await api('/admin/live-games');
+    renderLive(data.games || []);
+    const parts = [];
+    if (data.activeCount)  parts.push(`${data.activeCount} in play · ${data.playersPlaying} player${data.playersPlaying === 1 ? '' : 's'}`);
+    if (data.waitingCount) parts.push(`${data.waitingCount} waiting`);
+    $('liveCount').textContent = parts.length ? '· ' + parts.join(' · ') : '';
+    $('liveUpdated').textContent = 'updated ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    $('liveRows').innerHTML = `<tr><td colspan="4" class="empty">${esc(e.message)}</td></tr>`;
+  }
+}
+function playerLabel(p) {
+  if (!p) return '<span class="sub">waiting…</span>';
+  return p.computer ? `<span class="cpu">🤖 Computer</span>` : esc(p.name);
+}
+function renderLive(games) {
+  if (!games.length) { $('liveRows').innerHTML = `<tr><td colspan="4" class="empty">No live games right now.</td></tr>`; return; }
+  $('liveRows').innerHTML = games.map(g => {
+    const waiting = g.status === 'WAITING_FOR_OPPONENT';
+    return `
+    <tr${waiting ? ' class="row-wait"' : ''}>
+      <td><span class="kind">${esc(g.kind)}</span>${g.vsComputer ? ' <span class="sub">solo</span>' : ''}${waiting ? ' <span class="badge b-del">waiting</span>' : ''}</td>
+      <td>${playerLabel(g.player1)}<span class="vs">vs</span>${playerLabel(g.player2)}</td>
+      <td class="sub">${fmtDateTime(g.startedAt)}</td>
+      <td class="sub">${waiting ? '—' : fmtAgo(g.lastMoveAt)}</td>
+    </tr>`; }).join('');
 }
 
 // ── Users ─────────────────────────────────────────────────
@@ -368,7 +432,8 @@ $('fbNext').addEventListener('click', () => { if (fb.page<fb.totalPages-1){ fb.p
 // ── Controls ──────────────────────────────────────────────
 $('searchBtn').addEventListener('click', () => { state.query = $('search').value.trim(); state.page = 0; loadUsers(); });
 $('search').addEventListener('keydown', e => { if (e.key === 'Enter') $('searchBtn').click(); });
-$('refreshBtn').addEventListener('click', () => { loadMetrics(); loadUsers(); loadFeedback(); });
+$('refreshBtn').addEventListener('click', () => { loadMetrics(); loadUsers(); loadFeedback(); loadLiveGames(); });
+$('liveRefresh').addEventListener('click', loadLiveGames);
 $('prevBtn').addEventListener('click', () => { if (state.page>0){ state.page--; loadUsers(); } });
 $('nextBtn').addEventListener('click', () => { if (state.page<state.totalPages-1){ state.page++; loadUsers(); } });
 
@@ -376,6 +441,7 @@ $('nextBtn').addEventListener('click', () => { if (state.page<state.totalPages-1
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmt(iso){ if(!iso) return '<span class="sub">never</span>'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function fmtAgo(iso){ if(!iso) return '—'; const d=new Date(iso); if(isNaN(d)) return '—'; const s=Math.max(0,Math.round((Date.now()-d.getTime())/1000)); if(s<10) return 'just now'; if(s<60) return s+'s ago'; const m=Math.floor(s/60); if(m<60) return m+'m ago'; const h=Math.floor(m/60); return h+'h ago'; }
 
 // Make inline-handler functions reachable
 window.openSuspend = openSuspend;

@@ -187,6 +187,36 @@ public class BattleshipGameService {
         gemService.creditGems(winnerId, rankService.gemsPerWin(winnerId), "GAME_REWARD", g.getId());
     }
 
+    /**
+     * Forfeit (resign): the current player concedes, handing the win to their
+     * opponent. Allowed any time the game is live. The opponent banks the base
+     * win points (no afloat bonus on a concession) plus the rank-scaled gems of
+     * a normal win. Solo games end with the computer "winning" and earning nothing.
+     */
+    @Transactional
+    public Map<String, Object> forfeit(UUID userId, UUID gameId) {
+        BattleshipGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        int me = turnOf(g, userId);   // validates the caller is a player
+        if (!"ACTIVE".equals(g.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPlayer2Id() == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No opponent to forfeit to yet.");
+
+        UUID opponentId = me == 1 ? g.getPlayer2Id() : g.getPlayer1Id();
+        g.setStatus("COMPLETE");
+        g.setWinnerId(opponentId);
+        g.setLastMoveAt(Instant.now());
+        if (!COMPUTER_ID.equals(opponentId)) {
+            pointsService.creditGamePoints(opponentId, "BATTLESHIP", WIN_POINTS, "GAME_FORFEIT", g.getId());
+            gemService.creditGems(opponentId, rankService.gemsPerWin(opponentId), "GAME_REWARD", g.getId());
+        }
+        repo.save(g);
+        broadcast(g);
+        log.info("Battleship forfeit: game={} forfeiter={} winner={}", g.getId(), userId, opponentId);
+        return view(userId, g, null);
+    }
+
     /** The computer (player 2) fires one shot at the human's board (board1). */
     private void aiFire(BattleshipGame g) {
         char[][] board = parse(g.getBoard1());

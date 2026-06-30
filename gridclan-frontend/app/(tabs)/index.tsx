@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
+  Modal, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -11,7 +11,7 @@ import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index';
 import { RegisterBanner } from '@components/AuthGate';
 import { BouncingEmblem } from '@components/BouncingEmblem';
-import { pointsApi } from '@api/index';
+import { pointsApi, profileApi, type ActiveGameResume } from '@api/index';
 import { playSfx } from '@services/sound';
 import { Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -60,6 +60,33 @@ export default function HomeScreen() {
   const selectLbFilter = (f: GameKey | 'ALL') => { setLbFilter(f); setLbRows(null); };
 
   useEffect(() => { if (userId) dispatch(fetchBalanceThunk()); }, [userId]);
+
+  // Offer to jump back into an unfinished game after reopening / logging in.
+  const [resumeGame, setResumeGame] = useState<ActiveGameResume | null>(null);
+  useEffect(() => {
+    if (!userId) { setResumeGame(null); return; }
+    let active = true;
+    profileApi.getActiveGame()
+      .then(res => {
+        const g = res.data as ActiveGameResume;
+        if (active && g && g.gameId) setResumeGame(g);
+      })
+      .catch(() => { /* no resumable game / offline — just don't prompt */ });
+    return () => { active = false; };
+  }, [userId]);
+
+  const gameName = (kind: ActiveGameResume['kind']) =>
+    kind === 'gomoku'     ? t('gomoku.homeTitle', 'Grid Connect')
+  : kind === 'battleship' ? t('battleship.homeTitle', 'Grid Battleships')
+  :                         t('scrabble.homeTitle', 'Grid Scrabble');
+
+  function resumeNow() {
+    if (!resumeGame) return;
+    const g = resumeGame;
+    setResumeGame(null);
+    playSfx('tap');
+    router.push(`/${g.kind}/${g.gameId}`);
+  }
 
   // Top-players leaderboard for the right-column panel (public endpoint, so
   // guests see it too). Refetches on filter change; failure leaves it empty.
@@ -132,6 +159,36 @@ export default function HomeScreen() {
       {isGuest && (
         <RegisterBanner message={t('guest.homeBanner', 'Browse the games for free. Create an account to play, compete and join communities.')} />
       )}
+
+      {/* Resume an unfinished game — pops up after reopening / logging back in */}
+      <Modal
+        visible={!!resumeGame}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setResumeGame(null)}
+      >
+        <View style={styles.resumeBackdrop}>
+          <View style={styles.resumeModal}>
+            <Text style={styles.resumeEmoji}>🎮</Text>
+            <Text style={styles.resumeTitle}>{t('home.resumeTitle', 'Continue your game?')}</Text>
+            {resumeGame && (
+              <Text style={styles.resumeDesc}>
+                {resumeGame.status === 'WAITING_FOR_OPPONENT'
+                  ? t('home.resumeWaiting', '{{game}} — waiting for your friend to join', { game: gameName(resumeGame.kind) })
+                  : t('home.resumeActive', '{{game}} — still in progress', { game: gameName(resumeGame.kind) })}
+              </Text>
+            )}
+            <View style={styles.resumeActions}>
+              <TouchableOpacity style={styles.resumeDismissBtn} onPress={() => setResumeGame(null)} activeOpacity={0.85}>
+                <Text style={styles.resumeDismissText}>{t('home.resumeDismiss', 'Not now')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.resumeBtn} onPress={resumeNow} activeOpacity={0.85}>
+                <Text style={styles.resumeBtnText}>{t('home.resumeCta', 'Continue')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Desktop: two columns — the play flow on the left, live-with-a-friend
           games on the right. Phones / narrow windows: one stacked column. */}
@@ -327,6 +384,25 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   registerBtnText:{ color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   sectionLabel: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 },
+
+  // "Continue your game?" pop-up
+  resumeBackdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center', justifyContent: 'center', padding: Spacing.lg,
+  },
+  resumeModal: {
+    width: '100%', maxWidth: 360, backgroundColor: Colors.surface,
+    borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.lg, alignItems: 'center', ...Shadow.md,
+  },
+  resumeEmoji: { fontSize: 40, marginBottom: Spacing.sm },
+  resumeTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontFamily: Font.family.displaySemi, textAlign: 'center' },
+  resumeDesc:  { color: Colors.textSecondary, fontSize: Font.size.sm, marginTop: Spacing.xs, textAlign: 'center' },
+  resumeActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg, alignSelf: 'stretch' },
+  resumeDismissBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  resumeDismissText: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  resumeBtn:   { flex: 1, backgroundColor: Colors.primary, paddingVertical: Spacing.sm, borderRadius: Radius.full, alignItems: 'center' },
+  resumeBtnText: { color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   gameGrid: { gap: Spacing.sm, marginBottom: Spacing.lg },
 

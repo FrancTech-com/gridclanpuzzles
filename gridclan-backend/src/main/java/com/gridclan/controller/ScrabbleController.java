@@ -91,6 +91,13 @@ public class ScrabbleController {
         return ResponseEntity.ok(service.exchange(userId(auth), id, req.getTiles().toUpperCase()));
     }
 
+    /** POST /scrabble/{id}/forfeit — concede; the opponent wins and is awarded points. */
+    @PostMapping("/{id}/forfeit")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> forfeit(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.forfeit(userId(auth), id));
+    }
+
     private static UUID userId(Authentication auth) { return (UUID) auth.getPrincipal(); }
 
     // ── Request DTOs ─────────────────────────────────────────────────────────
