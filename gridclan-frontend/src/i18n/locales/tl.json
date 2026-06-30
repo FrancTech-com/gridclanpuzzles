@@ -166,5 +166,12 @@
     "network": "Walang koneksyon. Suriin ang inyong network at subukan muli.",
     "server": "May nangyaring mali. Pakisubukan muli.",
     "rateLimited": "Sobrang daming kahilingan. Maghintay sandali."
+  },
+  "invite": {
+    "title": "Mag-imbita ng mga kaibigan",
+    "cta": "Mag-imbita ng mga kaibigan",
+    "hint": "Ibahagi ang GridClan Puzzles sa mga kaibigan — agad silang makakapaglaro sa browser, walang kailangang i-install.",
+    "copied": "Nakopya na ang invite link! 🔗",
+    "message": "Hinahamon ka ni {{name}} sa GridClan Puzzles! Maglaro nang libre, walang i-install: {{link}}"
   }
 }
