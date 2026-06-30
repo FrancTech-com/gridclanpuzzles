@@ -83,6 +83,35 @@ public class AccountDeletionService {
         log.info("Deletion requested: userId={} tombstone={}", userId, tombstone);
     }
 
+    // ── Admin-initiated immediate purge ───────────────────────────────────
+
+    /**
+     * Erase an account NOW, skipping the 24h appeal window. Used by an admin to
+     * clean up test / abandoned accounts from the dashboard. Reuses the same
+     * erasure pipeline as the scheduled job (FK-safe: ledger anonymized,
+     * memberships/sessions/tournament slots cleared, PII wiped, deletedAt set)
+     * so the row drops out of every "active" query and metric. Idempotent: a
+     * already-erased account is a no-op.
+     */
+    @Transactional
+    public void adminPurge(UUID userId) {
+        User user = userRepo.findById(userId)
+            .orElseThrow(UserNotFoundException::new);
+
+        if (user.getDeletedAt() != null) return;   // already erased
+
+        if (user.getDeletionTombstoneId() == null) {
+            user.setDeletionTombstoneId(UUID.randomUUID());
+        }
+        if (user.getDeletionRequestedAt() == null) {
+            user.setDeletionRequestedAt(Instant.now());
+        }
+        user.setActive(false);
+        user.setRefreshTokenHash(null);
+
+        executeErasure(user);   // anonymize + set deletedAt immediately
+    }
+
     // ── PHASE 2: Async Nightly Erasure ────────────────────────────────────
 
     /**
