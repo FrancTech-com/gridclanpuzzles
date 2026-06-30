@@ -69,6 +69,14 @@ export const gemsApi = {
 };
 
 // ── Profile ────────────────────────────────────────────────────────────────
+export interface ActiveGameResume {
+  kind:        'gomoku' | 'battleship' | 'scrabble';
+  gameId:      string;
+  status:      'ACTIVE' | 'WAITING_FOR_OPPONENT';
+  vsComputer:  boolean;
+  lastMoveAt:  string | null;
+}
+
 export const profileApi = {
   getProfile: () =>
     apiClient.get<UserProfile>('/user/profile'),
@@ -81,6 +89,10 @@ export const profileApi = {
 
   getSessions: (limit = 20) =>
     apiClient.get(`/user/sessions?limit=${limit}`),
+
+  // The caller's most-recent unfinished game to resume, or 204 (empty) if none.
+  getActiveGame: () =>
+    apiClient.get<ActiveGameResume | ''>('/user/active-game'),
 
   getRank: () =>
     apiClient.get<RankInfo>('/user/rank'),
@@ -202,6 +214,7 @@ export const scrabbleApi = {
   exchange: (id: string, tiles: string) =>
             apiClient.post<ScrabbleView>(`/scrabble/${id}/exchange`, { tiles }),
   hint:   (id: string)   => apiClient.post<ScrabbleHint>(`/scrabble/${id}/hint`),
+  forfeit: (id: string)  => apiClient.post<ScrabbleView>(`/scrabble/${id}/forfeit`),
 };
 
 // ── Gomoku (real-time five-in-a-row) ────────────────────────────────────────
@@ -228,6 +241,7 @@ export const gomokuApi = {
   move:   (id: string, row: number, col: number) =>
             apiClient.post<GomokuView>(`/gomoku/${id}/move`, { row, col }),
   hint:   (id: string)   => apiClient.post<HintCell>(`/gomoku/${id}/hint`),
+  forfeit: (id: string)  => apiClient.post<GomokuView>(`/gomoku/${id}/forfeit`),
 };
 
 // ── Battleship (real-time) ──────────────────────────────────────────────────
@@ -253,6 +267,7 @@ export const battleshipApi = {
   move:   (id: string, row: number, col: number) =>
             apiClient.post<BattleshipView>(`/battleship/${id}/move`, { row, col }),
   hint:   (id: string)   => apiClient.post<HintCell>(`/battleship/${id}/hint`),
+  forfeit: (id: string)  => apiClient.post<BattleshipView>(`/battleship/${id}/forfeit`),
 };
 
 // ── Challenges (async friend matches) ───────────────────────────────────────
