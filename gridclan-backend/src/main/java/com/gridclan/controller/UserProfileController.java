@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gridclan.entity.User;
 import com.gridclan.entity.enums.SessionStatus;
 import com.gridclan.repository.ActiveSessionRepository;
+import com.gridclan.repository.BattleshipGameRepository;
+import com.gridclan.repository.GomokuGameRepository;
+import com.gridclan.repository.ScrabbleGameRepository;
 import com.gridclan.repository.UserRepository;
 import com.gridclan.service.AuditLogService;
 import com.gridclan.service.RankService;
@@ -20,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -41,9 +45,17 @@ public class UserProfileController {
     private final RankService            rankService;
     private final RedisTemplate<String, String> redis;
     private final ObjectMapper           objectMapper;
+    private final GomokuGameRepository     gomokuRepo;
+    private final BattleshipGameRepository battleshipRepo;
+    private final ScrabbleGameRepository   scrabbleRepo;
 
     /** Cache-aside TTL for profile reads (blueprint § Scalability). */
     private static final Duration PROFILE_CACHE_TTL = Duration.ofSeconds(60);
+
+    /** Statuses that count as "still going" for the resume prompt. */
+    private static final List<String> RESUMABLE_STATUSES = List.of("ACTIVE", "WAITING_FOR_OPPONENT");
+    /** Don't offer to resume a game nobody has touched in this long. */
+    private static final Duration RESUME_WINDOW = Duration.ofHours(48);
 
     // ── GET own profile ───────────────────────────────────────────────────
 
@@ -191,6 +203,47 @@ public class UserProfileController {
             .toList();
 
         return ResponseEntity.ok(sessions);
+    }
+
+    // ── Resume an in-progress game ────────────────────────────────────────
+
+    /**
+     * GET /user/active-game
+     *
+     * The caller's most-recently-active unfinished game across all three
+     * real-time games (ACTIVE or WAITING_FOR_OPPONENT), so the app can offer to
+     * drop them straight back into it after they reopen / log back in. Returns
+     * 204 No Content when there's nothing recent to resume.
+     */
+    @GetMapping("/active-game")
+    @PreAuthorize("hasRole('USER')")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> activeGame(Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        Instant cutoff = Instant.now().minus(RESUME_WINDOW);
+
+        record Resume(String kind, UUID id, String status, boolean vsComputer, Instant lastMoveAt) {}
+        List<Resume> candidates = new ArrayList<>();
+        gomokuRepo.findResumable(userId, RESUMABLE_STATUSES).stream().findFirst()
+            .ifPresent(g -> candidates.add(new Resume("gomoku", g.getId(), g.getStatus(), g.isVsComputer(), g.getLastMoveAt())));
+        battleshipRepo.findResumable(userId, RESUMABLE_STATUSES).stream().findFirst()
+            .ifPresent(g -> candidates.add(new Resume("battleship", g.getId(), g.getStatus(), g.isVsComputer(), g.getLastMoveAt())));
+        scrabbleRepo.findResumable(userId, RESUMABLE_STATUSES).stream().findFirst()
+            .ifPresent(g -> candidates.add(new Resume("scrabble", g.getId(), g.getStatus(), g.isVsComputer(), g.getLastMoveAt())));
+
+        Resume best = candidates.stream()
+            .filter(r -> r.lastMoveAt() != null && r.lastMoveAt().isAfter(cutoff))
+            .max(Comparator.comparing(Resume::lastMoveAt))
+            .orElse(null);
+        if (best == null) return ResponseEntity.noContent().build();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("kind",       best.kind());
+        body.put("gameId",     best.id().toString());
+        body.put("status",     best.status());
+        body.put("vsComputer", best.vsComputer());
+        body.put("lastMoveAt", best.lastMoveAt() != null ? best.lastMoveAt().toString() : null);
+        return ResponseEntity.ok(body);
     }
 
     // ── Heartbeat ─────────────────────────────────────────────────────────

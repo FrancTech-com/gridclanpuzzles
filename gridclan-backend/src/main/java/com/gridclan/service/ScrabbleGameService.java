@@ -29,6 +29,9 @@ public class ScrabbleGameService {
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
     private static final int    CODE_LENGTH   = 6;
     private static final SecureRandom RANDOM  = new SecureRandom();
+    // Flat points handed to the opponent when a player forfeits, so a concession
+    // is always worth points to them regardless of the word score so far.
+    private static final int    FORFEIT_WIN_POINTS = 100;
 
     /** Fixed sentinel id for the computer opponent in solo games. */
     public static final UUID COMPUTER_ID = new UUID(0L, 0L);
@@ -308,6 +311,46 @@ public class ScrabbleGameService {
         if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) aiPlay(g);
         repo.save(g);
         broadcast(g);
+        return view(userId, g);
+    }
+
+    /**
+     * Forfeit (resign): the current player concedes, handing the win to their
+     * opponent. Both players still bank the word points they legitimately earned
+     * this game, and the opponent additionally gets a flat forfeit award plus the
+     * rank-scaled gems of a normal win. Solo games end with the computer
+     * "winning" and earning nothing.
+     */
+    @Transactional
+    public Map<String, Object> forfeit(UUID userId, UUID gameId) {
+        ScrabbleGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        int me = turnOf(g, userId);   // validates the caller is a player
+        if (!"ACTIVE".equals(g.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPlayer2Id() == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No opponent to forfeit to yet.");
+
+        UUID opponentId = me == 1 ? g.getPlayer2Id() : g.getPlayer1Id();
+        g.setStatus("COMPLETE");
+        g.setWinnerId(opponentId);
+        g.setLastMoveAt(Instant.now());
+
+        // Each player banks the word points they earned this game (as on a normal finish).
+        pointsService.creditGamePoints(g.getPlayer1Id(), "SCRABBLE", g.getScore1(), "GAME_WIN", g.getId());
+        if (g.getPlayer2Id() != null && !g.getPlayer2Id().equals(COMPUTER_ID))
+            pointsService.creditGamePoints(g.getPlayer2Id(), "SCRABBLE", g.getScore2(), "GAME_WIN", g.getId());
+
+        // Flat forfeit award + rank-scaled gems to a human opponent, so a concession
+        // is always worth a clear win reward to them.
+        if (!COMPUTER_ID.equals(opponentId)) {
+            pointsService.creditGamePoints(opponentId, "SCRABBLE", FORFEIT_WIN_POINTS, "GAME_FORFEIT", g.getId());
+            gemService.creditGems(opponentId, rankService.gemsPerWin(opponentId), "GAME_REWARD", g.getId());
+        }
+
+        repo.save(g);
+        broadcast(g);
+        log.info("Scrabble forfeit: game={} forfeiter={} winner={}", g.getId(), userId, opponentId);
         return view(userId, g);
     }
 
