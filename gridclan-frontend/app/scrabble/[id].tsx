@@ -199,6 +199,10 @@ export default function ScrabbleGameScreen() {
   const header = {
     headerShown: true, title: t('scrabble.title', 'Grid Scrabble'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
+    headerRight: () =>
+      game && game.status === 'ACTIVE' && !game.vsComputer && id
+        ? <VoiceControl kind="scrabble" gameId={id} />
+        : null,
   };
 
   if (loading) return <LoadingSpinner />;
@@ -329,12 +333,6 @@ export default function ScrabbleGameScreen() {
           <View style={styles.chatWrap}><GameChat kind="scrabble" gameId={id} /></View>
         )}
       </ScrollView>
-
-      {!waiting && !game.vsComputer && id && (
-        <View style={styles.voiceFloat} pointerEvents="box-none">
-          <VoiceControl kind="scrabble" gameId={id} />
-        </View>
-      )}
 
       {/* Blank letter picker */}
       {blankAt && (
