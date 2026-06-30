@@ -17,6 +17,7 @@ export default function NewScrabbleScreen() {
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
 
   const [creating, setCreating] = useState(false);
+  const [soloLoading, setSoloLoading] = useState(false);
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState('');
 
@@ -27,6 +28,15 @@ export default function NewScrabbleScreen() {
     setCreating(false);
     if (res?.data?.gameId) router.replace(`/scrabble/${res.data.gameId}`);
     else Alert.alert(t('scrabble.createFailed', 'Could not start a game. Please try again.'));
+  }
+
+  async function handleSolo() {
+    if (soloLoading) return;
+    setSoloLoading(true);
+    const res = await scrabbleApi.solo().catch(() => null);
+    setSoloLoading(false);
+    if (res?.data?.gameId) router.replace(`/scrabble/${res.data.gameId}`);
+    else Alert.alert(t('scrabble.soloFailed', 'Could not start a solo game. Please try again.'));
   }
 
   async function handleJoin() {
@@ -52,6 +62,12 @@ export default function NewScrabbleScreen() {
           <Text style={styles.cardTitle}>{t('scrabble.startTitle', 'Start a game')}</Text>
           <Text style={styles.cardBody}>{t('scrabble.startBody', 'We’ll deal your tiles and give you a code to share with a friend.')}</Text>
           <Button title={t('scrabble.createCta', 'Start & invite a friend')} onPress={handleCreate} loading={creating} size="lg" style={styles.btn} />
+        </Card>
+
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>🤖 {t('scrabble.soloTitle', 'Play the computer')}</Text>
+          <Text style={styles.cardBody}>{t('scrabble.soloBody', 'Take on the AI solo. Hints suggest your best word — free, based on your rank: Beginner 5, Amateur 3, Professional 0.')}</Text>
+          <Button title={t('scrabble.soloCta', 'Play vs computer')} onPress={handleSolo} loading={soloLoading} size="lg" variant="secondary" style={styles.btn} />
         </Card>
 
         <Card style={styles.card}>

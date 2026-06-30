@@ -12,6 +12,7 @@
       "@components/*": ["src/components/*"],
       "@gridtypes/*": ["src/types/*"],
       "@websocket/*": ["src/websocket/*"],
+      "@webrtc/*": ["src/webrtc/*"],
       "@utils/*": ["src/utils/*"],
       "@services/*": ["src/services/*"],
       "@i18n/*": ["src/i18n/*"],

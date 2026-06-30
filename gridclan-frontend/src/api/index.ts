@@ -82,9 +82,30 @@ export const profileApi = {
   getSessions: (limit = 20) =>
     apiClient.get(`/user/sessions?limit=${limit}`),
 
+  getRank: () =>
+    apiClient.get<RankInfo>('/user/rank'),
+
   deleteAccount: () =>
     apiClient.post('/user/delete-account'),
 };
+
+// ── Feedback (goes only to the admin dashboard) ────────────────────────────
+export const feedbackApi = {
+  send: (content: string) =>
+    apiClient.post('/feedback', { content }),
+};
+
+export interface RankInfo {
+  rank:          'BEGINNER' | 'AMATEUR' | 'PROFESSIONAL';
+  rankLabel:     string;
+  points:        number;
+  gemsPerWin:    number;
+  soloHints:     number;
+  nextRank:      'AMATEUR' | 'PROFESSIONAL' | null;
+  nextRankLabel?: string;
+  pointsToNext:  number;
+  progress:      number;   // 0..1 within the current tier
+}
 
 // ── Community ──────────────────────────────────────────────────────────────
 export const communityApi = {
@@ -158,11 +179,21 @@ export interface ScrabbleView {
   opponentScore: number;
   hasOpponent:   boolean;
   tilesInBag:    number;
+  vsComputer?:   boolean;
+  hintsRemaining?: number;
   outcome?:      'WON' | 'LOST' | 'TIE';
+}
+
+export interface ScrabbleHint {
+  placements:     { row: number; col: number; letter: string; blank: boolean }[];
+  word:           string;
+  score:          number;
+  hintsRemaining: number;
 }
 
 export const scrabbleApi = {
   create: () => apiClient.post<ScrabbleView>('/scrabble'),
+  solo:   () => apiClient.post<ScrabbleView>('/scrabble/solo'),
   join:   (code: string) => apiClient.post<ScrabbleView>(`/scrabble/${code}/join`),
   get:    (id: string)   => apiClient.get<ScrabbleView>(`/scrabble/${id}`),
   move:   (id: string, placements: ScrabblePlacement[]) =>
@@ -170,6 +201,7 @@ export const scrabbleApi = {
   pass:   (id: string)   => apiClient.post<ScrabbleView>(`/scrabble/${id}/pass`),
   exchange: (id: string, tiles: string) =>
             apiClient.post<ScrabbleView>(`/scrabble/${id}/exchange`, { tiles }),
+  hint:   (id: string)   => apiClient.post<ScrabbleHint>(`/scrabble/${id}/hint`),
 };
 
 // ── Gomoku (real-time five-in-a-row) ────────────────────────────────────────
@@ -181,15 +213,21 @@ export interface GomokuView {
   yourStone:   number;     // 1 or 2 (0 = spectator)
   yourTurn:    boolean;
   hasOpponent: boolean;
+  vsComputer?: boolean;
+  hintsRemaining?: number;
   outcome?:    'WON' | 'LOST' | 'TIE';
 }
 
+export interface HintCell { row: number; col: number; hintsRemaining: number }
+
 export const gomokuApi = {
   create: () => apiClient.post<GomokuView>('/gomoku'),
+  solo:   () => apiClient.post<GomokuView>('/gomoku/solo'),
   join:   (code: string) => apiClient.post<GomokuView>(`/gomoku/${code}/join`),
   get:    (id: string)   => apiClient.get<GomokuView>(`/gomoku/${id}`),
   move:   (id: string, row: number, col: number) =>
             apiClient.post<GomokuView>(`/gomoku/${id}/move`, { row, col }),
+  hint:   (id: string)   => apiClient.post<HintCell>(`/gomoku/${id}/hint`),
 };
 
 // ── Battleship (real-time) ──────────────────────────────────────────────────
@@ -201,16 +239,20 @@ export interface BattleshipView {
   trackingBoard: string[];   // your shots on the enemy: '.'=unknown 'O'=miss 'X'=hit
   yourTurn:      boolean;
   hasOpponent:   boolean;
+  vsComputer?:   boolean;
+  hintsRemaining?: number;
   lastShot?:     'HIT' | 'MISS' | 'SUNK' | 'WIN';
   outcome?:      'WON' | 'LOST' | 'TIE';
 }
 
 export const battleshipApi = {
   create: () => apiClient.post<BattleshipView>('/battleship'),
+  solo:   () => apiClient.post<BattleshipView>('/battleship/solo'),
   join:   (code: string) => apiClient.post<BattleshipView>(`/battleship/${code}/join`),
   get:    (id: string)   => apiClient.get<BattleshipView>(`/battleship/${id}`),
   move:   (id: string, row: number, col: number) =>
             apiClient.post<BattleshipView>(`/battleship/${id}/move`, { row, col }),
+  hint:   (id: string)   => apiClient.post<HintCell>(`/battleship/${id}/hint`),
 };
 
 // ── Challenges (async friend matches) ───────────────────────────────────────

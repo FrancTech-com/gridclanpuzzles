@@ -70,16 +70,29 @@ public class CommunityController {
         Set<UUID> myCommunityIds =
             new HashSet<>(communityRepo.findCommunityIdsByMember(userId));
 
-        List<Map<String, Object>> response = communityRepo
+        List<Community> communities = communityRepo
             .findByIsActiveTrueOrderByMemberCountDesc(
                 PageRequest.of(Math.max(page, 0), safeSize))
+            .getContent();
+
+        // Live member counts — the denormalized Community.memberCount can lag, so
+        // resolve the actual active-member tally for this page in one grouped query.
+        Map<UUID, Long> liveCounts = new java.util.HashMap<>();
+        if (!communities.isEmpty()) {
+            for (Object[] row : memberRepo.countActiveByCommunityIds(
+                    communities.stream().map(Community::getId).toList())) {
+                liveCounts.put((UUID) row[0], (Long) row[1]);
+            }
+        }
+
+        List<Map<String, Object>> response = communities
             .stream()
             .map(c -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("id",            c.getId());
                 m.put("name",          c.getName());
                 m.put("description",   c.getDescription());
-                m.put("memberCount",   c.getMemberCount());
+                m.put("memberCount",   liveCounts.getOrDefault(c.getId(), (long) c.getMemberCount()));
                 m.put("weeklyPoolPts", c.getWeeklyPoolPts());
                 m.put("isActive",      c.isActive());
                 m.put("isMember",      myCommunityIds.contains(c.getId()));
@@ -110,6 +123,7 @@ public class CommunityController {
             .name(req.getName())
             .description(req.getDescription())
             .ownerId(userId)
+            .memberCount(1)          // owner is the first member
             .build();
         communityRepo.save(community);
 
@@ -150,6 +164,7 @@ public class CommunityController {
             .userId(userId)
             .role("MEMBER")
             .build());
+        communityRepo.incrementMemberCount(communityId, java.time.Instant.now());
 
         return ResponseEntity.ok(Map.of("status", "JOINED"));
     }
@@ -165,7 +180,10 @@ public class CommunityController {
         UUID userId = (UUID) auth.getPrincipal();
 
         memberRepo.findByCommunityIdAndUserId(communityId, userId)
-            .ifPresent(m -> memberRepo.delete(m));
+            .ifPresent(m -> {
+                memberRepo.delete(m);
+                communityRepo.decrementMemberCount(communityId, java.time.Instant.now());
+            });
 
         return ResponseEntity.ok(Map.of("status", "LEFT"));
     }

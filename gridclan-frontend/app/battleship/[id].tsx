@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
@@ -9,6 +9,9 @@ import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
+import { VoiceControl } from '@components/VoiceControl';
+import { GameResultOverlay } from '@components/GameResultOverlay';
+import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
@@ -40,6 +43,18 @@ export default function BattleshipGameScreen() {
   // enemy grid, your friend's shot on your fleet.
   const [lastEnemy, setLastEnemy] = useState<Set<string>>(() => new Set());
   const [lastOwn, setLastOwn] = useState<Set<string>>(() => new Set());
+  // Big win/lose popup — shown once when the game finishes.
+  const [showResult, setShowResult] = useState(false);
+  const announced = useRef(false);
+  // Solo hint: the enemy ship cell the AI reveals, highlighted until you fire.
+  const [hintCell, setHintCell] = useState<string | null>(null);
+  const [hinting, setHinting] = useState(false);
+  useEffect(() => {
+    if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
+      announced.current = true;
+      setShowResult(true);
+    }
+  }, [game?.status, game?.outcome]);
   const prevTrackingRef = useRef<string[] | null>(null);
   const prevOwnRef = useRef<string[] | null>(null);
 
@@ -87,6 +102,7 @@ export default function BattleshipGameScreen() {
     }
     if (game.trackingBoard[r]?.[c] !== '.') return;   // already fired here
     setBusy(true);
+    setHintCell(null);   // clear any hint highlight once you fire
     const res = await battleshipApi.move(id, r, c).catch((e: any) => {
       Alert.alert(t('battleship.invalidMove', 'Invalid move'), e?.response?.data?.message ?? '');
       return null;
@@ -99,6 +115,17 @@ export default function BattleshipGameScreen() {
       else if (shot === 'SUNK')  { playSfx('hit');  Alert.alert(t('battleship.sunk', '💥 You sank a ship!')); }
       else if (shot === 'HIT')   playSfx('hit');
       else                       playSfx('move');
+    }
+  }
+
+  async function handleHint() {
+    if (!id || hinting) return;
+    setHinting(true);
+    const res = await battleshipApi.hint(id).catch(() => null);
+    setHinting(false);
+    if (res?.data) {
+      setHintCell(`${res.data.row},${res.data.col}`);
+      setGame(g => g ? { ...g, hintsRemaining: res.data!.hintsRemaining } : g);
     }
   }
 
@@ -128,7 +155,7 @@ export default function BattleshipGameScreen() {
   const complete = game.status === 'COMPLETE';
   const waiting = game.status === 'WAITING_FOR_OPPONENT';
   const statusText = complete
-    ? (game.outcome === 'WON' ? `🏆 ${t('battleship.youWon', 'You won!')}` : game.outcome === 'LOST' ? `😅 ${t('battleship.youLost', 'You lost')}` : `🤝 ${t('battleship.tie', 'Draw')}`)
+    ? (game.outcome === 'WON' ? t('battleship.youWon', 'You won!') : game.outcome === 'LOST' ? t('battleship.youLost', 'You lost') : t('battleship.tie', 'Draw'))
     : waiting ? t('battleship.waitingOpponent', 'Waiting for a friend to join')
     : game.yourTurn ? `▶ ${t('battleship.yourTurn', 'Your turn — fire!')}` : t('battleship.theirTurn', 'Their turn');
 
@@ -159,25 +186,47 @@ export default function BattleshipGameScreen() {
           </Card>
         )}
 
+        {game.vsComputer && !complete && (
+          <View style={styles.soloBar}>
+            <Text style={styles.soloLabel}>🤖 {t('battleship.vsComputer', 'vs Computer')}</Text>
+            {game.yourTurn && (game.hintsRemaining ?? 0) > 0 ? (
+              <TouchableOpacity style={styles.hintBtn} onPress={handleHint} disabled={hinting}>
+                <Text style={styles.hintBtnText}>💡 {t('battleship.hint', 'Hint')} ({game.hintsRemaining})</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.soloLabel}>{t('battleship.hintsLeft', { count: game.hintsRemaining ?? 0, defaultValue: '💡 {{count}} hints' })}</Text>
+            )}
+          </View>
+        )}
+
         {/* Enemy waters — tap to fire */}
         <Text style={styles.boardLabel}>{t('battleship.enemyWaters', 'Enemy waters')}</Text>
         <View style={styles.board}>
           {game.trackingBoard.map((row, r) => (
             <View key={r} style={styles.boardRow}>
-              {row.split('').map((ch, c) => (
-                <TouchableOpacity
-                  key={c}
-                  activeOpacity={0.7}
-                  onPress={() => fire(r, c)}
-                  style={[styles.cell, enemyCell(ch), lastEnemy.has(`${r},${c}`) && styles.cellLastMove]}
-                >
-                  {ch === 'X' && <Text style={styles.mark}>✸</Text>}
-                  {ch === 'O' && <View style={styles.missDot} />}
-                </TouchableOpacity>
-              ))}
+              {row.split('').map((ch, c) => {
+                const isHint = hintCell === `${r},${c}`;
+                return (
+                  <TouchableOpacity
+                    key={c}
+                    activeOpacity={0.7}
+                    onPress={() => fire(r, c)}
+                    style={[styles.cell, enemyCell(ch), lastEnemy.has(`${r},${c}`) && styles.cellLastMove, isHint && styles.cellHintTarget]}
+                  >
+                    {ch === 'X' && <Text style={styles.mark}>✸</Text>}
+                    {ch === 'O' && <View style={styles.missDot} />}
+                    {isHint && ch === '.' && <Text style={styles.hintMark}>💡</Text>}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ))}
         </View>
+
+        {/* Chat sits between the two boards */}
+        {!waiting && !game.vsComputer && id && (
+          <View style={styles.chatWrap}><GameChat kind="battleship" gameId={id} /></View>
+        )}
 
         {/* Your fleet */}
         <Text style={[styles.boardLabel, { marginTop: Spacing.lg }]}>{t('battleship.yourFleet', 'Your fleet')}</Text>
@@ -194,6 +243,18 @@ export default function BattleshipGameScreen() {
           ))}
         </View>
       </ScrollView>
+
+      {!waiting && !game.vsComputer && id && (
+        <View style={styles.voiceFloat} pointerEvents="box-none">
+          <VoiceControl kind="battleship" gameId={id} />
+        </View>
+      )}
+
+      <GameResultOverlay
+        visible={showResult}
+        outcome={complete ? (game.outcome ?? 'TIE') : null}
+        onClose={() => setShowResult(false)}
+      />
     </View>
   );
 }
@@ -205,12 +266,18 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   muted:     { color: Colors.textMuted, fontSize: Font.size.sm, textAlign: 'center' },
 
   statusText: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.semi, marginBottom: Spacing.md, textAlign: 'center' },
+  soloBar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: BOARD_W, marginBottom: Spacing.md, gap: Spacing.sm },
+  soloLabel:  { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  hintBtn:    { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.primary },
+  hintBtnText:{ color: Colors.primary, fontWeight: Font.weight.bold, fontSize: Font.size.sm },
   boardLabel: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, alignSelf: 'flex-start', marginBottom: Spacing.xs },
 
   shareCard: { padding: Spacing.md, marginBottom: Spacing.md, width: BOARD_W, alignItems: 'center' },
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
   link:      { color: Colors.textMuted, fontSize: Font.size.xs, textAlign: 'center', marginBottom: Spacing.xs },
 
+  voiceFloat: { position: 'absolute', top: Spacing.sm, right: Spacing.md, alignItems: 'flex-end', zIndex: 20 },
+  chatWrap: { width: BOARD_W, marginTop: Spacing.lg },
   board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.red, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface, alignSelf: 'center', ...Shadow.md },
   boardOwn: { borderColor: Colors.blue },
   boardRow: { flexDirection: 'row' },
@@ -224,6 +291,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   cellHit:   { backgroundColor: Colors.red },
   cellMiss:  { backgroundColor: Colors.surfaceHigh },
   cellLastMove: { borderColor: Colors.accent, borderWidth: 2 },
+  cellHintTarget: { borderColor: Colors.primary, borderWidth: 2, backgroundColor: Colors.primary + '55' },
+  hintMark: { position: 'absolute', fontSize: CELL * 0.5 },
   mark:      { color: '#fff', fontSize: CELL * 0.62, fontFamily: Font.family.displayBold },
   missDot:   { width: CELL * 0.28, height: CELL * 0.28, borderRadius: CELL, backgroundColor: Colors.textMuted },
 });
