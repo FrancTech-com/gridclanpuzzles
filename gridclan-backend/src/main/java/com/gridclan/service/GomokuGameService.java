@@ -35,9 +35,15 @@ public class GomokuGameService {
     private static final int    CODE_LENGTH   = 6;
     private static final SecureRandom RANDOM   = new SecureRandom();
 
+    /** Fixed sentinel id for the computer opponent in solo games. */
+    public static final UUID COMPUTER_ID = new UUID(0L, 0L);
+
     private final GomokuGameRepository repo;
     private final SimpMessagingTemplate messaging;
     private final PlayerPointsService   pointsService;
+    private final GemService            gemService;
+    private final RankService           rankService;
+    private final GomokuAi              ai;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -52,6 +58,25 @@ public class GomokuGameService {
             .build();
         repo.save(g);
         log.info("Gomoku game created: code={} creator={}", g.getInviteCode(), userId);
+        return view(userId, g);
+    }
+
+    /** Start a solo game against the computer — ACTIVE at once; you move first.
+     *  Free hints are granted by rank (Beginner 5 / Amateur 3 / Professional 0). */
+    @Transactional
+    public Map<String, Object> createSolo(UUID userId) {
+        GomokuGame g = GomokuGame.builder()
+            .inviteCode(uniqueCode())
+            .player1Id(userId)
+            .player2Id(COMPUTER_ID)
+            .status("ACTIVE")
+            .currentPlayer((short) 1)
+            .board(emptyBoard())
+            .vsComputer(true)
+            .hintsRemaining(rankService.soloHints(userId))
+            .build();
+        repo.save(g);
+        log.info("Gomoku solo game created: creator={} hints={}", userId, g.getHintsRemaining());
         return view(userId, g);
     }
 
@@ -122,22 +147,75 @@ public class GomokuGameService {
         g.setLastMoveAt(Instant.now());
 
         if (isWin(board, row, col, stone)) {
-            g.setStatus("COMPLETE");
-            g.setWinnerId(userId);
-            // Win + speed bonus (fewer total stones = faster, decisive win).
-            int stones = countStones(board);
-            int award  = WIN_POINTS + Math.max(0, SPEED_BONUS_MAX - stones);
-            pointsService.creditGamePoints(userId, "GOMOKU", award, "GAME_WIN", g.getId());
+            awardWin(g, userId, board);
         } else if (isFull(board)) {
             g.setStatus("COMPLETE");
             g.setWinnerId(null);            // draw
         } else {
             g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
+            // Solo game: the computer replies immediately so the human's view
+            // already reflects the AI's move when this call returns.
+            if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) {
+                aiRespond(g, board);
+            }
         }
 
         repo.save(g);
         broadcast(g);
         return view(userId, g);
+    }
+
+    /** Credit a human winner: native points (with speed bonus) + rank-scaled gems. */
+    private void awardWin(GomokuGame g, UUID winnerId, char[][] board) {
+        g.setStatus("COMPLETE");
+        g.setWinnerId(winnerId);
+        int stones = countStones(board);
+        int award  = WIN_POINTS + Math.max(0, SPEED_BONUS_MAX - stones);
+        pointsService.creditGamePoints(winnerId, "GOMOKU", award, "GAME_WIN", g.getId());
+        gemService.creditGems(winnerId, rankService.gemsPerWin(winnerId), "GAME_REWARD", g.getId());
+    }
+
+    /** The computer (player 2) plays its best reply, updating the game in place. */
+    private void aiRespond(GomokuGame g, char[][] board) {
+        int[] mv = ai.bestMove(board, '2', '1');   // computer is player 2
+        int r = mv[0], c = mv[1];
+        board[r][c] = '2';
+        g.setBoard(serialize(board));
+        g.setLastMoveAt(Instant.now());
+
+        if (isWin(board, r, c, '2')) {
+            g.setStatus("COMPLETE");
+            g.setWinnerId(COMPUTER_ID);
+        } else if (isFull(board)) {
+            g.setStatus("COMPLETE");
+            g.setWinnerId(null);
+        } else {
+            g.setCurrentPlayer((short) 1);          // back to the human
+        }
+    }
+
+    // ── Hint (solo only; free, limited by rank) ──────────────────────────────
+
+    @Transactional
+    public Map<String, Object> hint(UUID userId, UUID gameId) {
+        GomokuGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (!g.isVsComputer() || !userId.equals(g.getPlayer1Id()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hints are only for solo games.");
+        if (!"ACTIVE".equals(g.getStatus()) || g.getCurrentPlayer() != 1)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Wait for your turn.");
+        if (g.getHintsRemaining() <= 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No hints left for this game.");
+
+        int[] mv = ai.bestMove(parse(g.getBoard()), '1', '2');   // best square for the human
+        g.setHintsRemaining(g.getHintsRemaining() - 1);
+        repo.save(g);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("row",            mv[0]);
+        out.put("col",            mv[1]);
+        out.put("hintsRemaining", g.getHintsRemaining());
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -158,6 +236,8 @@ public class GomokuGameService {
         out.put("yourStone",   me);     // 1 or 2 (0 = spectator)
         out.put("yourTurn",    me != 0 && me == g.getCurrentPlayer() && "ACTIVE".equals(g.getStatus()));
         out.put("hasOpponent", g.getPlayer2Id() != null);
+        out.put("vsComputer",  g.isVsComputer());
+        out.put("hintsRemaining", g.getHintsRemaining());
         if ("COMPLETE".equals(g.getStatus())) {
             out.put("outcome", g.getWinnerId() == null ? "TIE"
                 : g.getWinnerId().equals(userId) ? "WON" : "LOST");

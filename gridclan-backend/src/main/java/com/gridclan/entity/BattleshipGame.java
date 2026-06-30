@@ -54,6 +54,16 @@ public class BattleshipGame {
     @Column(name = "winner_id")
     private UUID winnerId;
 
+    /** True when player2 is the computer (solo game). */
+    @Column(name = "vs_computer", nullable = false)
+    @Builder.Default
+    private boolean vsComputer = false;
+
+    /** Free hints left in a solo game, granted by the player's rank. */
+    @Column(name = "hints_remaining", nullable = false)
+    @Builder.Default
+    private int hintsRemaining = 0;
+
     @Column(name = "last_move_at", nullable = false)
     @Builder.Default
     private Instant lastMoveAt = Instant.now();

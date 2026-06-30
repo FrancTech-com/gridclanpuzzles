@@ -7,6 +7,7 @@ import com.gridclan.entity.enums.SessionStatus;
 import com.gridclan.repository.ActiveSessionRepository;
 import com.gridclan.repository.UserRepository;
 import com.gridclan.service.AuditLogService;
+import com.gridclan.service.RankService;
 import com.gridclan.service.UserActivityService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
@@ -37,6 +38,7 @@ public class UserProfileController {
     private final ActiveSessionRepository sessionRepo;
     private final AuditLogService        audit;
     private final UserActivityService    activityService;
+    private final RankService            rankService;
     private final RedisTemplate<String, String> redis;
     private final ObjectMapper           objectMapper;
 
@@ -71,6 +73,21 @@ public class UserProfileController {
                 return ResponseEntity.ok(p);
             })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ── GET own rank (Beginner / Amateur / Professional + progress) ────────
+
+    /**
+     * GET /user/rank — the caller's progression rank, lifetime points, and
+     * progress toward the next rank. Computed fresh (not cached) since points
+     * change every game.
+     */
+    @GetMapping("/rank")
+    @PreAuthorize("hasRole('USER')")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getRank(Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(rankService.summary(userId));
     }
 
     // ── PUT update profile ────────────────────────────────────────────────

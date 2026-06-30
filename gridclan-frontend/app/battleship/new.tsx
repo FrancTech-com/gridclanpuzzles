@@ -17,6 +17,7 @@ export default function NewBattleshipScreen() {
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
 
   const [creating, setCreating] = useState(false);
+  const [soloLoading, setSoloLoading] = useState(false);
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState('');
 
@@ -27,6 +28,15 @@ export default function NewBattleshipScreen() {
     setCreating(false);
     if (res?.data?.gameId) router.replace(`/battleship/${res.data.gameId}`);
     else Alert.alert(t('battleship.createFailed', 'Could not start a game. Please try again.'));
+  }
+
+  async function handleSolo() {
+    if (soloLoading) return;
+    setSoloLoading(true);
+    const res = await battleshipApi.solo().catch(() => null);
+    setSoloLoading(false);
+    if (res?.data?.gameId) router.replace(`/battleship/${res.data.gameId}`);
+    else Alert.alert(t('battleship.soloFailed', 'Could not start a solo game. Please try again.'));
   }
 
   async function handleJoin() {
@@ -52,6 +62,12 @@ export default function NewBattleshipScreen() {
           <Text style={styles.cardTitle}>{t('battleship.startTitle', 'Start a game')}</Text>
           <Text style={styles.cardBody}>{t('battleship.startBody', 'We’ll place your fleet and give you a code to share with a friend.')}</Text>
           <Button title={t('battleship.createCta', 'Start & invite a friend')} onPress={handleCreate} loading={creating} size="lg" style={styles.btn} />
+        </Card>
+
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>🤖 {t('battleship.soloTitle', 'Play the computer')}</Text>
+          <Text style={styles.cardBody}>{t('battleship.soloBody', 'Battle the AI solo. Hints are free, based on your rank: Beginner 5, Amateur 3, Professional 0.')}</Text>
+          <Button title={t('battleship.soloCta', 'Play vs computer')} onPress={handleSolo} loading={soloLoading} size="lg" variant="secondary" style={styles.btn} />
         </Card>
 
         <Card style={styles.card}>

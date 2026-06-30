@@ -33,6 +33,20 @@ public class BattleshipController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
     }
 
+    /** POST /battleship/solo — start a game against the computer (you fire first). */
+    @PostMapping("/solo")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> solo(Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createSolo(userId(auth)));
+    }
+
+    /** POST /battleship/{id}/hint — solo only; reveals an enemy ship cell (rank-limited). */
+    @PostMapping("/{id}/hint")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> hint(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.hint(userId(auth), id));
+    }
+
     /** POST /battleship/{code}/join — join as the opponent. */
     @PostMapping("/{code}/join")
     @PreAuthorize("hasRole('USER')")

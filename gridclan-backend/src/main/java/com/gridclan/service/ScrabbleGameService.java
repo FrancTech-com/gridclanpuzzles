@@ -30,9 +30,15 @@ public class ScrabbleGameService {
     private static final int    CODE_LENGTH   = 6;
     private static final SecureRandom RANDOM  = new SecureRandom();
 
+    /** Fixed sentinel id for the computer opponent in solo games. */
+    public static final UUID COMPUTER_ID = new UUID(0L, 0L);
+
     private final ScrabbleGameRepository repo;
     private final SimpMessagingTemplate messaging;
     private final PlayerPointsService    pointsService;
+    private final GemService             gemService;
+    private final RankService            rankService;
+    private final ScrabbleAi             ai;
 
     // Dictionary loaded once (≈359k words). Lazy so startup isn't blocked.
     private volatile WordList dict;
@@ -61,6 +67,31 @@ public class ScrabbleGameService {
             .build();
         repo.save(g);
         log.info("Scrabble game created: code={} creator={}", g.getInviteCode(), userId);
+        return view(userId, g);
+    }
+
+    /** Start a solo game vs the computer — both racks drawn, ACTIVE at once, you
+     *  move first. Free hints are granted by rank (Beginner 5 / Amateur 3 / Pro 0). */
+    @Transactional
+    public Map<String, Object> createSolo(UUID userId) {
+        TileBag bag = new TileBag(RANDOM.nextLong());
+        String rack1 = chars(bag.draw(TileBag.RACK_SIZE));
+        String rack2 = chars(bag.draw(TileBag.RACK_SIZE));
+        String bagStr = chars(bag.snapshot());
+
+        ScrabbleGame g = ScrabbleGame.builder()
+            .inviteCode(uniqueCode())
+            .player1Id(userId)
+            .player2Id(COMPUTER_ID)
+            .status("ACTIVE")
+            .currentPlayer((short) 1)
+            .board(emptyBoard())
+            .bag(bagStr).rack1(rack1).rack2(rack2)
+            .vsComputer(true)
+            .hintsRemaining(rankService.soloHints(userId))
+            .build();
+        repo.save(g);
+        log.info("Scrabble solo game created: creator={} hints={}", userId, g.getHintsRemaining());
         return view(userId, g);
     }
 
@@ -152,11 +183,90 @@ public class ScrabbleGameService {
 
         // 4. Game over when the bag is empty and the mover cleared their rack.
         if (bag.length() == 0 && newRack.isEmpty()) finish(g);
-        else g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
+        else {
+            g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
+            if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) aiPlay(g);
+        }
 
         repo.save(g);
         broadcast(g);   // opponent's device updates live (or both see the game complete)
         return view(userId, g);
+    }
+
+    /** The computer (player 2) takes its turn: play its best word, else pass. */
+    private void aiPlay(ScrabbleGame g) {
+        ScrabbleBoard board = parseBoard(g.getBoard());
+        List<Placement> best = ai.bestMove(board, g.getRack2(), dict());
+
+        if (best == null || best.isEmpty()) {
+            // No legal move found — the computer passes.
+            g.setPassStreak((short) (g.getPassStreak() + 1));
+            if (g.getPassStreak() >= 4) finish(g);
+            else g.setCurrentPlayer((short) 1);
+            return;
+        }
+
+        MoveValidator.Result res = MoveValidator.validate(board, best, dict());
+        if (!res.valid()) {   // defensive — should never happen
+            g.setPassStreak((short) (g.getPassStreak() + 1));
+            g.setCurrentPlayer((short) 1);
+            return;
+        }
+
+        String afterRemoval = removeFromRack(g.getRack2(), best);
+        for (Placement p : best) board.place(p.row(), p.col(), p.letter(), p.blank());
+        g.setBoard(serializeBoard(board));
+
+        StringBuilder bag = new StringBuilder(g.getBag());
+        String newRack = afterRemoval + drawFromBag(bag, TileBag.RACK_SIZE - afterRemoval.length());
+        g.setBag(bag.toString());
+        g.setRack2(newRack);
+        g.setScore2(g.getScore2() + res.score());
+        g.setPassStreak((short) 0);
+        g.setLastMoveAt(Instant.now());
+
+        if (bag.length() == 0 && newRack.isEmpty()) finish(g);
+        else g.setCurrentPlayer((short) 1);   // back to the human
+    }
+
+    // ── Hint (solo only; free, limited by rank) — suggests the best word ──────
+
+    @Transactional
+    public Map<String, Object> hint(UUID userId, UUID gameId) {
+        ScrabbleGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (!g.isVsComputer() || !userId.equals(g.getPlayer1Id()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hints are only for solo games.");
+        if (!"ACTIVE".equals(g.getStatus()) || g.getCurrentPlayer() != 1)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Wait for your turn.");
+        if (g.getHintsRemaining() <= 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No hints left for this game.");
+
+        ScrabbleBoard board = parseBoard(g.getBoard());
+        List<Placement> best = ai.bestMove(board, g.getRack1(), dict());
+        if (best == null || best.isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "No strong word found — try exchanging tiles or passing.");
+
+        MoveValidator.Result res = MoveValidator.validate(board, best, dict());
+        g.setHintsRemaining(g.getHintsRemaining() - 1);
+        repo.save(g);
+
+        List<Map<String, Object>> cells = new ArrayList<>();
+        for (Placement p : best) {
+            Map<String, Object> cell = new LinkedHashMap<>();
+            cell.put("row",    p.row());
+            cell.put("col",    p.col());
+            cell.put("letter", String.valueOf(p.upper()));
+            cell.put("blank",  p.blank());
+            cells.add(cell);
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("placements",     cells);
+        out.put("word",           res.words().isEmpty() ? "" : res.words().get(0));
+        out.put("score",          res.score());
+        out.put("hintsRemaining", g.getHintsRemaining());
+        return out;
     }
 
     @Transactional
@@ -166,7 +276,10 @@ public class ScrabbleGameService {
         g.setPassStreak((short) (g.getPassStreak() + 1));
         g.setLastMoveAt(Instant.now());
         if (g.getPassStreak() >= 4) finish(g);          // both players passed twice
-        else g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
+        else {
+            g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
+            if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) aiPlay(g);
+        }
         repo.save(g);
         broadcast(g);
         return view(userId, g);
@@ -192,6 +305,7 @@ public class ScrabbleGameService {
         g.setPassStreak((short) 0);
         g.setCurrentPlayer((short) (me == 1 ? 2 : 1));
         g.setLastMoveAt(Instant.now());
+        if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) aiPlay(g);
         repo.save(g);
         broadcast(g);
         return view(userId, g);
@@ -222,6 +336,8 @@ public class ScrabbleGameService {
         out.put("opponentScore", oppScore);
         out.put("hasOpponent",  g.getPlayer2Id() != null);
         out.put("tilesInBag",   g.getBag().length());
+        out.put("vsComputer",   g.isVsComputer());
+        out.put("hintsRemaining", g.getHintsRemaining());
         if ("COMPLETE".equals(g.getStatus())) {
             out.put("outcome", g.getWinnerId() == null ? "TIE"
                 : g.getWinnerId().equals(userId) ? "WON" : "LOST");
@@ -255,8 +371,12 @@ public class ScrabbleGameService {
         // Native scoring: each player banks the word points they earned this game
         // (creditGamePoints no-ops on a 0 score). Feeds the SCRABBLE leaderboard.
         pointsService.creditGamePoints(g.getPlayer1Id(), "SCRABBLE", g.getScore1(), "GAME_WIN", g.getId());
-        if (g.getPlayer2Id() != null)
+        if (g.getPlayer2Id() != null && !g.getPlayer2Id().equals(COMPUTER_ID))
             pointsService.creditGamePoints(g.getPlayer2Id(), "SCRABBLE", g.getScore2(), "GAME_WIN", g.getId());
+
+        // Rank-scaled gems to a human winner (not the computer, not a tie).
+        if (g.getWinnerId() != null && !g.getWinnerId().equals(COMPUTER_ID))
+            gemService.creditGems(g.getWinnerId(), rankService.gemsPerWin(g.getWinnerId()), "GAME_REWARD", g.getId());
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
