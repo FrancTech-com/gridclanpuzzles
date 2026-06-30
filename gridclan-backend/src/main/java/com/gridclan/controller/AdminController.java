@@ -1,6 +1,7 @@
 package com.gridclan.controller;
 
 import com.gridclan.entity.FeatureFlag;
+import com.gridclan.entity.Feedback;
 import com.gridclan.entity.User;
 import com.gridclan.repository.*;
 import com.gridclan.service.AuditLogService;
@@ -34,6 +35,53 @@ public class AdminController {
     private final AuditLogService             audit;
     private final UserActivityService         activityService;
     private final FeatureFlagService          featureFlags;
+    private final FeedbackRepository           feedbackRepo;
+
+    // ── Player feedback inbox (read-only, admin) ────────────────────────────
+
+    /** GET /admin/feedback?page=0&size=20 — newest first, with unread count. */
+    @GetMapping("/feedback")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> feedback(
+            @RequestParam(defaultValue = "0")  int page,
+            @RequestParam(defaultValue = "20") int size) {
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        Page<Feedback> p = feedbackRepo.findAllByOrderByCreatedAtDesc(
+            PageRequest.of(Math.max(page, 0), safeSize));
+
+        List<Map<String, Object>> items = p.getContent().stream().map(f -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id",          f.getId());
+            m.put("userId",      f.getUserId());
+            m.put("displayName", f.getDisplayName() != null ? f.getDisplayName() : "Player");
+            m.put("content",     f.getContent());
+            m.put("handled",     f.isHandled());
+            m.put("createdAt",   f.getCreatedAt().toString());
+            return m;
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(Map.of(
+            "items",       items,
+            "page",        p.getNumber(),
+            "totalPages",  p.getTotalPages(),
+            "totalItems",  p.getTotalElements(),
+            "unhandled",   feedbackRepo.countByHandledFalse()
+        ));
+    }
+
+    /** POST /admin/feedback/{id}/handled — mark a message read/done. */
+    @PostMapping("/feedback/{id}/handled")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> markFeedbackHandled(@PathVariable UUID id) {
+        return feedbackRepo.findById(id).<ResponseEntity<Map<String, Object>>>map(f -> {
+            f.setHandled(true);
+            feedbackRepo.save(f);
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("id", id);
+            body.put("handled", true);
+            return ResponseEntity.ok(body);
+        }).orElse(ResponseEntity.notFound().build());
+    }
 
     // ── Suspend user ──────────────────────────────────────────────────────
 

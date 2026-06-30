@@ -32,6 +32,20 @@ public class GomokuController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
     }
 
+    /** POST /gomoku/solo — start a game against the computer (you move first). */
+    @PostMapping("/solo")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> solo(Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createSolo(userId(auth)));
+    }
+
+    /** POST /gomoku/{id}/hint — solo only; highlights a suggested square (rank-limited). */
+    @PostMapping("/{id}/hint")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> hint(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.hint(userId(auth), id));
+    }
+
     /** POST /gomoku/{code}/join — join as the opponent. */
     @PostMapping("/{code}/join")
     @PreAuthorize("hasRole('USER')")

@@ -28,6 +28,15 @@ public interface CommunityRepository extends JpaRepository<Community, UUID> {
     void resetWeeklyPool(@Param("id") UUID id, @Param("now") Instant now);
 
     @Modifying
+    @Query("UPDATE Community c SET c.memberCount = c.memberCount + 1, c.updatedAt = :now WHERE c.id = :id")
+    void incrementMemberCount(@Param("id") UUID id, @Param("now") Instant now);
+
+    @Modifying
+    @Query("UPDATE Community c SET c.memberCount = CASE WHEN c.memberCount > 0 THEN c.memberCount - 1 ELSE 0 END, " +
+           "c.updatedAt = :now WHERE c.id = :id")
+    void decrementMemberCount(@Param("id") UUID id, @Param("now") Instant now);
+
+    @Modifying
     @Query("UPDATE Community c SET c.ownerId = :newOwner WHERE c.ownerId = :oldOwner")
     void reassignOwner(@Param("oldOwner") UUID oldOwner, @Param("newOwner") UUID newOwner);
 }

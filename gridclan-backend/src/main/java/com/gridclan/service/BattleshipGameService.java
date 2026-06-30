@@ -36,9 +36,15 @@ public class BattleshipGameService {
     private static final int    CODE_LENGTH   = 6;
     private static final SecureRandom RANDOM   = new SecureRandom();
 
+    /** Fixed sentinel id for the computer opponent in solo games. */
+    public static final UUID COMPUTER_ID = new UUID(0L, 0L);
+
     private final BattleshipGameRepository repo;
     private final SimpMessagingTemplate messaging;
     private final PlayerPointsService   pointsService;
+    private final GemService            gemService;
+    private final RankService           rankService;
+    private final BattleshipAi          ai;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -53,6 +59,26 @@ public class BattleshipGameService {
             .build();
         repo.save(g);
         log.info("Battleship game created: code={} creator={}", g.getInviteCode(), userId);
+        return view(userId, g, null);
+    }
+
+    /** Start a solo game vs the computer — both fleets placed, ACTIVE at once, you
+     *  fire first. Free hints are granted by rank (Beginner 5 / Amateur 3 / Pro 0). */
+    @Transactional
+    public Map<String, Object> createSolo(UUID userId) {
+        BattleshipGame g = BattleshipGame.builder()
+            .inviteCode(uniqueCode())
+            .player1Id(userId)
+            .player2Id(COMPUTER_ID)
+            .status("ACTIVE")
+            .currentPlayer((short) 1)
+            .board1(serialize(placeFleet()))
+            .board2(serialize(placeFleet()))
+            .vsComputer(true)
+            .hintsRemaining(rankService.soloHints(userId))
+            .build();
+        repo.save(g);
+        log.info("Battleship solo game created: creator={} hints={}", userId, g.getHintsRemaining());
         return view(userId, g, null);
     }
 
@@ -135,20 +161,80 @@ public class BattleshipGameService {
         g.setLastMoveAt(Instant.now());
 
         if (noShipsLeft(target)) {
-            g.setStatus("COMPLETE");
-            g.setWinnerId(userId);
+            awardWin(g, userId, me);
             result = "WIN";
-            // Win + bonus for every own ship-cell still afloat ('S' on my board).
-            int afloat = countAfloat(parse(me == 1 ? g.getBoard1() : g.getBoard2()));
-            int award  = WIN_POINTS + afloat * AFLOAT_CELL_BONUS;
-            pointsService.creditGamePoints(userId, "BATTLESHIP", award, "GAME_WIN", g.getId());
         } else {
             g.setCurrentPlayer((short) (me == 1 ? 2 : 1));   // one shot per turn, then switch
+            // Solo game: the computer takes its shot immediately, so the human's
+            // view already reflects it (their own board shows the AI's hit/miss).
+            if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) {
+                aiFire(g);
+            }
         }
 
         repo.save(g);
         broadcast(g);
         return view(userId, g, result);
+    }
+
+    /** Credit a human winner: native points (+ afloat bonus) + rank-scaled gems. */
+    private void awardWin(BattleshipGame g, UUID winnerId, int me) {
+        g.setStatus("COMPLETE");
+        g.setWinnerId(winnerId);
+        int afloat = countAfloat(parse(me == 1 ? g.getBoard1() : g.getBoard2()));
+        int award  = WIN_POINTS + afloat * AFLOAT_CELL_BONUS;
+        pointsService.creditGamePoints(winnerId, "BATTLESHIP", award, "GAME_WIN", g.getId());
+        gemService.creditGems(winnerId, rankService.gemsPerWin(winnerId), "GAME_REWARD", g.getId());
+    }
+
+    /** The computer (player 2) fires one shot at the human's board (board1). */
+    private void aiFire(BattleshipGame g) {
+        char[][] board = parse(g.getBoard1());
+        int[] t = ai.nextTarget(board);
+        int r = t[0], c = t[1];
+        board[r][c] = board[r][c] == 'S' ? 'X' : 'O';
+        g.setBoard1(serialize(board));
+        g.setLastMoveAt(Instant.now());
+
+        if (noShipsLeft(board)) {
+            g.setStatus("COMPLETE");
+            g.setWinnerId(COMPUTER_ID);
+        } else {
+            g.setCurrentPlayer((short) 1);     // back to the human
+        }
+    }
+
+    // ── Hint (solo only; free, limited by rank) — reveals an enemy ship cell ──
+
+    @Transactional
+    public Map<String, Object> hint(UUID userId, UUID gameId) {
+        BattleshipGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (!g.isVsComputer() || !userId.equals(g.getPlayer1Id()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hints are only for solo games.");
+        if (!"ACTIVE".equals(g.getStatus()) || g.getCurrentPlayer() != 1)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Wait for your turn.");
+        if (g.getHintsRemaining() <= 0)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No hints left for this game.");
+
+        // Point the player at an unhit enemy ship cell on board2 — a guaranteed hit.
+        char[][] enemy = parse(g.getBoard2());
+        List<int[]> ships = new ArrayList<>();
+        for (int r = 0; r < SIZE; r++)
+            for (int c = 0; c < SIZE; c++)
+                if (enemy[r][c] == 'S') ships.add(new int[]{ r, c });
+        if (ships.isEmpty())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "No hint available.");
+
+        int[] cell = ships.get(RANDOM.nextInt(ships.size()));
+        g.setHintsRemaining(g.getHintsRemaining() - 1);
+        repo.save(g);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("row",            cell[0]);
+        out.put("col",            cell[1]);
+        out.put("hintsRemaining", g.getHintsRemaining());
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -177,6 +263,8 @@ public class BattleshipGameService {
         out.put("trackingBoard", oppBoard == null ? emptyRows() : mask(oppBoard));
         out.put("yourTurn",      me != 0 && me == g.getCurrentPlayer() && "ACTIVE".equals(g.getStatus()));
         out.put("hasOpponent",   g.getPlayer2Id() != null);
+        out.put("vsComputer",    g.isVsComputer());
+        out.put("hintsRemaining", g.getHintsRemaining());
         if (lastShot != null) out.put("lastShot", lastShot);
         if ("COMPLETE".equals(g.getStatus())) {
             out.put("outcome", g.getWinnerId() == null ? "TIE"
