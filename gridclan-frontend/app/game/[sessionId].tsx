@@ -139,7 +139,12 @@ export default function GameScreen() {
       {/* Game board — server-authoritative display only */}
       <View style={styles.boardContainer}>
         {session.gameType === 'WORD_SEARCH' && (
-          <WordSearchBoard board={boardState as any} onMove={handleMove} disabled={isMoveLoading} />
+          <WordSearchBoard
+            board={boardState as any}
+            onMove={handleMove}
+            disabled={isMoveLoading}
+            hint={hintData && (hintData as any).type === 'WORD_LOCATION' ? (hintData as any) : null}
+          />
         )}
       </View>
 
