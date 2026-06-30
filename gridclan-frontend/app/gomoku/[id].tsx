@@ -8,6 +8,7 @@ import { gomokuApi, type GomokuView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { gameInviteLink, shareInvite } from '@utils/invite';
+import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
@@ -117,6 +118,22 @@ export default function GomokuGameScreen() {
     }
   }
 
+  async function doForfeit() {
+    if (!id || busy) return;
+    const ok = await confirm({
+      title:        t('game.forfeitTitle', 'Forfeit this game?'),
+      message:      t('game.forfeitMessage', 'Your opponent wins and is awarded the points. This cannot be undone.'),
+      confirmLabel: t('game.forfeit', 'Forfeit'),
+      cancelLabel:  t('common.cancel', 'Cancel'),
+      destructive:  true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    const res = await gomokuApi.forfeit(id).catch(() => null);
+    setBusy(false);
+    if (res?.data) { commitGame(res.data); playSfx('lose'); }
+  }
+
   async function shareInviteLink() {
     if (!game) return;
     const link = gameInviteLink('gomoku', game.inviteCode);
@@ -208,6 +225,10 @@ export default function GomokuGameScreen() {
 
         {!waiting && !game.vsComputer && id && (
           <View style={styles.chatWrap}><GameChat kind="gomoku" gameId={id} /></View>
+        )}
+
+        {!complete && !waiting && !game.vsComputer && (
+          <Button title={t('game.forfeit', 'Forfeit')} onPress={doForfeit} variant="ghost" disabled={busy} style={{ marginTop: Spacing.md }} />
         )}
       </ScrollView>
 
