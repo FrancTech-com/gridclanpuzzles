@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert, SafeAreaView, StyleSheet, Text,
   TouchableOpacity, View,
@@ -15,6 +15,7 @@ const HINT_COST_GEMS = 10;
 const REVIVE_COST_GEMS = 20;
 import { Button, LoadingSpinner } from '@components/ui/index';
 import { WordSearchBoard } from '@components/game/WordSearchBoard';
+import { GameResultOverlay, type SoloTier } from '@components/GameResultOverlay';
 import { Font, Spacing, GameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { WordSearchMove } from '@gridtypes/index';
@@ -30,17 +31,14 @@ export default function GameScreen() {
     useSelector((s: RootState) => s.game);
 
   const lastMoveTime = useRef(Date.now());
+  const [showResult, setShowResult] = useState(false);
 
-  // Game completed — show result and go back
+  // Game completed — show the graded result popup (with points earned).
   useEffect(() => {
     if (status === 'COMPLETED') {
       dispatch(fetchBalanceThunk());
       dispatch(fetchGemBalanceThunk());   // gems awarded for the solve
-      Alert.alert(
-        `🎉 ${t('game.solved')}`,
-        t('game.solvedBody', { score: score.toLocaleString(), moves: moveCount }),
-        [{ text: t('game.continue'), onPress: () => { dispatch(clearGame()); router.back(); } }]
-      );
+      setShowResult(true);
     }
     if (status === 'FLAGGED') {
       Alert.alert(
@@ -98,6 +96,8 @@ export default function GameScreen() {
   if (!session || !boardState) return <LoadingSpinner />;
 
   const meta = GameMeta[session.gameType];
+  // Grade the solve by points earned (see ScoreEngine: base 1000, −10/move, +50 speed bonus).
+  const tier: SoloTier = score >= 900 ? 'EXCEPTIONAL' : score >= 750 ? 'GOOD' : 'LOWER';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -158,6 +158,12 @@ export default function GameScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      <GameResultOverlay
+        visible={showResult}
+        solo={{ tier, score, moves: moveCount }}
+        onClose={() => { setShowResult(false); dispatch(clearGame()); router.back(); }}
+      />
     </SafeAreaView>
   );
 }

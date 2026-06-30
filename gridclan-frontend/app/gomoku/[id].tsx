@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
@@ -9,6 +9,9 @@ import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
+import { VoiceControl } from '@components/VoiceControl';
+import { GameResultOverlay } from '@components/GameResultOverlay';
+import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
@@ -26,10 +29,16 @@ export default function GomokuGameScreen() {
   const [game, setGame] = useState<GomokuView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  // Solo hint: the square the AI suggests, highlighted until you move.
+  const [hintCell, setHintCell] = useState<string | null>(null);
+  const [hinting, setHinting] = useState(false);
   // Square of the most recent stone (yours or your friend's) → highlighted until
   // the next move, so the latest play is easy to spot.
   const [lastMove, setLastMove] = useState<Set<string>>(() => new Set());
   const prevBoardRef = useRef<string[] | null>(null);
+  // Big win/lose popup — shown once when the game finishes.
+  const [showResult, setShowResult] = useState(false);
+  const announced = useRef(false);
 
   // Funnel new game state through here: diff the board to find the square(s) that
   // just got a stone, then store the state.
@@ -69,6 +78,13 @@ export default function GomokuGameScreen() {
     return () => { active = false; cleanup?.(); clearInterval(poll); };
   }, [load, id]));
 
+  useEffect(() => {
+    if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
+      announced.current = true;
+      setShowResult(true);
+    }
+  }, [game?.status, game?.outcome]);
+
   async function tap(r: number, c: number) {
     if (!id || !game || busy) return;
     if (game.status === 'WAITING_FOR_OPPONENT') { Alert.alert(t('gomoku.waitingOpponent', 'Waiting for a friend to join')); return; }
@@ -76,6 +92,7 @@ export default function GomokuGameScreen() {
     if (!game.yourTurn) { Alert.alert(t('gomoku.notYourTurn', "Hold on — it's your opponent's turn.")); return; }
     if (game.board[r]?.[c] !== '.') return;
     setBusy(true);
+    setHintCell(null);   // clear any hint highlight once you play
     const res = await gomokuApi.move(id, r, c).catch((e: any) => {
       Alert.alert(t('gomoku.invalidMove', 'Invalid move'), e?.response?.data?.message ?? '');
       return null;
@@ -86,6 +103,17 @@ export default function GomokuGameScreen() {
       if (res.data.outcome === 'WON')      playSfx('win');
       else if (res.data.outcome === 'LOST') playSfx('lose');
       else                                  playSfx('move');
+    }
+  }
+
+  async function handleHint() {
+    if (!id || hinting) return;
+    setHinting(true);
+    const res = await gomokuApi.hint(id).catch(() => null);
+    setHinting(false);
+    if (res?.data) {
+      setHintCell(`${res.data.row},${res.data.col}`);
+      setGame(g => g ? { ...g, hintsRemaining: res.data!.hintsRemaining } : g);
     }
   }
 
@@ -115,7 +143,7 @@ export default function GomokuGameScreen() {
   const complete = game.status === 'COMPLETE';
   const waiting = game.status === 'WAITING_FOR_OPPONENT';
   const statusText = complete
-    ? (game.outcome === 'WON' ? `🏆 ${t('gomoku.youWon', 'You won!')}` : game.outcome === 'LOST' ? `😅 ${t('gomoku.youLost', 'You lost')}` : `🤝 ${t('gomoku.tie', 'Draw')}`)
+    ? (game.outcome === 'WON' ? t('gomoku.youWon', 'You won!') : game.outcome === 'LOST' ? t('gomoku.youLost', 'You lost') : t('gomoku.tie', 'Draw'))
     : waiting ? t('gomoku.waitingOpponent', 'Waiting for a friend to join')
     : game.yourTurn ? `▶ ${t('gomoku.yourTurn', 'Your turn')}` : t('gomoku.theirTurn', 'Their turn');
 
@@ -127,6 +155,19 @@ export default function GomokuGameScreen() {
           <View style={[styles.stoneDot, game.yourStone === 1 ? styles.stoneP1 : styles.stoneP2]} />
           <Text style={styles.statusText}>{statusText}</Text>
         </View>
+
+        {game.vsComputer && !complete && (
+          <View style={styles.soloBar}>
+            <Text style={styles.soloLabel}>🤖 {t('gomoku.vsComputer', 'vs Computer')}</Text>
+            {game.yourTurn && (game.hintsRemaining ?? 0) > 0 ? (
+              <TouchableOpacity style={styles.hintBtn} onPress={handleHint} disabled={hinting}>
+                <Text style={styles.hintBtnText}>💡 {t('gomoku.hint', 'Hint')} ({game.hintsRemaining})</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.soloLabel}>{t('gomoku.hintsLeft', { count: game.hintsRemaining ?? 0, defaultValue: '💡 {{count}} hints' })}</Text>
+            )}
+          </View>
+        )}
 
         {waiting && (
           <Card style={styles.shareCard}>
@@ -143,11 +184,13 @@ export default function GomokuGameScreen() {
               {Array.from({ length: SIZE }).map((__, c) => {
                 const v = game.board[r]?.[c];
                 const isLast = v !== '.' && lastMove.has(`${r},${c}`);
+                const isHint = hintCell === `${r},${c}` && v === '.';
                 return (
-                  <TouchableOpacity key={c} activeOpacity={0.7} onPress={() => tap(r, c)} style={[styles.cell, isLast && styles.cellLastMove]}>
+                  <TouchableOpacity key={c} activeOpacity={0.7} onPress={() => tap(r, c)} style={[styles.cell, isLast && styles.cellLastMove, isHint && styles.cellHint]}>
                     {v === '1' && <View style={[styles.stone, styles.stoneP1]} />}
                     {v === '2' && <View style={[styles.stone, styles.stoneP2]} />}
                     {isLast && <View style={styles.lastDot} />}
+                    {isHint && <Text style={styles.hintMark}>💡</Text>}
                   </TouchableOpacity>
                 );
               })}
@@ -158,7 +201,23 @@ export default function GomokuGameScreen() {
         {!complete && !waiting && !game.yourTurn && (
           <Text style={styles.muted}>{t('gomoku.notYourTurn', 'Wait for your friend to play.')}</Text>
         )}
+
+        {!waiting && !game.vsComputer && id && (
+          <View style={styles.chatWrap}><GameChat kind="gomoku" gameId={id} /></View>
+        )}
       </ScrollView>
+
+      {!waiting && !game.vsComputer && id && (
+        <View style={styles.voiceFloat} pointerEvents="box-none">
+          <VoiceControl kind="gomoku" gameId={id} />
+        </View>
+      )}
+
+      <GameResultOverlay
+        visible={showResult}
+        outcome={complete ? (game.outcome ?? 'TIE') : null}
+        onClose={() => setShowResult(false)}
+      />
     </View>
   );
 }
@@ -170,6 +229,10 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   muted:     { color: Colors.textMuted, fontSize: Font.size.sm, textAlign: 'center', marginTop: Spacing.sm },
 
   statusRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
+  soloBar:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: BOARD_W, marginBottom: Spacing.md, gap: Spacing.sm },
+  soloLabel:  { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  hintBtn:    { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.primary },
+  hintBtnText:{ color: Colors.primary, fontWeight: Font.weight.bold, fontSize: Font.size.sm },
   statusText: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.semi },
   stoneDot:   { width: 14, height: 14, borderRadius: 7 },
 
@@ -177,6 +240,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   code:      { color: Colors.accent, fontSize: Font.size.xxl, fontWeight: Font.weight.black, letterSpacing: 4, marginVertical: Spacing.xs },
   link:      { color: Colors.textMuted, fontSize: Font.size.xs, textAlign: 'center', marginBottom: Spacing.xs },
 
+  voiceFloat: { position: 'absolute', top: Spacing.sm, right: Spacing.md, alignItems: 'flex-end', zIndex: 20 },
+  chatWrap: { width: BOARD_W, marginTop: Spacing.md },
   board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.blue, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: '#caa86a33', alignSelf: 'center', ...Shadow.md },
   boardRow: { flexDirection: 'row' },
   cell: {
@@ -185,6 +250,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
     alignItems: 'center', justifyContent: 'center',
   },
   cellLastMove: { backgroundColor: Colors.accent + '33' },
+  cellHint: { backgroundColor: Colors.primary + '55', borderColor: Colors.primary, borderWidth: 2 },
+  hintMark: { position: 'absolute', fontSize: CELL * 0.55 },
   lastDot: { position: 'absolute', width: CELL * 0.22, height: CELL * 0.22, borderRadius: CELL, backgroundColor: Colors.accent },
   stone:   { width: CELL * 0.8, height: CELL * 0.8, borderRadius: CELL, ...Shadow.sm },
   stoneP1: { backgroundColor: '#15181c', borderWidth: 1, borderColor: '#000' },
