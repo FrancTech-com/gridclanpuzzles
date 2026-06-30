@@ -36,29 +36,63 @@ public final class WordSearch {
         {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}
     };
 
-    /** Common 4–8 letter words; no external dictionary needed for placement. */
+    /**
+     * Common 4–8 letter words across many everyday themes (animals, food, nature,
+     * objects…). A large, varied pool so each puzzle draws a fresh-feeling set of
+     * words — no external dictionary needed for placement.
+     */
     private static final List<String> WORD_POOL = List.of(
-        "PUZZLE", "GRID", "CLAN", "POINTS", "PLAYER", "SCORE", "LEVEL", "BONUS",
-        "WINNER", "SKILL", "BOARD", "MATCH", "ROUND", "TOKEN", "LETTER", "SEARCH",
-        "RIDDLE", "BRAIN", "LOGIC", "FOCUS", "QUICK", "SMART", "SOLVE", "CHASE",
-        "RIVAL", "ARENA", "GAMER", "STREAK", "COMBO", "MASTER"
+        // Puzzle/game flavour
+        "PUZZLE", "PLAYER", "WINNER", "POINTS", "STREAK", "RIDDLE", "MASTER", "ARENA",
+        // Animals
+        "TIGER", "ZEBRA", "EAGLE", "HORSE", "MOUSE", "SHARK", "WHALE", "PANDA",
+        "KOALA", "OTTER", "RABBIT", "MONKEY", "TURTLE", "FALCON", "DONKEY", "BEAVER",
+        "JAGUAR", "LIZARD", "PARROT", "WALRUS", "PENGUIN", "DOLPHIN", "GIRAFFE", "ROOSTER",
+        // Food
+        "APPLE", "BREAD", "MANGO", "LEMON", "GRAPE", "PEACH", "ONION", "CARROT",
+        "POTATO", "BANANA", "ORANGE", "CHEESE", "TOMATO", "PEPPER", "COOKIE", "HONEY",
+        "OLIVE", "CHERRY", "WALNUT", "BISCUIT", "MUFFIN", "YOGURT",
+        // Nature
+        "RIVER", "OCEAN", "BEACH", "CLOUD", "STORM", "PLANT", "FOREST", "FLOWER",
+        "MEADOW", "DESERT", "ISLAND", "JUNGLE", "VALLEY", "CANYON", "BREEZE", "GARDEN",
+        "SUNSET", "PEBBLE", "THUNDER", "RAINBOW",
+        // Objects / home
+        "TABLE", "CHAIR", "CLOCK", "PHONE", "BRUSH", "SPOON", "PLATE", "MIRROR",
+        "CANDLE", "PILLOW", "BASKET", "WINDOW", "PENCIL", "WALLET", "HAMMER", "LADDER",
+        "BOTTLE", "BLANKET", "TEAPOT", "BUTTON",
+        // Everyday / misc
+        "MUSIC", "DANCE", "DREAM", "SMILE", "BRAVE", "PEACE", "LIGHT", "NIGHT",
+        "STORY", "MAGIC", "CANDY", "TRAIN", "PLANE", "FRIEND", "FAMILY", "SUMMER",
+        "WINTER", "SPRING", "AUTUMN", "COFFEE", "GUITAR", "CAMERA", "JACKET", "ANCHOR",
+        "BRIDGE", "CASTLE", "MARKET", "PLANET", "GALAXY", "COMET", "ROCKET", "JOURNEY"
     );
 
     // ── Generation ───────────────────────────────────────────────────────────
 
     public static Map<String, Object> generate(Random rng) {
+        return generate(rng, WORD_POOL);
+    }
+
+    /**
+     * Generate a puzzle drawing its hidden words at random from {@code wordPool}.
+     * Pass the full dictionary here for endless variety; falls back to the built-in
+     * pool if the supplied one is empty. Picks by random index (no full shuffle), so
+     * it stays fast even with a 100k+ word dictionary.
+     */
+    public static Map<String, Object> generate(Random rng, List<String> wordPool) {
         int n = GRID_SIZE;
         char[][] grid = new char[n][n];
         for (char[] row : grid) Arrays.fill(row, '\0');
 
-        List<String> pool = new ArrayList<>(WORD_POOL);
-        Collections.shuffle(pool, rng);
-
+        List<String> pool = (wordPool == null || wordPool.isEmpty()) ? WORD_POOL : wordPool;
         List<String> placed = new ArrayList<>();
-        for (String word : pool) {
-            if (placed.size() >= TARGET_WORDS) break;
-            if (word.length() > n) continue;
-            if (tryPlace(grid, word, rng)) placed.add(word);
+        Set<String> placedSet = new HashSet<>();
+        int picks = 0, maxPicks = TARGET_WORDS * 80;   // bounded, even for a huge pool
+        while (placed.size() < TARGET_WORDS && picks < maxPicks) {
+            picks++;
+            String word = pool.get(rng.nextInt(pool.size()));
+            if (word.length() < 4 || word.length() > n || placedSet.contains(word)) continue;
+            if (tryPlace(grid, word, rng)) { placed.add(word); placedSet.add(word); }
         }
 
         // Fill the gaps with random letters.
