@@ -36,12 +36,35 @@ public final class WordSearch {
         {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}
     };
 
-    /** Common 4–8 letter words; no external dictionary needed for placement. */
+    /**
+     * Common 4–8 letter words across many everyday themes (animals, food, nature,
+     * objects…). A large, varied pool so each puzzle draws a fresh-feeling set of
+     * words — no external dictionary needed for placement.
+     */
     private static final List<String> WORD_POOL = List.of(
-        "PUZZLE", "GRID", "CLAN", "POINTS", "PLAYER", "SCORE", "LEVEL", "BONUS",
-        "WINNER", "SKILL", "BOARD", "MATCH", "ROUND", "TOKEN", "LETTER", "SEARCH",
-        "RIDDLE", "BRAIN", "LOGIC", "FOCUS", "QUICK", "SMART", "SOLVE", "CHASE",
-        "RIVAL", "ARENA", "GAMER", "STREAK", "COMBO", "MASTER"
+        // Puzzle/game flavour
+        "PUZZLE", "PLAYER", "WINNER", "POINTS", "STREAK", "RIDDLE", "MASTER", "ARENA",
+        // Animals
+        "TIGER", "ZEBRA", "EAGLE", "HORSE", "MOUSE", "SHARK", "WHALE", "PANDA",
+        "KOALA", "OTTER", "RABBIT", "MONKEY", "TURTLE", "FALCON", "DONKEY", "BEAVER",
+        "JAGUAR", "LIZARD", "PARROT", "WALRUS", "PENGUIN", "DOLPHIN", "GIRAFFE", "ROOSTER",
+        // Food
+        "APPLE", "BREAD", "MANGO", "LEMON", "GRAPE", "PEACH", "ONION", "CARROT",
+        "POTATO", "BANANA", "ORANGE", "CHEESE", "TOMATO", "PEPPER", "COOKIE", "HONEY",
+        "OLIVE", "CHERRY", "WALNUT", "BISCUIT", "MUFFIN", "YOGURT",
+        // Nature
+        "RIVER", "OCEAN", "BEACH", "CLOUD", "STORM", "PLANT", "FOREST", "FLOWER",
+        "MEADOW", "DESERT", "ISLAND", "JUNGLE", "VALLEY", "CANYON", "BREEZE", "GARDEN",
+        "SUNSET", "PEBBLE", "THUNDER", "RAINBOW",
+        // Objects / home
+        "TABLE", "CHAIR", "CLOCK", "PHONE", "BRUSH", "SPOON", "PLATE", "MIRROR",
+        "CANDLE", "PILLOW", "BASKET", "WINDOW", "PENCIL", "WALLET", "HAMMER", "LADDER",
+        "BOTTLE", "BLANKET", "TEAPOT", "BUTTON",
+        // Everyday / misc
+        "MUSIC", "DANCE", "DREAM", "SMILE", "BRAVE", "PEACE", "LIGHT", "NIGHT",
+        "STORY", "MAGIC", "CANDY", "TRAIN", "PLANE", "FRIEND", "FAMILY", "SUMMER",
+        "WINTER", "SPRING", "AUTUMN", "COFFEE", "GUITAR", "CAMERA", "JACKET", "ANCHOR",
+        "BRIDGE", "CASTLE", "MARKET", "PLANET", "GALAXY", "COMET", "ROCKET", "JOURNEY"
     );
 
     // ── Generation ───────────────────────────────────────────────────────────
