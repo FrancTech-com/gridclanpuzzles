@@ -4,6 +4,7 @@ import com.gridclan.entity.FeatureFlag;
 import com.gridclan.entity.Feedback;
 import com.gridclan.entity.User;
 import com.gridclan.repository.*;
+import com.gridclan.service.AccountDeletionService;
 import com.gridclan.service.AuditLogService;
 import com.gridclan.service.FeatureFlagService;
 import com.gridclan.service.UserActivityService;
@@ -36,6 +37,7 @@ public class AdminController {
     private final UserActivityService         activityService;
     private final FeatureFlagService          featureFlags;
     private final FeedbackRepository           feedbackRepo;
+    private final AccountDeletionService       deletionService;
 
     // ── Player feedback inbox (read-only, admin) ────────────────────────────
 
@@ -139,6 +141,42 @@ public class AdminController {
         response.put("status", "UNSUSPENDED");
         response.put("userId", userId.toString());
         return ResponseEntity.ok(response);
+    }
+
+    // ── Delete user (admin purge — e.g. test accounts) ────────────────────
+
+    /**
+     * DELETE /admin/users/{userId}
+     * Permanently erases an account immediately (skips the 24h appeal window).
+     * Reuses the standard erasure pipeline, so it's FK-safe and the account
+     * disappears from every "active" list and metric. Guards: an admin can't
+     * delete their own account or any other ADMIN from here.
+     */
+    @DeleteMapping("/users/{userId}")
+    public ResponseEntity<Map<String, Object>> deleteUser(
+            @PathVariable UUID userId,
+            Authentication auth) {
+
+        User user = userRepo.findById(userId).orElse(null);
+        if (user == null) return ResponseEntity.notFound().build();
+
+        String adminId = auth.getPrincipal().toString();
+        if (userId.toString().equals(adminId)) {
+            return ResponseEntity.badRequest().body(
+                Map.of("error", "You can’t delete your own account from here."));
+        }
+        if ("ADMIN".equals(user.getRole())) {
+            return ResponseEntity.badRequest().body(
+                Map.of("error", "Admin accounts can’t be deleted from the dashboard."));
+        }
+
+        deletionService.adminPurge(userId);
+        audit.record(userId, "ADMIN_DELETE", "by=" + adminId);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("userId", userId.toString());
+        body.put("status", "DELETED");
+        return ResponseEntity.ok(body);
     }
 
     // ── Flagged events ─────────────────────────────────────────────────────

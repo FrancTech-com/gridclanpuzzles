@@ -276,11 +276,13 @@ function renderRows(users) {
         : u.pendingDeletion
           ? `<span class="badge b-del">Pending deletion</span>`
           : `<span class="badge b-active">Active</span>`;
+    const suspendAction = u.suspended
+      ? `<button class="btn-ghost btn-sm" onclick="liftUser('${u.id}')">Lift</button>`
+      : `<button class="btn-danger btn-sm" onclick="openSuspend('${u.id}','${esc(u.displayName||u.username||'')}')">Suspend</button>`;
+    // Admins can't be suspended or deleted from here.
     const action = u.role === 'ADMIN'
       ? ''
-      : u.suspended
-        ? `<button class="btn-ghost btn-sm" onclick="liftUser('${u.id}')">Lift</button>`
-        : `<button class="btn-danger btn-sm" onclick="openSuspend('${u.id}','${esc(u.displayName||u.username||'')}')">Suspend</button>`;
+      : `${suspendAction} <button class="btn-ghost btn-sm" onclick="deleteUser('${u.id}','${esc(u.displayName||u.username||'')}')">Delete</button>`;
     return `<tr>
       <td>${esc(u.displayName||'—')}<div class="sub">@${esc(u.username||'—')}</div></td>
       <td>${esc(u.email||'—')}</td>
@@ -288,7 +290,7 @@ function renderRows(users) {
       <td>${status}${u.suspended && u.suspensionReason ? `<div class="sub">${esc(u.suspensionReason)}</div>` : ''}</td>
       <td>${fmt(u.lastActiveAt)}</td>
       <td>${fmt(u.createdAt)}</td>
-      <td style="text-align:right">${action}</td>
+      <td style="text-align:right;white-space:nowrap">${action}</td>
     </tr>`;
   }).join('');
 }
@@ -316,6 +318,13 @@ $('suspConfirm').addEventListener('click', async () => {
 async function liftUser(id) {
   if (!confirm('Lift suspension for this user?')) return;
   try { await api(`/admin/suspend/${id}`, { method:'DELETE' }); loadUsers(); }
+  catch(e) { alert(e.message); }
+}
+
+// ── Delete (permanent) ────────────────────────────────────
+async function deleteUser(id, name) {
+  if (!confirm(`Permanently delete "${name}"?\n\nThis erases the account immediately and can’t be undone. Use this for test or abandoned accounts.`)) return;
+  try { await api(`/admin/users/${id}`, { method:'DELETE' }); loadMetrics(); loadUsers(); }
   catch(e) { alert(e.message); }
 }
 
@@ -371,6 +380,7 @@ function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return 
 // Make inline-handler functions reachable
 window.openSuspend = openSuspend;
 window.liftUser = liftUser;
+window.deleteUser = deleteUser;
 
 // Warn upfront if the page is opened as a local file (sign-in can't work).
 if (location.protocol === 'file:') {
