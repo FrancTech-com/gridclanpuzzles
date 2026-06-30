@@ -166,5 +166,12 @@
     "network": "Pas de connexion. Vérifiez votre réseau et réessayez.",
     "server": "Une erreur s'est produite. Veuillez réessayer.",
     "rateLimited": "Trop de requêtes. Veuillez patienter un instant."
+  },
+  "invite": {
+    "title": "Inviter des amis",
+    "cta": "Inviter des amis",
+    "hint": "Partagez GridClan Puzzles avec vos amis — ils peuvent jouer instantanément dans le navigateur, sans installation.",
+    "copied": "Lien d'invitation copié ! 🔗",
+    "message": "{{name}} vous défie sur GridClan Puzzles ! Jouez gratuitement, sans installation : {{link}}"
   }
 }

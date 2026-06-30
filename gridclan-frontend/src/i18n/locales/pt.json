@@ -166,5 +166,12 @@
     "network": "Sem conexão. Verifique sua rede e tente novamente.",
     "server": "Algo deu errado. Tente novamente.",
     "rateLimited": "Muitas solicitações. Aguarde um momento."
+  },
+  "invite": {
+    "title": "Convidar amigos",
+    "cta": "Convidar amigos",
+    "hint": "Compartilhe o GridClan Puzzles com amigos — eles podem jogar na hora pelo navegador, sem precisar instalar.",
+    "copied": "Link de convite copiado! 🔗",
+    "message": "{{name}} está te desafiando no GridClan Puzzles! Jogue de graça, sem instalar nada: {{link}}"
   }
 }

@@ -461,5 +461,12 @@
     "youWon": "You won!",
     "youLost": "You lost",
     "tie": "Draw"
+  },
+  "invite": {
+    "title": "Invite friends",
+    "cta": "Invite friends",
+    "hint": "Share GridClan Puzzles with friends — they can play instantly in the browser, no install required.",
+    "copied": "Invite link copied to clipboard! 🔗",
+    "message": "{{name}} is challenging you on GridClan Puzzles! Play free, no install needed: {{link}}"
   }
 }
