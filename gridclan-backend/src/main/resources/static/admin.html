@@ -57,6 +57,13 @@
   .pager { display:flex; gap:10px; align-items:center; justify-content:flex-end; margin-top:12px; color:var(--muted); font-size:14px; }
   .empty { padding:30px; text-align:center; color:var(--muted); }
 
+  /* Feedback inbox */
+  .fb-item { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .fb-item.unread { border-color:var(--warn); }
+  .fb-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .fb-name { font-weight:600; }
+  .fb-body { white-space:pre-wrap; font-size:14px; }
+
   /* Modal */
   .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
               align-items:center; justify-content:center; }
@@ -111,6 +118,19 @@
     <button class="btn-ghost btn-sm" id="prevBtn">‹ Prev</button>
     <span id="pageInfo"></span>
     <button class="btn-ghost btn-sm" id="nextBtn">Next ›</button>
+  </div>
+
+  <!-- ── Player feedback inbox ───────────────────────────── -->
+  <div class="toolbar" style="margin-top:30px">
+    <h2 style="font-size:17px;margin:0">💬 Player feedback <span class="badge b-del" id="fbBadge" style="display:none"></span></h2>
+    <span class="grow"></span>
+    <button class="btn-ghost btn-sm" id="fbRefresh">↻ Refresh</button>
+  </div>
+  <div id="feedbackList"></div>
+  <div class="pager">
+    <button class="btn-ghost btn-sm" id="fbPrev">‹ Prev</button>
+    <span id="fbPageInfo"></span>
+    <button class="btn-ghost btn-sm" id="fbNext">Next ›</button>
   </div>
 </div>
 
@@ -211,6 +231,7 @@ function showApp() {
   $('app').style.display='block';
   loadMetrics();
   loadUsers();
+  loadFeedback();
 }
 
 // ── Metrics ───────────────────────────────────────────────
@@ -298,16 +319,54 @@ async function liftUser(id) {
   catch(e) { alert(e.message); }
 }
 
+// ── Feedback inbox ────────────────────────────────────────
+let fb = { page:0, size:20, totalPages:1 };
+async function loadFeedback() {
+  try {
+    const data = await api(`/admin/feedback?page=${fb.page}&size=${fb.size}`);
+    fb.totalPages = data.totalPages || 1;
+    renderFeedback(data.items || []);
+    $('fbPageInfo').textContent = `Page ${data.page+1} of ${fb.totalPages} · ${data.totalItems} total`;
+    $('fbPrev').disabled = fb.page <= 0;
+    $('fbNext').disabled = fb.page >= fb.totalPages - 1;
+    const badge = $('fbBadge');
+    if (data.unhandled > 0) { badge.style.display='inline-block'; badge.textContent = data.unhandled + ' new'; }
+    else badge.style.display='none';
+  } catch(e) { $('feedbackList').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+function renderFeedback(items) {
+  if (!items.length) { $('feedbackList').innerHTML = `<div class="empty">No feedback yet.</div>`; return; }
+  $('feedbackList').innerHTML = items.map(f => `
+    <div class="fb-item ${f.handled ? '' : 'unread'}">
+      <div class="fb-head">
+        <span class="fb-name">${esc(f.displayName)}</span>
+        <span class="sub">${fmtDateTime(f.createdAt)}</span>
+        <span class="grow"></span>
+        ${f.handled ? `<span class="sub">read</span>` : `<button class="btn-ghost btn-sm" onclick="markFb('${f.id}')">Mark read</button>`}
+      </div>
+      <div class="fb-body">${esc(f.content)}</div>
+    </div>`).join('');
+}
+async function markFb(id) {
+  try { await api(`/admin/feedback/${id}/handled`, { method:'POST' }); loadFeedback(); }
+  catch(e) { alert(e.message); }
+}
+window.markFb = markFb;
+$('fbRefresh').addEventListener('click', loadFeedback);
+$('fbPrev').addEventListener('click', () => { if (fb.page>0){ fb.page--; loadFeedback(); } });
+$('fbNext').addEventListener('click', () => { if (fb.page<fb.totalPages-1){ fb.page++; loadFeedback(); } });
+
 // ── Controls ──────────────────────────────────────────────
 $('searchBtn').addEventListener('click', () => { state.query = $('search').value.trim(); state.page = 0; loadUsers(); });
 $('search').addEventListener('keydown', e => { if (e.key === 'Enter') $('searchBtn').click(); });
-$('refreshBtn').addEventListener('click', () => { loadMetrics(); loadUsers(); });
+$('refreshBtn').addEventListener('click', () => { loadMetrics(); loadUsers(); loadFeedback(); });
 $('prevBtn').addEventListener('click', () => { if (state.page>0){ state.page--; loadUsers(); } });
 $('nextBtn').addEventListener('click', () => { if (state.page<state.totalPages-1){ state.page++; loadUsers(); } });
 
 // ── Helpers ───────────────────────────────────────────────
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function fmt(iso){ if(!iso) return '<span class="sub">never</span>'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return isNaN(d)?'—':d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
 
 // Make inline-handler functions reachable
 window.openSuspend = openSuspend;

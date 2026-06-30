@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.Optional;
@@ -14,6 +15,11 @@ import java.util.Optional;
 public interface CommunityMemberRepository extends JpaRepository<CommunityMember, UUID> {
     @Query("SELECT COUNT(m) FROM CommunityMember m WHERE m.communityId = :cid AND m.isActive = true")
     long countActiveMembers(@Param("cid") UUID communityId);
+
+    /** Active-member counts for a set of communities in one query: [communityId, count] rows. */
+    @Query("SELECT m.communityId, COUNT(m) FROM CommunityMember m " +
+           "WHERE m.communityId IN :cids AND m.isActive = true GROUP BY m.communityId")
+    List<Object[]> countActiveByCommunityIds(@Param("cids") Collection<UUID> cids);
 
     @Query("SELECT m.userId FROM CommunityMember m WHERE m.communityId = :cid AND m.isActive = true")
     List<UUID> findActiveMemberIds(@Param("cid") UUID communityId, Pageable pageable);
