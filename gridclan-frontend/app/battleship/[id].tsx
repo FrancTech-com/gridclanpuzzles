@@ -142,6 +142,10 @@ export default function BattleshipGameScreen() {
   const header = {
     headerShown: true, title: t('battleship.title', 'Grid Battleships'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
+    headerRight: () =>
+      game && game.status === 'ACTIVE' && !game.vsComputer && id
+        ? <VoiceControl kind="battleship" gameId={id} />
+        : null,
   };
 
   if (loading) return <LoadingSpinner />;
@@ -243,12 +247,6 @@ export default function BattleshipGameScreen() {
           ))}
         </View>
       </ScrollView>
-
-      {!waiting && !game.vsComputer && id && (
-        <View style={styles.voiceFloat} pointerEvents="box-none">
-          <VoiceControl kind="battleship" gameId={id} />
-        </View>
-      )}
 
       <GameResultOverlay
         visible={showResult}

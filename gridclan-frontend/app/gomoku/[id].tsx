@@ -130,6 +130,10 @@ export default function GomokuGameScreen() {
   const header = {
     headerShown: true, title: t('gomoku.title', 'Grid Connect'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
+    headerRight: () =>
+      game && game.status === 'ACTIVE' && !game.vsComputer && id
+        ? <VoiceControl kind="gomoku" gameId={id} />
+        : null,
   };
 
   if (loading) return <LoadingSpinner />;
@@ -206,12 +210,6 @@ export default function GomokuGameScreen() {
           <View style={styles.chatWrap}><GameChat kind="gomoku" gameId={id} /></View>
         )}
       </ScrollView>
-
-      {!waiting && !game.vsComputer && id && (
-        <View style={styles.voiceFloat} pointerEvents="box-none">
-          <VoiceControl kind="gomoku" gameId={id} />
-        </View>
-      )}
 
       <GameResultOverlay
         visible={showResult}
