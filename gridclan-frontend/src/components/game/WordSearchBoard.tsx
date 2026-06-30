@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { PanResponder, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, PanResponder, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { WordSearchBoard as Board, WordSearchMove } from '@gridtypes/index';
@@ -7,7 +7,13 @@ import type { WordSearchBoard as Board, WordSearchMove } from '@gridtypes/index'
 // On web, show a pointer cursor on the grid (no-op type on native).
 const webCursor = Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null;
 
-interface Props { board: Board; onMove: (move: WordSearchMove) => void; disabled: boolean; }
+export interface HintLine { fromRow: number; fromCol: number; toRow: number; toCol: number; }
+interface Props {
+  board: Board;
+  onMove: (move: WordSearchMove) => void;
+  disabled: boolean;
+  hint?: HintLine | null;   // when set, the word's cells flash on the board
+}
 type Cell = { row: number; col: number };
 
 const DIRS = [
@@ -39,7 +45,7 @@ function locate(grid: string[], word: string): Array<[number, number]> | null {
   return null;
 }
 
-export function WordSearchBoard({ board, onMove, disabled }: Props) {
+export function WordSearchBoard({ board, onMove, disabled, hint }: Props) {
   const Colors = useColors();
   const { width } = useWindowDimensions();
   const size = board.grid.length;
@@ -142,6 +148,32 @@ export function WordSearchBoard({ board, onMove, disabled }: Props) {
 
   const previewSet = useMemo(() => new Set(preview.map(p => `${p.row},${p.col}`)), [preview]);
 
+  // Hint: flash the cells of the suggested word along its straight line.
+  const hintSet = useMemo(() => {
+    const set = new Set<string>();
+    if (hint) {
+      const dr = Math.sign(hint.toRow - hint.fromRow), dc = Math.sign(hint.toCol - hint.fromCol);
+      const len = Math.max(Math.abs(hint.toRow - hint.fromRow), Math.abs(hint.toCol - hint.fromCol));
+      for (let i = 0; i <= len; i++) set.add(`${hint.fromRow + dr * i},${hint.fromCol + dc * i}`);
+    }
+    return set;
+  }, [hint]);
+
+  const flash = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!hint) { flash.setValue(0); return; }
+    flash.setValue(0);
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(flash, { toValue: 1,    duration: 320, useNativeDriver: true }),
+        Animated.timing(flash, { toValue: 0.15, duration: 320, useNativeDriver: true }),
+      ]),
+      { iterations: 14 },
+    );
+    anim.start(() => flash.setValue(0));
+    return () => anim.stop();
+  }, [hint]);
+
   return (
     <View style={styles.container}>
       {/* Letter grid — drag across a word to highlight it (tap-tap still works). */}
@@ -151,6 +183,7 @@ export function WordSearchBoard({ board, onMove, disabled }: Props) {
             {rowStr.split('').map((ch, c) => {
               const isPreview = previewSet.has(`${r},${c}`);
               const isFound = foundCells.has(`${r},${c}`);
+              const isHint = hintSet.has(`${r},${c}`);
               return (
                 <View
                   key={c}
@@ -160,6 +193,9 @@ export function WordSearchBoard({ board, onMove, disabled }: Props) {
                     isPreview && styles.cellPreview,
                   ]}
                 >
+                  {isHint && (
+                    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.cellHint, { opacity: flash }]} />
+                  )}
                   <Text style={[styles.cellText, isFound && styles.cellFoundText]}>{ch}</Text>
                 </View>
               );
@@ -204,6 +240,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
       backgroundColor: Colors.surface,
     },
     cellPreview:   { backgroundColor: Colors.primary, borderColor: Colors.primaryDim },
+    cellHint:      { backgroundColor: Colors.accent, borderRadius: 2 },
     cellFound:     { backgroundColor: Colors.wordSearch + '66', borderColor: Colors.wordSearch },
     cellText:      { color: Colors.textPrimary, fontSize: CELL * 0.52, fontFamily: Font.family.displayBold },
     cellFoundText: { color: '#1a1206' },
