@@ -38,6 +38,12 @@ public class AdminController {
     private final FeatureFlagService          featureFlags;
     private final FeedbackRepository           feedbackRepo;
     private final AccountDeletionService       deletionService;
+    private final GomokuGameRepository         gomokuRepo;
+    private final BattleshipGameRepository     battleshipRepo;
+    private final ScrabbleGameRepository       scrabbleRepo;
+
+    /** Sentinel id of the computer opponent in solo games (mirrors the game services). */
+    private static final UUID COMPUTER_ID = new UUID(0L, 0L);
 
     // ── Player feedback inbox (read-only, admin) ────────────────────────────
 
@@ -311,6 +317,15 @@ public class AdminController {
         long activeMonth = userRepo.countActiveSince(d30ago);
         long inactive30d = userRepo.countInactiveSince(d30ago);
 
+        // Distinct human players currently sitting in a live (ACTIVE) game —
+        // games still WAITING_FOR_OPPONENT don't count as "playing" yet.
+        Set<UUID> playingNow = new HashSet<>();
+        for (ActiveGame g : currentGames()) {
+            if (!"ACTIVE".equals(g.status())) continue;
+            if (g.p1() != null && !COMPUTER_ID.equals(g.p1())) playingNow.add(g.p1());
+            if (g.p2() != null && !COMPUTER_ID.equals(g.p2())) playingNow.add(g.p2());
+        }
+
         Map<String, Long> byCountry = new LinkedHashMap<>();
         for (Object[] row : userRepo.countByCountry()) {
             byCountry.put((String) row[0], (Long) row[1]);
@@ -320,6 +335,7 @@ public class AdminController {
         body.put("generatedAt",    now.toString());
         body.put("totalRegistered", total);
         body.put("currentlyOnline", online);
+        body.put("currentlyPlaying", playingNow.size());
         body.put("activeToday",     activeToday);
         body.put("activeThisWeek",  activeWeek);
         body.put("activeThisMonth", activeMonth);
@@ -327,6 +343,110 @@ public class AdminController {
         body.put("byCountry",       byCountry);
 
         return ResponseEntity.ok(body);
+    }
+
+    // ── Live games (who's actually playing right now) ───────────────────────
+
+    /**
+     * GET /admin/live-games
+     *
+     * Every in-progress game across all three real-time games — both ACTIVE
+     * (the two players are playing) and WAITING_FOR_OPPONENT (one player has
+     * created a game and is waiting for a friend to join). ACTIVE games come
+     * first, then by most-recent move. Player names are resolved in one query.
+     * This is "really playing" — distinct from "online now" (an app session
+     * open) or "active" (an account that isn't deleted). Refreshed by the dashboard.
+     */
+    @GetMapping("/live-games")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> liveGames() {
+        List<ActiveGame> games = currentGames();
+        // ACTIVE first, then WAITING; within each group newest move first.
+        games.sort(Comparator
+            .comparing((ActiveGame g) -> "ACTIVE".equals(g.status()) ? 0 : 1)
+            .thenComparing(Comparator.comparing(
+                ActiveGame::lastMoveAt, Comparator.nullsLast(Comparator.naturalOrder())).reversed()));
+
+        // Resolve every human player's display name in a single query.
+        Set<UUID> ids = new HashSet<>();
+        for (ActiveGame g : games) {
+            if (g.p1() != null && !COMPUTER_ID.equals(g.p1())) ids.add(g.p1());
+            if (g.p2() != null && !COMPUTER_ID.equals(g.p2())) ids.add(g.p2());
+        }
+        Map<UUID, String> names = new HashMap<>();
+        for (User u : userRepo.findAllById(ids))
+            names.put(u.getId(), u.getDisplayName() != null ? u.getDisplayName() : u.getUsername());
+
+        Set<UUID> playing = new HashSet<>();
+        int activeCount = 0, waitingCount = 0;
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (ActiveGame g : games) {
+            boolean active = "ACTIVE".equals(g.status());
+            if (active) activeCount++; else waitingCount++;
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("kind",       g.kind());
+            m.put("gameId",     g.id().toString());
+            m.put("inviteCode", g.inviteCode());
+            m.put("status",     g.status());
+            m.put("vsComputer", g.vsComputer());
+            m.put("player1",    playerNode(g.p1(), names));
+            m.put("player2",    playerNode(g.p2(), names));
+            m.put("startedAt",  g.startedAt()  != null ? g.startedAt().toString()  : null);
+            m.put("lastMoveAt", g.lastMoveAt() != null ? g.lastMoveAt().toString() : null);
+            items.add(m);
+
+            if (active) {  // only ACTIVE games count toward "players playing"
+                if (g.p1() != null && !COMPUTER_ID.equals(g.p1())) playing.add(g.p1());
+                if (g.p2() != null && !COMPUTER_ID.equals(g.p2())) playing.add(g.p2());
+            }
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("generatedAt",    Instant.now().toString());
+        body.put("count",          items.size());
+        body.put("activeCount",    activeCount);
+        body.put("waitingCount",   waitingCount);
+        body.put("playersPlaying", playing.size());
+        body.put("games",          items);
+        return ResponseEntity.ok(body);
+    }
+
+    /** Normalized snapshot of one in-progress game, unifying the three game types. */
+    private record ActiveGame(String kind, UUID id, String inviteCode,
+                              UUID p1, UUID p2, boolean vsComputer, String status,
+                              Instant startedAt, Instant lastMoveAt) {}
+
+    /** All ACTIVE and WAITING_FOR_OPPONENT games across the three game types. */
+    private List<ActiveGame> currentGames() {
+        List<ActiveGame> out = new ArrayList<>();
+        for (String st : List.of("ACTIVE", "WAITING_FOR_OPPONENT")) {
+            gomokuRepo.findByStatus(st).forEach(g -> out.add(new ActiveGame(
+                "gomoku", g.getId(), g.getInviteCode(), g.getPlayer1Id(), g.getPlayer2Id(),
+                g.isVsComputer(), st, g.getCreatedAt(), g.getLastMoveAt())));
+            battleshipRepo.findByStatus(st).forEach(g -> out.add(new ActiveGame(
+                "battleship", g.getId(), g.getInviteCode(), g.getPlayer1Id(), g.getPlayer2Id(),
+                g.isVsComputer(), st, g.getCreatedAt(), g.getLastMoveAt())));
+            scrabbleRepo.findByStatus(st).forEach(g -> out.add(new ActiveGame(
+                "scrabble", g.getId(), g.getInviteCode(), g.getPlayer1Id(), g.getPlayer2Id(),
+                g.isVsComputer(), st, g.getCreatedAt(), g.getLastMoveAt())));
+        }
+        return out;
+    }
+
+    /** Player descriptor for the live-games table (null when no opponent yet). */
+    private Map<String, Object> playerNode(UUID id, Map<UUID, String> names) {
+        if (id == null) return null;
+        Map<String, Object> n = new LinkedHashMap<>();
+        n.put("id", id.toString());
+        if (COMPUTER_ID.equals(id)) {
+            n.put("name", "Computer");
+            n.put("computer", true);
+        } else {
+            n.put("name", names.getOrDefault(id, "Player"));
+            n.put("computer", false);
+        }
+        return n;
     }
 
     // ── Feature flags ─────────────────────────────────────────────────────
