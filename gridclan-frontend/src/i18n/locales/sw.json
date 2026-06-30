@@ -166,5 +166,12 @@
     "network": "Hakuna muunganisho. Angalia mtandao wako kisha ujaribu tena.",
     "server": "Hitilafu imetokea. Tafadhali jaribu tena.",
     "rateLimited": "Maombi mengi mno. Tafadhali subiri kidogo."
+  },
+  "invite": {
+    "title": "Alika marafiki",
+    "cta": "Alika marafiki",
+    "hint": "Shiriki GridClan Puzzles na marafiki — wanaweza kucheza papo hapo kwenye kivinjari, bila kusakinisha.",
+    "copied": "Kiungo cha mwaliko kimenakiliwa! 🔗",
+    "message": "{{name}} anakupa changamoto kwenye GridClan Puzzles! Cheza bure, bila kusakinisha chochote: {{link}}"
   }
 }
