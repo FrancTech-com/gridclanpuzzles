@@ -5,6 +5,7 @@ import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.repository.BattleshipGameRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,12 @@ public class BattleshipGameService {
     private final RankService           rankService;
     private final BattleshipAi          ai;
     private final LevelService          levelService;
+
+    @Value("${gridclan.gems.revive-cost:20}")
+    private long reviveCostGems;
+
+    /** Ship cells restored to the human's fleet on a revive. */
+    private static final int REVIVE_SHIP_CELLS = 4;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -246,6 +253,47 @@ public class BattleshipGameService {
             g.setWinnerId(COMPUTER_ID);
         } else {
             g.setCurrentPlayer((short) 1);     // back to the human
+        }
+    }
+
+    // ── Revive (solo only; spend gems to undo a loss and play on) ─────────────
+
+    /**
+     * After losing a solo game (your fleet sunk), spend gems to revive: restore a
+     * few of your hit ship cells so you have a fighting fleet again, and take the
+     * turn back. Insufficient gems throws (the app offers to buy).
+     */
+    @Transactional
+    public Map<String, Object> revive(UUID userId, UUID gameId) {
+        BattleshipGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (!g.isVsComputer() || !userId.equals(g.getPlayer1Id()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Revive is only for solo games.");
+        if (!"COMPLETE".equals(g.getStatus()) || !COMPUTER_ID.equals(g.getWinnerId()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Nothing to revive.");
+
+        gemService.spendGems(userId, reviveCostGems, "REVIVE", g.getId());
+
+        char[][] board = parse(g.getBoard1());
+        restoreFleet(board);                     // revert some hits back to ship
+        g.setBoard1(serialize(board));
+        g.setStatus("ACTIVE");
+        g.setWinnerId(null);
+        g.setCurrentPlayer((short) 1);           // your turn to fire
+        g.setLastMoveAt(Instant.now());
+        repo.save(g);
+        broadcast(g);
+        log.info("Battleship revive: game={} user={}", g.getId(), userId);
+        return view(userId, g, null);
+    }
+
+    /** Revert up to REVIVE_SHIP_CELLS of the human's sunk ('X') cells back to ship. */
+    private static void restoreFleet(char[][] board) {
+        int restored = 0;
+        for (int r = 0; r < board.length && restored < REVIVE_SHIP_CELLS; r++) {
+            for (int c = 0; c < board[r].length && restored < REVIVE_SHIP_CELLS; c++) {
+                if (board[r][c] == 'X') { board[r][c] = 'S'; restored++; }
+            }
         }
     }
 

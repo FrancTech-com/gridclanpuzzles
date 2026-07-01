@@ -79,7 +79,7 @@ export interface GiftGemsRequest {
 // ── Game ───────────────────────────────────────────────────────────────────
 export type GameType = 'WORD_SEARCH';
 export type GameTier = 'SOLO' | 'FRIEND' | 'COMMUNITY_TOURNAMENT';
-export type SessionStatus = 'ACTIVE' | 'COMPLETED' | 'FLAGGED' | 'ABANDONED';
+export type SessionStatus = 'ACTIVE' | 'COMPLETED' | 'FLAGGED' | 'ABANDONED' | 'OUT_OF_MOVES';
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 /** Levels per difficulty ladder — must match Difficulty.LEVELS on the backend. */
@@ -103,6 +103,7 @@ export interface SessionStartResponse {
   status:       SessionStatus;
   difficulty?:  Difficulty | null;
   level?:       number;
+  moveLimit?:   number;
 }
 
 // ── Gem purchases (Relworx mobile money) ─────────────────────────────────────
@@ -175,6 +176,7 @@ export interface MoveResponse {
   boardState:  BoardState;
   score:       number;
   moveCount:   number;
+  moveLimit?:  number;
   status:      SessionStatus;
   flagReason?: string;
 }
