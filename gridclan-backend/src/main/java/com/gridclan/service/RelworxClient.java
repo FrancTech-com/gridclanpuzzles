@@ -73,8 +73,9 @@ public class RelworxClient {
         }
     }
 
-    /** Result of polling a request's status: "success" / "pending" / "failed" / null. */
-    public record StatusResult(boolean found, String status) {}
+    /** Result of polling a request's status: "success" / "pending" / "failed" / null,
+     *  plus the provider's human message (e.g. a failure reason). */
+    public record StatusResult(boolean found, String status, String message) {}
 
     /**
      * Validate a mobile-money number (POST /mobile-money/validate). Returns whether
@@ -111,12 +112,13 @@ public class RelworxClient {
             ResponseEntity<Map<String, Object>> resp = rest.exchange(
                 url, HttpMethod.GET, new HttpEntity<>(headers), mapType());
             Map<String, Object> map = resp.getBody() != null ? resp.getBody() : Map.of();
-            if (!Boolean.TRUE.equals(map.get("success"))) return new StatusResult(false, null);
+            if (!Boolean.TRUE.equals(map.get("success"))) return new StatusResult(false, null, null);
             Object status = map.get("status") != null ? map.get("status") : map.get("request_status");
-            return new StatusResult(true, status == null ? null : String.valueOf(status));
+            return new StatusResult(true, status == null ? null : String.valueOf(status),
+                str(map.get("message")));
         } catch (Exception e) {
             log.warn("Relworx check-request-status failed ref={}: {}", internalReference, e.getMessage());
-            return new StatusResult(false, null);
+            return new StatusResult(false, null, null);
         }
     }
 

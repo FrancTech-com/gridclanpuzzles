@@ -3,7 +3,7 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch } from '@store/index';
@@ -16,6 +16,16 @@ import { useColors } from '@theme/theme';
 import type { GemPack } from '@gridtypes/index';
 
 type Method = 'MOBILE' | 'CARD';
+
+// Persist the in-flight card reference across the browser redirect to Relworx's
+// hosted page and back. Web only (the card page opens in a browser); a no-op on
+// native, where the in-memory state survives backgrounding.
+const PENDING_KEY = 'pendingGemPurchase';
+const webStore = (): Storage | null =>
+  (Platform.OS === 'web' && typeof localStorage !== 'undefined') ? localStorage : null;
+const savePending  = (ref: string) => webStore()?.setItem(PENDING_KEY, ref);
+const loadPending  = (): string | null => webStore()?.getItem(PENDING_KEY) ?? null;
+const clearPending = () => webStore()?.removeItem(PENDING_KEY);
 
 /** A purchase in flight — common shape for both rails (paymentUrl only for card). */
 interface ActivePurchase {
@@ -53,7 +63,25 @@ export default function BuyGemsScreen() {
   const [purchase, setPurchase] = useState<ActivePurchase | null>(null);
   const [busyPack, setBusyPack] = useState<string | null>(null);
   const [done, setDone] = useState<'SUCCESSFUL' | 'FAILED' | null>(null);
+  const [confirming, setConfirming] = useState(false);   // resumed from a card return
+  const [resultGems, setResultGems] = useState(0);
+  const [failReason, setFailReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Card return: after paying, Relworx sends the browser back to this page. We
+  // resume from the reference we stashed before redirecting (robust whether or
+  // not Relworx echoes it in the URL), then poll to confirm + show the result.
+  const params = useLocalSearchParams<{ customer_reference?: string; reference?: string }>();
+  useEffect(() => {
+    const ref = (params.customer_reference || params.reference || loadPending()) as string | undefined;
+    if (ref && !purchase) {
+      setPurchase({ reference: ref, gems: 0, amount: 0, currency: '' });
+      setConfirming(true);
+    }
+  }, [params.customer_reference, params.reference]);
+
+  // Clear the stashed reference once the purchase settles.
+  useEffect(() => { if (done) clearPending(); }, [done]);
 
   const numberLooksValid = msisdn.replace(/[^0-9]/g, '').length >= 9;
 
@@ -110,6 +138,7 @@ export default function BuyGemsScreen() {
       } else {
         const res = await paymentsApi.initiateCard(pack.id, currency!);
         setPurchase(res.data);
+        savePending(res.data.reference);   // survive the full-page redirect
         if (res.data.paymentUrl) Linking.openURL(res.data.paymentUrl);
       }
     } catch (e: any) {
@@ -127,17 +156,29 @@ export default function BuyGemsScreen() {
       try {
         const res = await paymentsApi.status(purchase.reference);
         if (res.data.status === 'SUCCESSFUL') {
+          setResultGems(res.data.gems);
           setDone('SUCCESSFUL');
           dispatch(fetchGemBalanceThunk());
           dispatch(fetchGemHistoryThunk(50));
         } else if (res.data.status === 'FAILED') {
+          setFailReason(res.data.reason ?? null);
           setDone('FAILED');
         }
       } catch { /* transient — keep polling */ }
       if (elapsed >= 180 && pollRef.current) clearInterval(pollRef.current);
     }, 4000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [purchase, done]);
+  }, [purchase?.reference, done]);
+
+  // Turn the provider's raw reason into a clear, friendly message.
+  function friendlyFailure(): string {
+    const raw = (failReason || '').toLowerCase();
+    if (/insufficient|balance|no money|not enough|low funds|funds/.test(raw)) {
+      return t('buy.insufficient', 'Insufficient balance — top up your mobile money and try again. No gems were charged.');
+    }
+    if (failReason) return `${failReason} ${t('buy.noCharge', 'No gems were charged.')}`;
+    return t('buy.failed', 'That payment didn’t go through. No gems were charged. You can try again.');
+  }
 
   const fmt = (n: number, cur: string) => `${cur} ${n.toLocaleString()}`;
 
@@ -231,7 +272,14 @@ export default function BuyGemsScreen() {
         )}
 
         {/* ── In-flight purchase ── */}
-        {purchase && !done && (
+        {purchase && !done && confirming && (
+          <Card style={styles.statusCard}>
+            <ActivityIndicator color={Colors.primary} />
+            <Text style={styles.statusTitle}>{t('buy.confirmingTitle', 'Confirming your payment…')}</Text>
+            <Text style={styles.statusBody}>{t('buy.confirmingBody', 'Hang on a moment while we confirm your card payment. Your gems land here automatically.')}</Text>
+          </Card>
+        )}
+        {purchase && !done && !confirming && (
           <Card style={styles.statusCard}>
             <ActivityIndicator color={Colors.primary} />
             <Text style={styles.statusTitle}>
@@ -251,11 +299,11 @@ export default function BuyGemsScreen() {
           <Card style={styles.statusCard}>
             <Text style={styles.successEmoji}>🎉</Text>
             <Text style={styles.statusTitle}>{t('buy.successTitle', 'Gems added!')}</Text>
-            <Text style={styles.statusBody}>{t('buy.successBody', 'Your {{gems}} gems are now in your balance.', { gems: purchase?.gems })}</Text>
+            <Text style={styles.statusBody}>{t('buy.successBody', 'Your {{gems}} gems are now in your balance.', { gems: purchase?.gems || resultGems })}</Text>
           </Card>
         )}
         {done === 'FAILED' && (
-          <Text style={styles.notice}>{t('buy.failed', 'That payment didn’t go through. No gems were charged. You can try again.')}</Text>
+          <Text style={styles.notice}>{friendlyFailure()}</Text>
         )}
 
         {!!error && <Text style={styles.error}>{error}</Text>}
