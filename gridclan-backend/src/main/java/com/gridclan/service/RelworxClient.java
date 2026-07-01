@@ -67,8 +67,12 @@ public class RelworxClient {
             Map<String, Object> map = resp.getBody() != null ? resp.getBody() : Map.of();
             boolean ok = resp.getStatusCode().is2xxSuccessful() && Boolean.TRUE.equals(map.get("success"));
             return new VisaSessionResult(ok, str(map.get("payment_url")), str(map.get("message")));
+        } catch (org.springframework.web.client.RestClientResponseException he) {
+            log.error("Relworx visa request-session HTTP {} ref={}: {}",
+                he.getStatusCode(), reference, he.getResponseBodyAsString());
+            return new VisaSessionResult(false, null, "Card payment could not be started.");
         } catch (Exception e) {
-            log.error("Relworx visa request-session failed ref={}: {}", reference, e.getMessage());
+            log.error("Relworx visa request-session failed ref={}: {}", reference, e.toString());
             return new VisaSessionResult(false, null, "Card payment could not be started.");
         }
     }
@@ -164,8 +168,12 @@ public class RelworxClient {
             log.info("Relworx request-payment ref={} accepted={} providerRef={}",
                 reference, ok, providerRef);
             return new RequestResult(ok, providerRef, message);
+        } catch (org.springframework.web.client.RestClientResponseException he) {
+            log.error("Relworx request-payment HTTP {} ref={}: {}",
+                he.getStatusCode(), reference, he.getResponseBodyAsString());
+            return new RequestResult(false, null, "Payment request failed.");
         } catch (Exception e) {
-            log.error("Relworx request-payment failed ref={}: {}", reference, e.getMessage());
+            log.error("Relworx request-payment failed ref={}: {}", reference, e.toString());
             return new RequestResult(false, null, "Payment request failed.");
         }
     }
