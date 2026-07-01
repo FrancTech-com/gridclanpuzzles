@@ -22,6 +22,24 @@ public class BattleshipAi {
     private static final int SIZE = 10;
     private final SecureRandom rnd = new SecureRandom();
 
+    /**
+     * Difficulty-aware shot: with probability {@code blunderChance} the computer
+     * fires at a random untried cell instead of its hunt/target choice, so easier
+     * ladders are beatable. 0 = full strength.
+     */
+    public int[] nextTarget(char[][] b, double blunderChance) {
+        if (blunderChance > 0 && rnd.nextDouble() < blunderChance) {
+            List<int[]> any = new ArrayList<>();
+            for (int r = 0; r < SIZE; r++) {
+                for (int c = 0; c < SIZE; c++) {
+                    if (untried(b[r][c])) any.add(new int[]{ r, c });
+                }
+            }
+            if (!any.isEmpty()) return any.get(rnd.nextInt(any.size()));
+        }
+        return nextTarget(b);
+    }
+
     /** Next cell {row,col} to fire at. */
     public int[] nextTarget(char[][] b) {
         List<int[]> targets = targetCandidates(b);
