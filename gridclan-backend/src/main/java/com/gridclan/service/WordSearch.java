@@ -36,6 +36,23 @@ public final class WordSearch {
         {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}
     };
 
+    // Placement-direction subsets used to control difficulty. A word is "reversed"
+    // when it's hidden running right-to-left or bottom-to-top; "diagonal" when it
+    // runs at 45°. Note: a player can still SELECT in any direction and the
+    // matcher reads both ways — these subsets only constrain how words are HIDDEN.
+    private static final int[][] DIRS_ORTHO_FWD = { {0, 1}, {1, 0} };                 // E, S
+    private static final int[][] DIRS_ORTHO_ANY = { {0, 1}, {1, 0}, {0, -1}, {-1, 0} }; // + W, N
+    private static final int[][] DIRS_DIAG_FWD  = { {0, 1}, {1, 0}, {1, 1}, {-1, 1} }; // E, S, SE, NE
+    // DIRS (all 8) covers diagonals + reversed.
+
+    /** The placement-direction set for a given difficulty profile. */
+    private static int[][] dirsFor(boolean allowDiagonal, boolean allowReverse) {
+        if (allowDiagonal && allowReverse) return DIRS;
+        if (allowDiagonal)                 return DIRS_DIAG_FWD;
+        if (allowReverse)                  return DIRS_ORTHO_ANY;
+        return DIRS_ORTHO_FWD;
+    }
+
     /**
      * Common 4–8 letter words across many everyday themes (animals, food, nature,
      * objects…). A large, varied pool so each puzzle draws a fresh-feeling set of
@@ -78,21 +95,38 @@ public final class WordSearch {
      * Pass the full dictionary here for endless variety; falls back to the built-in
      * pool if the supplied one is empty. Picks by random index (no full shuffle), so
      * it stays fast even with a 100k+ word dictionary.
+     *
+     * Uses the default (Medium-equivalent) board shape: {@link #GRID_SIZE}×{@link
+     * #GRID_SIZE}, {@link #TARGET_WORDS} words, all 8 placement directions.
      */
     public static Map<String, Object> generate(Random rng, List<String> wordPool) {
-        int n = GRID_SIZE;
+        return generate(rng, wordPool, GRID_SIZE, TARGET_WORDS, true, true);
+    }
+
+    /**
+     * Generate a puzzle with explicit difficulty parameters. {@code gridSize} and
+     * {@code targetWords} set the board size and how many words to hide;
+     * {@code allowDiagonal}/{@code allowReverse} restrict the directions words may be
+     * hidden in (Easy hides only forward across/down; Hard hides every direction).
+     */
+    public static Map<String, Object> generate(Random rng, List<String> wordPool,
+                                               int gridSize, int targetWords,
+                                               boolean allowDiagonal, boolean allowReverse) {
+        int n = Math.max(6, gridSize);
+        int target = Math.max(1, targetWords);
+        int[][] dirs = dirsFor(allowDiagonal, allowReverse);
         char[][] grid = new char[n][n];
         for (char[] row : grid) Arrays.fill(row, '\0');
 
         List<String> pool = (wordPool == null || wordPool.isEmpty()) ? WORD_POOL : wordPool;
         List<String> placed = new ArrayList<>();
         Set<String> placedSet = new HashSet<>();
-        int picks = 0, maxPicks = TARGET_WORDS * 80;   // bounded, even for a huge pool
-        while (placed.size() < TARGET_WORDS && picks < maxPicks) {
+        int picks = 0, maxPicks = target * 80;   // bounded, even for a huge pool
+        while (placed.size() < target && picks < maxPicks) {
             picks++;
             String word = pool.get(rng.nextInt(pool.size()));
             if (word.length() < 4 || word.length() > n || placedSet.contains(word)) continue;
-            if (tryPlace(grid, word, rng)) { placed.add(word); placedSet.add(word); }
+            if (tryPlace(grid, word, rng, dirs)) { placed.add(word); placedSet.add(word); }
         }
 
         // Fill the gaps with random letters.
@@ -116,10 +150,10 @@ public final class WordSearch {
         return board;
     }
 
-    private static boolean tryPlace(char[][] grid, String word, Random rng) {
+    private static boolean tryPlace(char[][] grid, String word, Random rng, int[][] dirs) {
         int n = grid.length;
         for (int attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
-            int[] dir = DIRS[rng.nextInt(DIRS.length)];
+            int[] dir = dirs[rng.nextInt(dirs.length)];
             int len = word.length();
             int endR = (len - 1) * dir[0];
             int endC = (len - 1) * dir[1];

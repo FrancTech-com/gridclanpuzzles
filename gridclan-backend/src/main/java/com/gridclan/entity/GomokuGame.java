@@ -55,6 +55,15 @@ public class GomokuGame {
     @Builder.Default
     private int hintsRemaining = 0;
 
+    /** Difficulty ladder for a solo game (EASY/MEDIUM/HARD); null for PvP. */
+    @Column(name = "difficulty", length = 10)
+    private String difficulty;
+
+    /** Ladder level (1..20) for a solo game; 0 for PvP. */
+    @Column(name = "level", nullable = false)
+    @Builder.Default
+    private int level = 0;
+
     @Column(name = "last_move_at", nullable = false)
     @Builder.Default
     private Instant lastMoveAt = Instant.now();

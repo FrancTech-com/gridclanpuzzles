@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
-import { startSessionThunk } from '@store/slices/gameSlice';
 import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index';
 import { RegisterBanner } from '@components/AuthGate';
@@ -120,10 +119,9 @@ export default function HomeScreen() {
       router.push(`/challenge/new?gameType=${selectedGame}`);
       return;
     }
-    const result = await dispatch(startSessionThunk({ gameType: selectedGame, tier: selectedTier }));
-    if (startSessionThunk.fulfilled.match(result)) {
-      router.push(`/game/${result.payload.sessionId}`);
-    }
+    // Solo play → pick a difficulty + level first (the ladder screen starts the
+    // session itself once a level is chosen).
+    router.push(`/levels/${selectedGame}`);
   }
 
   return (

@@ -81,10 +81,17 @@ export type GameType = 'WORD_SEARCH';
 export type GameTier = 'SOLO' | 'FRIEND' | 'COMMUNITY_TOURNAMENT';
 export type SessionStatus = 'ACTIVE' | 'COMPLETED' | 'FLAGGED' | 'ABANDONED';
 
+export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+/** Levels per difficulty ladder — must match Difficulty.LEVELS on the backend. */
+export const LEVELS_PER_DIFFICULTY = 20;
+
 export interface SessionStartRequest {
   gameType:      GameType;
   tier:          GameTier;
   tournamentId?: string;
+  /** Solo difficulty-ladder selection (omit for a quick/non-ladder solo game). */
+  difficulty?:   Difficulty;
+  level?:        number;
 }
 
 export interface SessionStartResponse {
@@ -94,6 +101,67 @@ export interface SessionStartResponse {
   gameType:     GameType;
   tier:         GameTier;
   status:       SessionStatus;
+  difficulty?:  Difficulty | null;
+  level?:       number;
+}
+
+// ── Gem purchases (Relworx mobile money) ─────────────────────────────────────
+export interface GemPack {
+  id:    string;
+  label?: string;
+  gems:  number;
+  price: number;     // in the quote's currency
+}
+
+export interface GemQuote {
+  configured:   boolean;
+  currency:     string | null;   // null = country not supported
+  numberValid?: boolean;
+  customerName?: string | null;  // mobile-money account name, when validated
+  packs:        GemPack[];
+}
+
+export interface PurchaseInit {
+  reference: string;
+  status:    'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  gems:      number;
+  amount:    number;
+  currency:  string;
+  message:   string;
+}
+
+export interface PurchaseStatus {
+  reference: string;
+  status:    'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  gems:      number;
+}
+
+export interface SupportedCurrencies {
+  configured: boolean;
+  currencies: string[];
+}
+
+export interface CardQuote {
+  configured: boolean;
+  currency:   string | null;
+  packs:      GemPack[];
+}
+
+export interface CardPurchaseInit {
+  reference:  string;
+  status:     'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  gems:       number;
+  amount:     number;
+  currency:   string;
+  paymentUrl: string;
+}
+
+/** One difficulty's ladder progress, from GET /levels/{gameType}. */
+export interface LadderProgress {
+  difficulty:      Difficulty;
+  levels:          number;            // total levels in the ladder (20)
+  highestUnlocked: number;            // furthest startable level
+  bestScores:      Record<string, number>; // level (as string) → best score
 }
 
 export interface MoveRequest {

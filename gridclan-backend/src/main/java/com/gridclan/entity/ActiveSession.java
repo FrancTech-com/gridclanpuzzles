@@ -1,5 +1,6 @@
 package com.gridclan.entity;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.entity.enums.GameTier;
 import com.gridclan.entity.enums.GameType;
 import com.gridclan.entity.enums.SessionStatus;
@@ -44,6 +45,20 @@ public class ActiveSession {
 
     @Column(name = "tournament_id")
     private UUID tournamentId;
+
+    /**
+     * Difficulty ladder this session belongs to — null for non-ladder sessions
+     * (friend challenges, replays, tournaments). Set server-side; the client
+     * cannot change a session's difficulty once started.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "difficulty", length = 10)
+    private Difficulty difficulty;
+
+    /** Ladder level (1..Difficulty.LEVELS) when {@link #difficulty} is set; else 0. */
+    @Column(name = "level", nullable = false)
+    @Builder.Default
+    private int level = 0;
 
     /**
      * JSONB column — authoritative board state.
