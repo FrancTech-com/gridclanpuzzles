@@ -54,6 +54,16 @@ class DifficultyLadderTest {
     }
 
     @Test
+    void moveBudget_coversWordsWithMarginAndShrinksWithDifficulty() {
+        // Enough to find every word plus a margin of mistakes.
+        assertThat(Difficulty.EASY.moveBudgetFor(6)).isGreaterThan(6);
+        // Harder difficulties give a slimmer margin for the same word count.
+        assertThat(Difficulty.EASY.moveBudgetFor(8))
+            .isGreaterThan(Difficulty.MEDIUM.moveBudgetFor(8))
+            .isGreaterThan(Difficulty.HARD.moveBudgetFor(8));
+    }
+
+    @Test
     void score_scalesByDifficultyAndLevel() {
         int plain  = scoreEngine.calculate(GameType.WORD_SEARCH, 1, true);
         int easyL1 = scoreEngine.calculate(GameType.WORD_SEARCH, 1, true, Difficulty.EASY, 1);

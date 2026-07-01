@@ -88,6 +88,18 @@ public enum Difficulty {
         return base + (top - base) * (clamp(level) - 1) / (LEVELS - 1);
     }
 
+    /**
+     * Comfortable move budget for a puzzle with {@code wordsToFind} words: enough
+     * to find every word plus a margin of wrong selections. Harder difficulties get
+     * a slimmer margin, so out-of-moves (and revive) bites a little sooner on Hard.
+     * Margin factor: Easy 1.6, Medium 1.1, Hard 0.7 of the word count (min 5).
+     */
+    public int moveBudgetFor(int wordsToFind) {
+        double factor = switch (this) { case EASY -> 1.6; case MEDIUM -> 1.1; case HARD -> 0.7; };
+        int margin = Math.max(5, (int) Math.round(wordsToFind * factor));
+        return wordsToFind + margin;
+    }
+
     /** Parse a stored difficulty name, or null if absent/blank. */
     public static Difficulty fromName(String name) {
         if (name == null || name.isBlank()) return null;
