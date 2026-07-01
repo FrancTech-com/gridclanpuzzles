@@ -5,6 +5,7 @@ import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.repository.GomokuGameRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,9 @@ public class GomokuGameService {
     private final RankService           rankService;
     private final GomokuAi              ai;
     private final LevelService          levelService;
+
+    @Value("${gridclan.gems.revive-cost:20}")
+    private long reviveCostGems;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -219,6 +223,56 @@ public class GomokuGameService {
         broadcast(g);
         log.info("Gomoku forfeit: game={} forfeiter={} winner={}", g.getId(), userId, opponentId);
         return view(userId, g);
+    }
+
+    // ── Revive (solo only; spend gems to undo a loss and play on) ─────────────
+
+    /**
+     * After losing a solo game to the computer, spend gems to revive: remove one
+     * stone from the computer's winning line (giving you a chance to block) and
+     * hand you the turn back. Insufficient gems throws (the app offers to buy).
+     */
+    @Transactional
+    public Map<String, Object> revive(UUID userId, UUID gameId) {
+        GomokuGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (!g.isVsComputer() || !userId.equals(g.getPlayer1Id()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Revive is only for solo games.");
+        if (!"COMPLETE".equals(g.getStatus()) || !COMPUTER_ID.equals(g.getWinnerId()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Nothing to revive.");
+
+        gemService.spendGems(userId, reviveCostGems, "REVIVE", g.getId());
+
+        char[][] board = parse(g.getBoard());
+        breakComputerWin(board);                 // open up the winning line
+        g.setBoard(serialize(board));
+        g.setStatus("ACTIVE");
+        g.setWinnerId(null);
+        g.setCurrentPlayer((short) 1);           // your turn — block it
+        g.setLastMoveAt(Instant.now());
+        repo.save(g);
+        broadcast(g);
+        log.info("Gomoku revive: game={} user={}", g.getId(), userId);
+        return view(userId, g);
+    }
+
+    /** Remove the last stone of the computer's first 5-in-a-row, breaking the win. */
+    private static void breakComputerWin(char[][] b) {
+        int[][] axes = { {0, 1}, {1, 0}, {1, 1}, {1, -1} };
+        for (int r = 0; r < SIZE; r++) {
+            for (int c = 0; c < SIZE; c++) {
+                if (b[r][c] != '2') continue;
+                for (int[] d : axes) {
+                    int pr = r - d[0], pc = c - d[1];
+                    if (pr >= 0 && pr < SIZE && pc >= 0 && pc < SIZE && b[pr][pc] == '2') continue; // not run start
+                    int er = r, ec = c, len = 0;
+                    while (er >= 0 && er < SIZE && ec >= 0 && ec < SIZE && b[er][ec] == '2') {
+                        len++; er += d[0]; ec += d[1];
+                    }
+                    if (len >= 5) { b[er - d[0]][ec - d[1]] = '.'; return; }  // clear the far end
+                }
+            }
+        }
     }
 
     /** The computer (player 2) plays its reply, updating the game in place. On a

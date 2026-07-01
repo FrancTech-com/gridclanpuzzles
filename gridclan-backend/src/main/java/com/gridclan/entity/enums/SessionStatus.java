@@ -4,5 +4,7 @@ public enum SessionStatus {
     ACTIVE,
     COMPLETED,
     FLAGGED,
-    ABANDONED
+    ABANDONED,
+    /** Out of moves — the player can revive (spend gems) to get more, or give up. */
+    OUT_OF_MOVES
 }

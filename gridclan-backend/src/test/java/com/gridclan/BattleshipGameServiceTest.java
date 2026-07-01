@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,6 +70,27 @@ class BattleshipGameServiceTest {
         for (int r = 0; r < 10; r++)
             for (int c = 0; c < 10; c++)
                 if (b[r][c] == 'S') assertThat(noDiagonalTouch(b, r, c)).isTrue();
+    }
+
+    @Test @DisplayName("Revive restores some hit cells to ship and resumes")
+    void revive_restoresFleetAndResumes() {
+        // A finished solo game the computer won — the human's board1 is all sunk.
+        BattleshipGame g = BattleshipGame.builder()
+            .id(GID).inviteCode("ABC123").player1Id(U1).player2Id(BattleshipGameService.COMPUTER_ID)
+            .status("COMPLETE").winnerId(BattleshipGameService.COMPUTER_ID).vsComputer(true)
+            .currentPlayer((short) 2)
+            .board1(grid(Map.of("0,0", 'X', "0,1", 'X', "0,2", 'X', "0,3", 'X')))
+            .board2(grid(Map.of("5,5", 'S')))
+            .build();
+        when(repo.findById(GID)).thenReturn(Optional.of(g));
+        when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var view = service.revive(U1, GID);
+
+        assertThat(view.get("status")).isEqualTo("ACTIVE");
+        assertThat(g.getWinnerId()).isNull();
+        assertThat(g.getBoard1()).contains("S");   // fleet restored → can keep firing
+        verify(gemService).spendGems(eq(U1), anyLong(), eq("REVIVE"), eq(GID));
     }
 
     @Test @DisplayName("Firing reports HIT then SUNK, and sinking the last ship WINS")
