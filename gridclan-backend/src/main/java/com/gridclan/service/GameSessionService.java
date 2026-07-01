@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -85,6 +86,10 @@ public class GameSessionService {
             ? boardGenerator.generate(req.getGameType(), difficulty, level)
             : boardGenerator.generate(req.getGameType());
 
+        // Comfortable, difficulty-scaled move budget for ladder puzzles (0 = no
+        // limit for non-ladder sessions). Derived from the actual word count.
+        int moveLimit = difficulty != null ? difficulty.moveBudgetFor(wordCount(board)) : 0;
+
         ActiveSession session = ActiveSession.builder()
             .id(UUID.randomUUID())
             .userId(userId)
@@ -93,6 +98,7 @@ public class GameSessionService {
             .tournamentId(req.getTournamentId())
             .difficulty(difficulty)
             .level(level)
+            .moveLimit(moveLimit)
             .boardState(board)
             .status(SessionStatus.ACTIVE)
             // ← SERVER HARDCODES THIS — client payload cannot override
@@ -192,6 +198,11 @@ public class GameSessionService {
                     userId.toString(), newScore);
             }
             log.info("Session completed: userId={} score={}", userId, newScore);
+        } else if (session.getMoveLimit() > 0 && session.getMoveCount() >= session.getMoveLimit()) {
+            // Out of moves — the player can revive (spend gems) for more, or give up.
+            session.setStatus(SessionStatus.OUT_OF_MOVES);
+            log.info("Session out of moves: userId={} moves={}/{}",
+                userId, session.getMoveCount(), session.getMoveLimit());
         }
 
         sessionRepo.save(session);
@@ -200,6 +211,7 @@ public class GameSessionService {
             .boardState(newBoard.getState())
             .score(newScore)
             .moveCount(session.getMoveCount())
+            .moveLimit(session.getMoveLimit())
             .status(session.getStatus())
             .build();
     }
@@ -248,6 +260,12 @@ public class GameSessionService {
         gemService.spendGems(userId, reviveCostGems, "REVIVE", session.getId());
 
         session.setStatus(SessionStatus.ACTIVE);
+        // Grant more moves so the player isn't immediately out again. Extend the
+        // budget by another comfortable margin for the puzzle's word count.
+        if (session.getMoveLimit() > 0) {
+            int grant = Math.max(6, wordCount(session.getBoardState()));
+            session.setMoveLimit(session.getMoveLimit() + grant);
+        }
         session.setLastMoveAt(Instant.now());
         sessionRepo.save(session);
 
@@ -255,6 +273,7 @@ public class GameSessionService {
             .boardState(session.getBoardState())
             .score(session.getServerScore())
             .moveCount(session.getMoveCount())
+            .moveLimit(session.getMoveLimit())
             .status(session.getStatus())
             .build();
     }
@@ -283,6 +302,13 @@ public class GameSessionService {
         sessionRepo.save(session);
         log.info("Replay session started: userId={} friendId={} type={}", userId, friendId, gameType);
         return SessionStartResponse.from(session);
+    }
+
+    /** Number of words the board asks the player to find (for the move budget). */
+    @SuppressWarnings("unchecked")
+    private static int wordCount(Map<String, Object> board) {
+        Object words = board == null ? null : board.get("words");
+        return words instanceof List ? ((List<Object>) words).size() : 8;
     }
 
 }

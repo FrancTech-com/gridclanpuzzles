@@ -52,6 +52,13 @@ public class GomokuController {
         return ResponseEntity.ok(service.hint(userId(auth), id));
     }
 
+    /** POST /gomoku/{id}/revive — solo only; spend gems to undo a loss and play on. */
+    @PostMapping("/{id}/revive")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> revive(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.revive(userId(auth), id));
+    }
+
     /** POST /gomoku/{code}/join — join as the opponent. */
     @PostMapping("/{code}/join")
     @PreAuthorize("hasRole('USER')")

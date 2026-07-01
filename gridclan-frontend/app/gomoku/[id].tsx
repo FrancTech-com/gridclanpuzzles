@@ -12,11 +12,13 @@ import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
+import { PromptCard } from '@components/PromptCard';
 import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 const SIZE = 15;
+const REVIVE_COST_GEMS = 20;
 
 export default function GomokuGameScreen() {
   const { t } = useTranslation();
@@ -40,6 +42,10 @@ export default function GomokuGameScreen() {
   // Big win/lose popup — shown once when the game finishes.
   const [showResult, setShowResult] = useState(false);
   const announced = useRef(false);
+  // Solo loss → offer to revive; out of gems → offer to buy.
+  const [showRevive, setShowRevive] = useState(false);
+  const [reviving, setReviving] = useState(false);
+  const [buyPrompt, setBuyPrompt] = useState(false);
 
   // Funnel new game state through here: diff the board to find the square(s) that
   // just got a stone, then store the state.
@@ -82,9 +88,28 @@ export default function GomokuGameScreen() {
   useEffect(() => {
     if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
       announced.current = true;
-      setShowResult(true);
+      // Lost to the computer → offer a revive first; otherwise the result popup.
+      if (game.outcome === 'LOST' && game.vsComputer) setShowRevive(true);
+      else setShowResult(true);
     }
   }, [game?.status, game?.outcome]);
+
+  async function doRevive() {
+    if (!id || reviving) return;
+    setReviving(true);
+    const res = await gomokuApi.revive(id).catch((e: any) => {
+      if (e?.response?.status === 422) { setShowRevive(false); setBuyPrompt(true); }   // out of gems
+      else Alert.alert(t('game.reviveFailed', 'Could not revive. Please try again.'));
+      return null;
+    });
+    setReviving(false);
+    if (res?.data) {
+      announced.current = false;   // a future loss can prompt again
+      setShowRevive(false);
+      playSfx('move');
+      commitGame(res.data);
+    }
+  }
 
   async function tap(r: number, c: number) {
     if (!id || !game || busy) return;
@@ -236,6 +261,31 @@ export default function GomokuGameScreen() {
         visible={showResult}
         outcome={complete ? (game.outcome ?? 'TIE') : null}
         onClose={() => setShowResult(false)}
+      />
+
+      {/* Lost to the computer → revive to play on */}
+      <PromptCard
+        visible={showRevive && !buyPrompt}
+        emoji="😮‍💨"
+        title={t('game.youLost', 'You lost')}
+        message={t('gomoku.revivePrompt', { cost: REVIVE_COST_GEMS, defaultValue: 'Revive for {{cost}} gems — we’ll undo the winning move so you can block it.' })}
+        acceptLabel={t('game.revive', 'Revive') + `  💎 ${REVIVE_COST_GEMS}`}
+        declineLabel={t('game.acceptDefeat', 'Accept defeat')}
+        busy={reviving}
+        onAccept={doRevive}
+        onDecline={() => { setShowRevive(false); setShowResult(true); }}
+      />
+
+      {/* Out of gems → buy */}
+      <PromptCard
+        visible={buyPrompt}
+        emoji="💎"
+        title={t('game.needGems', 'Not enough gems')}
+        message={t('game.needGemsBody', { cost: REVIVE_COST_GEMS, defaultValue: 'You need {{cost}} gems for this. Buy more?' })}
+        acceptLabel={t('gems.buy', 'Buy gems')}
+        declineLabel={t('common.notNow', 'Not now')}
+        onAccept={() => { setBuyPrompt(false); router.push('/gems/buy' as never); }}
+        onDecline={() => { setBuyPrompt(false); setShowResult(true); }}
       />
     </View>
   );
