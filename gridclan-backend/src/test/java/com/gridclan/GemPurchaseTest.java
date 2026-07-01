@@ -105,7 +105,7 @@ class GemPurchaseTest {
             .reference("GEMS-x").providerReference("int-ref").status("PENDING").build();
 
         when(purchaseRepo.lockByReference("GEMS-x")).thenReturn(Optional.of(p));
-        when(client.checkStatus("int-ref")).thenReturn(new RelworxClient.StatusResult(true, "success"));
+        when(client.checkStatus("int-ref")).thenReturn(new RelworxClient.StatusResult(true, "success", null));
 
         Map<String, Object> out = svc().status(user, "GEMS-x");
 
@@ -164,6 +164,25 @@ class GemPurchaseTest {
 
         svc.handleWebhook(body, headers);                     // duplicate delivery → no-op
         verify(gemService, times(1)).creditGems(any(), anyLong(), anyString(), any());
+    }
+
+    @Test
+    void webhook_failure_recordsReasonAndDoesNotCredit() {
+        GemPurchase purchase = GemPurchase.builder()
+            .id(UUID.randomUUID()).userId(UUID.randomUUID()).packId("popular").gems(150)
+            .currency("UGX").amount(new BigDecimal("7000")).msisdn("+256700000000")
+            .reference("GEMS-f").status("PENDING").build();
+
+        when(client.verifyWebhook(any(), any(), anyMap(), any())).thenReturn(true);
+        when(purchaseRepo.lockByReference("GEMS-f")).thenReturn(Optional.of(purchase));
+
+        String body = "{\"customer_reference\":\"GEMS-f\",\"status\":\"failed\","
+            + "\"message\":\"Insufficient balance\"}";
+        svc().handleWebhook(body, Map.of("Relworx-Signature", "s", "Relworx-Timestamp", "t"));
+
+        assertThat(purchase.getStatus()).isEqualTo("FAILED");
+        assertThat(purchase.getFailureReason()).isEqualTo("Insufficient balance");
+        verify(gemService, never()).creditGems(any(), anyLong(), anyString(), any());
     }
 
     @Test

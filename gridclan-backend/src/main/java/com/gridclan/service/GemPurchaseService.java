@@ -261,12 +261,13 @@ public class GemPurchaseService {
             return;   // already credited — idempotent no-op
         }
 
-        applyOutcome(purchase, isSuccess(payload));
+        applyOutcome(purchase, isSuccess(payload), str(payload.get("message")));
     }
 
-    /** Settle a still-pending purchase: credit gems once on success, else mark failed.
-     *  Shared by the webhook and the status-poll fallback; safe to call repeatedly. */
-    private void applyOutcome(GemPurchase purchase, boolean success) {
+    /** Settle a still-pending purchase: credit gems once on success, else mark failed
+     *  and record the provider's reason. Shared by the webhook + status-poll fallback;
+     *  safe to call repeatedly. */
+    private void applyOutcome(GemPurchase purchase, boolean success, String reason) {
         if ("SUCCESSFUL".equals(purchase.getStatus())) return;   // already credited
         if (success) {
             purchase.setStatus("SUCCESSFUL");
@@ -277,8 +278,11 @@ public class GemPurchaseService {
                 purchase.getUserId(), purchase.getGems(), purchase.getReference());
         } else {
             purchase.setStatus("FAILED");
+            if (reason != null && !reason.isBlank()) {
+                purchase.setFailureReason(reason.length() > 255 ? reason.substring(0, 255) : reason);
+            }
             purchaseRepo.save(purchase);
-            log.info("Gem purchase failed: ref={}", purchase.getReference());
+            log.info("Gem purchase failed: ref={} reason={}", purchase.getReference(), reason);
         }
     }
 
@@ -299,8 +303,8 @@ public class GemPurchaseService {
             var st = client.checkStatus(p.getProviderReference());
             if (st.found() && st.status() != null) {
                 String s = st.status().toLowerCase();
-                if (s.contains("success")) applyOutcome(p, true);
-                else if (s.equals("failed")) applyOutcome(p, false);
+                if (s.contains("success")) applyOutcome(p, true, null);
+                else if (s.equals("failed")) applyOutcome(p, false, st.message());
                 // "pending" / anything else → leave as is, poll again later
             }
         }
@@ -309,6 +313,7 @@ public class GemPurchaseService {
         out.put("reference", p.getReference());
         out.put("status",    p.getStatus());
         out.put("gems",      p.getGems());
+        out.put("reason",    p.getFailureReason());   // provider's reason when FAILED
         return out;
     }
 

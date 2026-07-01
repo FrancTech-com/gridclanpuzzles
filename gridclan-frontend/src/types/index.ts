@@ -134,6 +134,7 @@ export interface PurchaseStatus {
   reference: string;
   status:    'PENDING' | 'SUCCESSFUL' | 'FAILED';
   gems:      number;
+  reason?:   string | null;   // provider's reason when FAILED
 }
 
 export interface SupportedCurrencies {
