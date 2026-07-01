@@ -9,6 +9,7 @@ public class MoveResponse {
     private Map<String, Object> boardState;
     private int score;
     private int moveCount;
+    private int moveLimit;
     private SessionStatus status;
     private String flagReason;
 }

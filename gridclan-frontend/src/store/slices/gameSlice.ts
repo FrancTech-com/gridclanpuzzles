@@ -11,6 +11,7 @@ interface GameState {
   boardState:   BoardState | null;
   score:        number;
   moveCount:    number;
+  moveLimit:    number;     // 0 = no limit
   status:       SessionStatus | null;
   hintsAllowed: boolean;    // From server — never from client
   hintData:     object | null;
@@ -24,6 +25,7 @@ const initialState: GameState = {
   boardState:    null,
   score:         0,
   moveCount:     0,
+  moveLimit:     0,
   status:        null,
   hintsAllowed:  false,
   hintData:      null,
@@ -31,6 +33,14 @@ const initialState: GameState = {
   isMoveLoading: false,
   error:         null,
 };
+
+/** Rejected thunks carry a message + whether the failure was "not enough gems",
+ *  so the UI can pop the buy-gems card instead of a red error. */
+export interface GameReject { message: string; insufficient: boolean }
+const toReject = (e: any, fallback: string): GameReject => ({
+  message:      e?.response?.data?.message ?? fallback,
+  insufficient: e?.response?.data?.error === 'INSUFFICIENT_GEMS',
+});
 
 // ── Thunks ─────────────────────────────────────────────────────────────────
 
@@ -65,7 +75,7 @@ export const requestHintThunk = createAsyncThunk(
       const res = await gameApi.requestHint(sessionId);
       return res.data;
     } catch (e: any) {
-      return rejectWithValue(e.response?.data?.message ?? 'Hint unavailable');
+      return rejectWithValue(toReject(e, 'Hint unavailable'));
     }
   }
 );
@@ -78,7 +88,7 @@ export const reviveThunk = createAsyncThunk(
       const res = await gameApi.revive(sessionId);
       return res.data;
     } catch (e: any) {
-      return rejectWithValue(e.response?.data?.message ?? 'Revive unavailable');
+      return rejectWithValue(toReject(e, 'Revive unavailable'));
     }
   }
 );
@@ -103,6 +113,7 @@ const gameSlice = createSlice({
         state.boardState  = a.payload.initialBoard;
         state.score       = 0;
         state.moveCount   = 0;
+        state.moveLimit   = a.payload.moveLimit ?? 0;
         state.status      = 'ACTIVE';
         // SERVER sets this — never read from client request
         state.hintsAllowed = a.payload.hintsAllowed;
@@ -117,11 +128,12 @@ const gameSlice = createSlice({
         state.boardState = a.payload.boardState;
         state.score      = a.payload.score;
         state.moveCount  = a.payload.moveCount;
+        state.moveLimit  = a.payload.moveLimit ?? state.moveLimit;
         state.status     = a.payload.status;
       })
       // Request hint
       .addCase(requestHintThunk.pending,   state => { state.isLoading = true; state.error = null; })
-      .addCase(requestHintThunk.rejected,  (state, a) => { state.isLoading = false; state.error = a.payload as string; })
+      .addCase(requestHintThunk.rejected,  (state, a) => { state.isLoading = false; state.error = (a.payload as GameReject)?.message ?? 'Hint unavailable'; })
       .addCase(requestHintThunk.fulfilled, (state, a) => {
         state.isLoading  = false;
         state.boardState = a.payload.boardState;
@@ -130,12 +142,13 @@ const gameSlice = createSlice({
       })
       // Revive (gems spent server-side)
       .addCase(reviveThunk.pending,   state => { state.isMoveLoading = true; state.error = null; })
-      .addCase(reviveThunk.rejected,  (state, a) => { state.isMoveLoading = false; state.error = a.payload as string; })
+      .addCase(reviveThunk.rejected,  (state, a) => { state.isMoveLoading = false; state.error = (a.payload as GameReject)?.message ?? 'Revive unavailable'; })
       .addCase(reviveThunk.fulfilled, (state, a) => {
         state.isMoveLoading = false;
         state.boardState = a.payload.boardState;
         state.score      = a.payload.score;
         state.moveCount  = a.payload.moveCount;
+        state.moveLimit  = a.payload.moveLimit ?? state.moveLimit;
         state.status     = a.payload.status;
       });
   },

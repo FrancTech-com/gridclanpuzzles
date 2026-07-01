@@ -18,12 +18,14 @@ public class SessionStartResponse {
     private String status;
     private Difficulty difficulty;   // null for non-ladder sessions
     private int level;               // 0 for non-ladder sessions
+    private int moveLimit;           // 0 = no limit
 
     public static SessionStartResponse from(ActiveSession s) {
         return SessionStartResponse.builder()
             .sessionId(s.getId()).initialBoard(s.getBoardState())
             .hintsAllowed(s.isHintsAllowed()).gameType(s.getGameType())
             .tier(s.getTier()).status(s.getStatus().name())
-            .difficulty(s.getDifficulty()).level(s.getLevel()).build();
+            .difficulty(s.getDifficulty()).level(s.getLevel())
+            .moveLimit(s.getMoveLimit()).build();
     }
 }
