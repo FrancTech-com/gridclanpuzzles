@@ -17,7 +17,6 @@ export default function NewGomokuScreen() {
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
 
   const [creating, setCreating] = useState(false);
-  const [soloLoading, setSoloLoading] = useState(false);
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState('');
 
@@ -30,13 +29,9 @@ export default function NewGomokuScreen() {
     else Alert.alert(t('gomoku.createFailed', 'Could not start a game. Please try again.'));
   }
 
-  async function handleSolo() {
-    if (soloLoading) return;
-    setSoloLoading(true);
-    const res = await gomokuApi.solo().catch(() => null);
-    setSoloLoading(false);
-    if (res?.data?.gameId) router.replace(`/gomoku/${res.data.gameId}`);
-    else Alert.alert(t('gomoku.soloFailed', 'Could not start a solo game. Please try again.'));
+  function handleSolo() {
+    // Pick a difficulty + level first; the level screen starts the game.
+    router.push('/levels/GOMOKU');
   }
 
   async function handleJoin() {
@@ -67,7 +62,7 @@ export default function NewGomokuScreen() {
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>🤖 {t('gomoku.soloTitle', 'Play the computer')}</Text>
           <Text style={styles.cardBody}>{t('gomoku.soloBody', 'Practise solo against the AI. Hints are free, based on your rank: Beginner 5, Amateur 3, Professional 0.')}</Text>
-          <Button title={t('gomoku.soloCta', 'Play vs computer')} onPress={handleSolo} loading={soloLoading} size="lg" variant="secondary" style={styles.btn} />
+          <Button title={t('gomoku.soloCta', 'Play vs computer')} onPress={handleSolo} size="lg" variant="secondary" style={styles.btn} />
         </Card>
 
         <Card style={styles.card}>

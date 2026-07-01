@@ -1,6 +1,7 @@
 package com.gridclan.service;
 
 import com.gridclan.entity.GomokuGame;
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.repository.GomokuGameRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class GomokuGameService {
     private final GemService            gemService;
     private final RankService           rankService;
     private final GomokuAi              ai;
+    private final LevelService          levelService;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -62,9 +64,14 @@ public class GomokuGameService {
     }
 
     /** Start a solo game against the computer — ACTIVE at once; you move first.
-     *  Free hints are granted by rank (Beginner 5 / Amateur 3 / Professional 0). */
+     *  Free hints are granted by rank (Beginner 5 / Amateur 3 / Professional 0).
+     *  A difficulty/level picks the AI strength + points multiplier and is gated by
+     *  the locked ladder; pass null difficulty for a plain (non-ladder) solo game. */
     @Transactional
-    public Map<String, Object> createSolo(UUID userId) {
+    public Map<String, Object> createSolo(UUID userId, Difficulty difficulty, int level) {
+        if (difficulty != null) {
+            levelService.requireUnlocked(userId, "GOMOKU", difficulty, level);
+        }
         GomokuGame g = GomokuGame.builder()
             .inviteCode(uniqueCode())
             .player1Id(userId)
@@ -74,9 +81,12 @@ public class GomokuGameService {
             .board(emptyBoard())
             .vsComputer(true)
             .hintsRemaining(rankService.soloHints(userId))
+            .difficulty(difficulty != null ? difficulty.name() : null)
+            .level(difficulty != null ? level : 0)
             .build();
         repo.save(g);
-        log.info("Gomoku solo game created: creator={} hints={}", userId, g.getHintsRemaining());
+        log.info("Gomoku solo game created: creator={} diff={} level={} hints={}",
+            userId, difficulty, level, g.getHintsRemaining());
         return view(userId, g);
     }
 
@@ -165,14 +175,19 @@ public class GomokuGameService {
         return view(userId, g);
     }
 
-    /** Credit a human winner: native points (with speed bonus) + rank-scaled gems. */
+    /** Credit a human winner: native points (with speed bonus) + rank-scaled gems.
+     *  On a solo ladder game the points are scaled by difficulty×level and the
+     *  level is marked complete (unlocking the next). */
     private void awardWin(GomokuGame g, UUID winnerId, char[][] board) {
         g.setStatus("COMPLETE");
         g.setWinnerId(winnerId);
         int stones = countStones(board);
         int award  = WIN_POINTS + Math.max(0, SPEED_BONUS_MAX - stones);
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        if (d != null) award = (int) Math.round(award * d.pointsMultiplierFor(g.getLevel()));
         pointsService.creditGamePoints(winnerId, "GOMOKU", award, "GAME_WIN", g.getId());
         gemService.creditGems(winnerId, rankService.gemsPerWin(winnerId), "GAME_REWARD", g.getId());
+        if (d != null) levelService.recordCompletion(winnerId, "GOMOKU", d, g.getLevel(), award);
     }
 
     /**
@@ -206,9 +221,12 @@ public class GomokuGameService {
         return view(userId, g);
     }
 
-    /** The computer (player 2) plays its best reply, updating the game in place. */
+    /** The computer (player 2) plays its reply, updating the game in place. On a
+     *  ladder game its strength follows the difficulty/level (easier = more blunders). */
     private void aiRespond(GomokuGame g, char[][] board) {
-        int[] mv = ai.bestMove(board, '2', '1');   // computer is player 2
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        double blunder = d != null ? d.aiBlunderChance(g.getLevel()) : 0.0;
+        int[] mv = ai.bestMove(board, '2', '1', blunder);   // computer is player 2
         int r = mv[0], c = mv[1];
         board[r][c] = '2';
         g.setBoard(serialize(board));

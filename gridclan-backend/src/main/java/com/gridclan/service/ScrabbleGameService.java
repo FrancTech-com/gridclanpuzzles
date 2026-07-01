@@ -1,6 +1,7 @@
 package com.gridclan.service;
 
 import com.gridclan.entity.ScrabbleGame;
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.gridscrabble.*;
 import com.gridclan.repository.ScrabbleGameRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Grid Scrabble — shared-board, turn-based, async 2-player games.
@@ -42,6 +44,7 @@ public class ScrabbleGameService {
     private final GemService             gemService;
     private final RankService            rankService;
     private final ScrabbleAi             ai;
+    private final LevelService           levelService;
 
     // Dictionary loaded once (≈359k words). Lazy so startup isn't blocked.
     private volatile WordList dict;
@@ -74,9 +77,13 @@ public class ScrabbleGameService {
     }
 
     /** Start a solo game vs the computer — both racks drawn, ACTIVE at once, you
-     *  move first. Free hints are granted by rank (Beginner 5 / Amateur 3 / Pro 0). */
+     *  move first. Free hints are granted by rank (Beginner 5 / Amateur 3 / Pro 0).
+     *  Optional difficulty/level set the AI strength + points and gate the ladder. */
     @Transactional
-    public Map<String, Object> createSolo(UUID userId) {
+    public Map<String, Object> createSolo(UUID userId, Difficulty difficulty, int level) {
+        if (difficulty != null) {
+            levelService.requireUnlocked(userId, "SCRABBLE", difficulty, level);
+        }
         TileBag bag = new TileBag(RANDOM.nextLong());
         String rack1 = chars(bag.draw(TileBag.RACK_SIZE));
         String rack2 = chars(bag.draw(TileBag.RACK_SIZE));
@@ -92,9 +99,12 @@ public class ScrabbleGameService {
             .bag(bagStr).rack1(rack1).rack2(rack2)
             .vsComputer(true)
             .hintsRemaining(rankService.soloHints(userId))
+            .difficulty(difficulty != null ? difficulty.name() : null)
+            .level(difficulty != null ? level : 0)
             .build();
         repo.save(g);
-        log.info("Scrabble solo game created: creator={} hints={}", userId, g.getHintsRemaining());
+        log.info("Scrabble solo game created: creator={} diff={} level={} hints={}",
+            userId, difficulty, level, g.getHintsRemaining());
         return view(userId, g);
     }
 
@@ -196,8 +206,19 @@ public class ScrabbleGameService {
         return view(userId, g);
     }
 
-    /** The computer (player 2) takes its turn: play its best word, else pass. */
+    /** The computer (player 2) takes its turn: play its best word, else pass. On a
+     *  ladder game it sometimes passes on purpose (easier levels = more often), so
+     *  the human can out-score it. */
     private void aiPlay(ScrabbleGame g) {
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        double blunder = d != null ? d.aiBlunderChance(g.getLevel()) : 0.0;
+        if (blunder > 0 && ThreadLocalRandom.current().nextDouble() < blunder) {
+            g.setPassStreak((short) (g.getPassStreak() + 1));
+            if (g.getPassStreak() >= 4) finish(g);
+            else g.setCurrentPlayer((short) 1);
+            return;
+        }
+
         ScrabbleBoard board = parseBoard(g.getBoard());
         List<Placement> best = ai.bestMove(board, g.getRack2(), dict());
 
@@ -413,13 +434,21 @@ public class ScrabbleGameService {
 
         // Native scoring: each player banks the word points they earned this game
         // (creditGamePoints no-ops on a 0 score). Feeds the SCRABBLE leaderboard.
-        pointsService.creditGamePoints(g.getPlayer1Id(), "SCRABBLE", g.getScore1(), "GAME_WIN", g.getId());
+        // On a solo ladder game the human's (player1) award is scaled by difficulty×level.
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        int p1Award = g.getScore1();
+        if (d != null) p1Award = (int) Math.round(p1Award * d.pointsMultiplierFor(g.getLevel()));
+        pointsService.creditGamePoints(g.getPlayer1Id(), "SCRABBLE", p1Award, "GAME_WIN", g.getId());
         if (g.getPlayer2Id() != null && !g.getPlayer2Id().equals(COMPUTER_ID))
             pointsService.creditGamePoints(g.getPlayer2Id(), "SCRABBLE", g.getScore2(), "GAME_WIN", g.getId());
 
         // Rank-scaled gems to a human winner (not the computer, not a tie).
         if (g.getWinnerId() != null && !g.getWinnerId().equals(COMPUTER_ID))
             gemService.creditGems(g.getWinnerId(), rankService.gemsPerWin(g.getWinnerId()), "GAME_REWARD", g.getId());
+
+        // Ladder: the human clearing the level (beating the computer) unlocks the next.
+        if (d != null && g.getPlayer1Id().equals(g.getWinnerId()))
+            levelService.recordCompletion(g.getPlayer1Id(), "SCRABBLE", d, g.getLevel(), p1Award);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 package com.gridclan.service;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.entity.enums.GameType;
 import com.gridclan.gridscrabble.WordList;
 import lombok.Getter;
@@ -54,6 +55,21 @@ public class GameBoardGenerator {
     public Map<String, Object> generate(GameType type) {
         return switch (type) {
             case WORD_SEARCH -> WordSearch.generate(rng, wordSearchPool());
+        };
+    }
+
+    /**
+     * Difficulty/level-aware board generation for solo ladder play. The grid size,
+     * word count, and which directions words may be hidden in are all derived from
+     * {@code difficulty} + {@code level} (see {@link Difficulty}).
+     */
+    public Map<String, Object> generate(GameType type, Difficulty difficulty, int level) {
+        if (difficulty == null) return generate(type);
+        return switch (type) {
+            case WORD_SEARCH -> WordSearch.generate(
+                rng, wordSearchPool(),
+                difficulty.gridSizeFor(level), difficulty.wordCountFor(level),
+                difficulty.allowDiagonal(), difficulty.allowReverse());
         };
     }
 

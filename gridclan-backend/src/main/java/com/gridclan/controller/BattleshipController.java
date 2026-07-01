@@ -1,5 +1,6 @@
 package com.gridclan.controller;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.service.BattleshipGameService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -33,11 +34,16 @@ public class BattleshipController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
     }
 
-    /** POST /battleship/solo — start a game against the computer (you fire first). */
+    /** POST /battleship/solo — start a game against the computer (you fire first).
+     *  Optional difficulty + level pick the AI strength / points and gate the ladder. */
     @PostMapping("/solo")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<Map<String, Object>> solo(Authentication auth) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.createSolo(userId(auth)));
+    public ResponseEntity<Map<String, Object>> solo(
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(defaultValue = "1") int level,
+            Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(service.createSolo(userId(auth), difficulty, level));
     }
 
     /** POST /battleship/{id}/hint — solo only; reveals an enemy ship cell (rank-limited). */
