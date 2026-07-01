@@ -61,6 +61,14 @@ public class ActiveSession {
     private int level = 0;
 
     /**
+     * Max moves allowed before the puzzle is failed ("out of moves"). 0 = no limit
+     * (non-ladder / legacy sessions). Revive raises this to grant more moves.
+     */
+    @Column(name = "move_limit", nullable = false)
+    @Builder.Default
+    private int moveLimit = 0;
+
+    /**
      * JSONB column — authoritative board state.
      * Client receives this as a display payload; never computes it locally.
      */

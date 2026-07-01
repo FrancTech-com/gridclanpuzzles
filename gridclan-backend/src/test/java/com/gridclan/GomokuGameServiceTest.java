@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -56,6 +56,30 @@ class GomokuGameServiceTest {
         assertThat(view.get("status")).isEqualTo("COMPLETE");
         assertThat(view.get("outcome")).isEqualTo("WON");
         assertThat(g.getWinnerId()).isEqualTo(U1);
+    }
+
+    @Test @DisplayName("Revive undoes a solo loss and hands the turn back")
+    void revive_breaksComputerWinAndResumes() {
+        // A finished solo game the computer won with five '2' across row 0.
+        char[][] b = new char[15][15];
+        for (char[] row : b) Arrays.fill(row, '.');
+        for (int c = 0; c < 5; c++) b[0][c] = '2';
+        StringBuilder sb = new StringBuilder();
+        for (int r = 0; r < 15; r++) { if (r > 0) sb.append('\n'); sb.append(b[r]); }
+        GomokuGame g = GomokuGame.builder()
+            .id(GID).inviteCode("ABC123").player1Id(U1).player2Id(GomokuGameService.COMPUTER_ID)
+            .status("COMPLETE").winnerId(GomokuGameService.COMPUTER_ID).vsComputer(true)
+            .currentPlayer((short) 1).board(sb.toString()).build();
+        when(repo.findById(GID)).thenReturn(Optional.of(g));
+        when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var view = service.revive(U1, GID);
+
+        assertThat(view.get("status")).isEqualTo("ACTIVE");
+        assertThat(g.getWinnerId()).isNull();
+        // The winning line is broken — no 5 consecutive '2' remain in row 0.
+        assertThat(g.getBoard().split("\n", -1)[0]).doesNotContain("22222");
+        verify(gemService).spendGems(eq(U1), anyLong(), eq("REVIVE"), eq(GID));
     }
 
     @Test @DisplayName("Playing out of turn is rejected")

@@ -12,11 +12,13 @@ import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
+import { PromptCard } from '@components/PromptCard';
 import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 const SIZE = 10;
+const REVIVE_COST_GEMS = 20;
 
 // Diff a board against its previous snapshot → set of "r,c" squares that changed.
 function diffBoard(prev: string[] | null, next: string[]): Set<string> {
@@ -47,15 +49,37 @@ export default function BattleshipGameScreen() {
   // Big win/lose popup — shown once when the game finishes.
   const [showResult, setShowResult] = useState(false);
   const announced = useRef(false);
+  // Solo loss → offer to revive; out of gems → offer to buy.
+  const [showRevive, setShowRevive] = useState(false);
+  const [reviving, setReviving] = useState(false);
+  const [buyPrompt, setBuyPrompt] = useState(false);
   // Solo hint: the enemy ship cell the AI reveals, highlighted until you fire.
   const [hintCell, setHintCell] = useState<string | null>(null);
   const [hinting, setHinting] = useState(false);
   useEffect(() => {
     if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
       announced.current = true;
-      setShowResult(true);
+      if (game.outcome === 'LOST' && game.vsComputer) setShowRevive(true);
+      else setShowResult(true);
     }
   }, [game?.status, game?.outcome]);
+
+  async function doRevive() {
+    if (!id || reviving) return;
+    setReviving(true);
+    const res = await battleshipApi.revive(id).catch((e: any) => {
+      if (e?.response?.status === 422) { setShowRevive(false); setBuyPrompt(true); }   // out of gems
+      else Alert.alert(t('game.reviveFailed', 'Could not revive. Please try again.'));
+      return null;
+    });
+    setReviving(false);
+    if (res?.data) {
+      announced.current = false;
+      setShowRevive(false);
+      playSfx('move');
+      commitGame(res.data);
+    }
+  }
   const prevTrackingRef = useRef<string[] | null>(null);
   const prevOwnRef = useRef<string[] | null>(null);
 
@@ -273,6 +297,31 @@ export default function BattleshipGameScreen() {
         visible={showResult}
         outcome={complete ? (game.outcome ?? 'TIE') : null}
         onClose={() => setShowResult(false)}
+      />
+
+      {/* Fleet sunk → revive to keep firing */}
+      <PromptCard
+        visible={showRevive && !buyPrompt}
+        emoji="🌊"
+        title={t('game.youLost', 'You lost')}
+        message={t('battleship.revivePrompt', { cost: REVIVE_COST_GEMS, defaultValue: 'Revive for {{cost}} gems — get part of your fleet back and keep firing.' })}
+        acceptLabel={t('game.revive', 'Revive') + `  💎 ${REVIVE_COST_GEMS}`}
+        declineLabel={t('game.acceptDefeat', 'Accept defeat')}
+        busy={reviving}
+        onAccept={doRevive}
+        onDecline={() => { setShowRevive(false); setShowResult(true); }}
+      />
+
+      {/* Out of gems → buy */}
+      <PromptCard
+        visible={buyPrompt}
+        emoji="💎"
+        title={t('game.needGems', 'Not enough gems')}
+        message={t('game.needGemsBody', { cost: REVIVE_COST_GEMS, defaultValue: 'You need {{cost}} gems for this. Buy more?' })}
+        acceptLabel={t('gems.buy', 'Buy gems')}
+        declineLabel={t('common.notNow', 'Not now')}
+        onAccept={() => { setBuyPrompt(false); router.push('/gems/buy' as never); }}
+        onDecline={() => { setBuyPrompt(false); setShowResult(true); }}
       />
     </View>
   );

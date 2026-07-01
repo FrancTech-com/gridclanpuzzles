@@ -7,15 +7,16 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
-import { submitMoveThunk, requestHintThunk, reviveThunk, clearGame } from '@store/slices/gameSlice';
+import { submitMoveThunk, requestHintThunk, reviveThunk, clearGame, clearError, type GameReject } from '@store/slices/gameSlice';
 import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { fetchGemBalanceThunk } from '@store/slices/gemsSlice';
 
 const HINT_COST_GEMS = 10;
 const REVIVE_COST_GEMS = 20;
-import { Button, LoadingSpinner } from '@components/ui/index';
+import { LoadingSpinner } from '@components/ui/index';
 import { WordSearchBoard } from '@components/game/WordSearchBoard';
 import { GameResultOverlay, type SoloTier } from '@components/GameResultOverlay';
+import { PromptCard } from '@components/PromptCard';
 import { Font, Spacing, GameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { WordSearchMove } from '@gridtypes/index';
@@ -27,11 +28,16 @@ export default function GameScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const dispatch      = useDispatch<AppDispatch>();
 
-  const { session, boardState, score, moveCount, status, hintsAllowed, hintData, isMoveLoading, error } =
+  const { session, boardState, score, moveCount, moveLimit, status, hintsAllowed, hintData, isMoveLoading, error } =
     useSelector((s: RootState) => s.game);
 
   const lastMoveTime = useRef(Date.now());
   const [showResult, setShowResult] = useState(false);
+  // When set, a card offers to buy gems (out of gems for a hint or revive).
+  const [buyPromptCost, setBuyPromptCost] = useState<number | null>(null);
+
+  const movesLeft = moveLimit > 0 ? Math.max(0, moveLimit - moveCount) : null;
+  const outOfMoves = status === 'OUT_OF_MOVES';
 
   // Game completed — show the graded result popup (with points earned).
   useEffect(() => {
@@ -59,31 +65,27 @@ export default function GameScreen() {
     lastMoveTime.current = Date.now();
   }, [sessionId, isMoveLoading]);
 
-  const handleHint = useCallback(() => {
-    if (!sessionId || !hintsAllowed) return;
-    dispatch(requestHintThunk(sessionId));
+  const handleHint = useCallback(async () => {
+    if (!sessionId || !hintsAllowed || isMoveLoading) return;
+    const res = await dispatch(requestHintThunk(sessionId));
     dispatch(fetchGemBalanceThunk());   // reconcile after gems are spent
-  }, [sessionId, hintsAllowed]);
+    if (requestHintThunk.rejected.match(res) && (res.payload as GameReject)?.insufficient) {
+      dispatch(clearError());
+      setBuyPromptCost(HINT_COST_GEMS);   // out of gems → offer to buy
+    }
+  }, [sessionId, hintsAllowed, isMoveLoading]);
 
   // Revive is offered only outside tournaments (competitive integrity).
   const canRevive = session?.tier !== 'COMMUNITY_TOURNAMENT';
 
-  const handleRevive = useCallback(() => {
+  const doRevive = useCallback(async () => {
     if (!sessionId) return;
-    Alert.alert(
-      t('game.outOfMoves'),
-      t('game.revivePrompt', { cost: REVIVE_COST_GEMS }),
-      [
-        { text: t('common.no'), style: 'cancel' },
-        {
-          text: t('game.revive'),
-          onPress: () => {
-            dispatch(reviveThunk(sessionId));
-            dispatch(fetchGemBalanceThunk());
-          },
-        },
-      ]
-    );
+    const res = await dispatch(reviveThunk(sessionId));
+    dispatch(fetchGemBalanceThunk());
+    if (reviveThunk.rejected.match(res) && (res.payload as GameReject)?.insufficient) {
+      dispatch(clearError());
+      setBuyPromptCost(REVIVE_COST_GEMS);   // out of gems → offer to buy
+    }
   }, [sessionId]);
 
   const handleQuit = () => {
@@ -116,9 +118,14 @@ export default function GameScreen() {
         </View>
       </View>
 
-      {/* Move counter */}
+      {/* Move counter (+ moves left when there's a budget) */}
       <View style={styles.statsBar}>
         <Text style={styles.statText}>{t('game.moves', { count: moveCount })}</Text>
+        {movesLeft !== null && (
+          <Text style={[styles.statText, movesLeft <= 3 && styles.statLow]}>
+            {t('game.movesLeft', { count: movesLeft, defaultValue: '{{count}} moves left' })}
+          </Text>
+        )}
         {isMoveLoading && <Text style={styles.syncText}>⟳ {t('game.syncing')}</Text>}
       </View>
 
@@ -142,7 +149,7 @@ export default function GameScreen() {
           <WordSearchBoard
             board={boardState as any}
             onMove={handleMove}
-            disabled={isMoveLoading}
+            disabled={isMoveLoading || status !== 'ACTIVE'}
             hint={hintData && (hintData as any).type === 'WORD_LOCATION' ? (hintData as any) : null}
           />
         )}
@@ -152,14 +159,8 @@ export default function GameScreen() {
       <View style={styles.footerRow}>
         {/* Hint button — visible only when server says hintsAllowed */}
         {hintsAllowed && (
-          <TouchableOpacity style={styles.hintBtn} onPress={handleHint} disabled={isMoveLoading}>
+          <TouchableOpacity style={styles.hintBtn} onPress={handleHint} disabled={isMoveLoading || status !== 'ACTIVE'}>
             <Text style={styles.hintBtnText}>💡 {t('game.hint')}  <Text style={styles.hintCost}>−{HINT_COST_GEMS} {t('common.gems')}</Text></Text>
-          </TouchableOpacity>
-        )}
-        {/* Revive — spend gems to continue (non-tournament only) */}
-        {canRevive && (
-          <TouchableOpacity style={styles.hintBtn} onPress={handleRevive} disabled={isMoveLoading}>
-            <Text style={styles.hintBtnText}>💎 {t('game.revive')}  <Text style={styles.hintCost}>−{REVIVE_COST_GEMS} {t('common.gems')}</Text></Text>
           </TouchableOpacity>
         )}
       </View>
@@ -168,6 +169,31 @@ export default function GameScreen() {
         visible={showResult}
         solo={{ tier, score, moves: moveCount }}
         onClose={() => { setShowResult(false); dispatch(clearGame()); router.back(); }}
+      />
+
+      {/* Out of moves → revive prompt (non-tournament only) */}
+      <PromptCard
+        visible={outOfMoves && canRevive && buyPromptCost === null}
+        emoji="⏳"
+        title={t('game.outOfMoves', 'Out of moves!')}
+        message={t('game.revivePrompt', { cost: REVIVE_COST_GEMS, defaultValue: 'Revive for {{cost}} gems to keep solving?' })}
+        acceptLabel={t('game.revive', 'Revive') + `  💎 ${REVIVE_COST_GEMS}`}
+        declineLabel={t('game.giveUp', 'Give up')}
+        busy={isMoveLoading}
+        onAccept={doRevive}
+        onDecline={() => { dispatch(clearGame()); router.back(); }}
+      />
+
+      {/* Out of gems → buy prompt */}
+      <PromptCard
+        visible={buyPromptCost !== null}
+        emoji="💎"
+        title={t('game.needGems', 'Not enough gems')}
+        message={t('game.needGemsBody', { cost: buyPromptCost ?? 0, defaultValue: 'You need {{cost}} gems for this. Buy more?' })}
+        acceptLabel={t('gems.buy', 'Buy gems')}
+        declineLabel={t('common.notNow', 'Not now')}
+        onAccept={() => { setBuyPromptCost(null); router.push('/gems/buy' as never); }}
+        onDecline={() => setBuyPromptCost(null)}
       />
     </SafeAreaView>
   );
@@ -194,6 +220,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
 
   statsBar:  { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
   statText:  { color: Colors.textMuted, fontSize: Font.size.sm },
+  statLow:   { color: Colors.error, fontWeight: Font.weight.bold },
   syncText:  { color: Colors.primary,   fontSize: Font.size.sm },
 
   errorBar: { backgroundColor: Colors.error + '20', padding: Spacing.sm, marginHorizontal: Spacing.md, borderRadius: 8 },

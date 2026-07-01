@@ -283,6 +283,7 @@ export const gomokuApi = {
   move:   (id: string, row: number, col: number) =>
             apiClient.post<GomokuView>(`/gomoku/${id}/move`, { row, col }),
   hint:   (id: string)   => apiClient.post<HintCell>(`/gomoku/${id}/hint`),
+  revive: (id: string)   => apiClient.post<GomokuView>(`/gomoku/${id}/revive`),
   forfeit: (id: string)  => apiClient.post<GomokuView>(`/gomoku/${id}/forfeit`),
 };
 
@@ -310,6 +311,7 @@ export const battleshipApi = {
   move:   (id: string, row: number, col: number) =>
             apiClient.post<BattleshipView>(`/battleship/${id}/move`, { row, col }),
   hint:   (id: string)   => apiClient.post<HintCell>(`/battleship/${id}/hint`),
+  revive: (id: string)   => apiClient.post<BattleshipView>(`/battleship/${id}/revive`),
   forfeit: (id: string)  => apiClient.post<BattleshipView>(`/battleship/${id}/forfeit`),
 };
 
