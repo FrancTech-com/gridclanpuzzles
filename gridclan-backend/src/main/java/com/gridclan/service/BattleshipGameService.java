@@ -1,6 +1,7 @@
 package com.gridclan.service;
 
 import com.gridclan.entity.BattleshipGame;
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.repository.BattleshipGameRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class BattleshipGameService {
     private final GemService            gemService;
     private final RankService           rankService;
     private final BattleshipAi          ai;
+    private final LevelService          levelService;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -63,9 +65,13 @@ public class BattleshipGameService {
     }
 
     /** Start a solo game vs the computer — both fleets placed, ACTIVE at once, you
-     *  fire first. Free hints are granted by rank (Beginner 5 / Amateur 3 / Pro 0). */
+     *  fire first. Free hints are granted by rank (Beginner 5 / Amateur 3 / Pro 0).
+     *  Optional difficulty/level set the AI strength + points and gate the ladder. */
     @Transactional
-    public Map<String, Object> createSolo(UUID userId) {
+    public Map<String, Object> createSolo(UUID userId, Difficulty difficulty, int level) {
+        if (difficulty != null) {
+            levelService.requireUnlocked(userId, "BATTLESHIP", difficulty, level);
+        }
         BattleshipGame g = BattleshipGame.builder()
             .inviteCode(uniqueCode())
             .player1Id(userId)
@@ -76,9 +82,12 @@ public class BattleshipGameService {
             .board2(serialize(placeFleet()))
             .vsComputer(true)
             .hintsRemaining(rankService.soloHints(userId))
+            .difficulty(difficulty != null ? difficulty.name() : null)
+            .level(difficulty != null ? level : 0)
             .build();
         repo.save(g);
-        log.info("Battleship solo game created: creator={} hints={}", userId, g.getHintsRemaining());
+        log.info("Battleship solo game created: creator={} diff={} level={} hints={}",
+            userId, difficulty, level, g.getHintsRemaining());
         return view(userId, g, null);
     }
 
@@ -183,8 +192,11 @@ public class BattleshipGameService {
         g.setWinnerId(winnerId);
         int afloat = countAfloat(parse(me == 1 ? g.getBoard1() : g.getBoard2()));
         int award  = WIN_POINTS + afloat * AFLOAT_CELL_BONUS;
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        if (d != null) award = (int) Math.round(award * d.pointsMultiplierFor(g.getLevel()));
         pointsService.creditGamePoints(winnerId, "BATTLESHIP", award, "GAME_WIN", g.getId());
         gemService.creditGems(winnerId, rankService.gemsPerWin(winnerId), "GAME_REWARD", g.getId());
+        if (d != null) levelService.recordCompletion(winnerId, "BATTLESHIP", d, g.getLevel(), award);
     }
 
     /**
@@ -217,10 +229,13 @@ public class BattleshipGameService {
         return view(userId, g, null);
     }
 
-    /** The computer (player 2) fires one shot at the human's board (board1). */
+    /** The computer (player 2) fires one shot at the human's board (board1). On a
+     *  ladder game its accuracy follows the difficulty/level (easier = more random). */
     private void aiFire(BattleshipGame g) {
         char[][] board = parse(g.getBoard1());
-        int[] t = ai.nextTarget(board);
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        double blunder = d != null ? d.aiBlunderChance(g.getLevel()) : 0.0;
+        int[] t = ai.nextTarget(board, blunder);
         int r = t[0], c = t[1];
         board[r][c] = board[r][c] == 'S' ? 'X' : 'O';
         g.setBoard1(serialize(board));
