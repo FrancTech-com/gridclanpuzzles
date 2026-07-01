@@ -23,6 +23,10 @@ class BattleshipGameServiceTest {
     @Mock BattleshipGameRepository repo;
     @Mock SimpMessagingTemplate messaging;
     @Mock PlayerPointsService pointsService;
+    @Mock com.gridclan.service.GemService gemService;
+    @Mock com.gridclan.service.RankService rankService;
+    @Mock com.gridclan.service.BattleshipAi ai;
+    @Mock com.gridclan.service.LevelService levelService;
     @InjectMocks BattleshipGameService service;
 
     private static final UUID U1 = UUID.randomUUID();

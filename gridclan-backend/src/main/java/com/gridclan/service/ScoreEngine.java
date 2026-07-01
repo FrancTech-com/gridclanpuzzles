@@ -1,5 +1,6 @@
 package com.gridclan.service;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.entity.enums.GameType;
 import org.springframework.stereotype.Component;
 
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Component;
  * Scoring model:
  *   Base score per game type, minus a penalty for each extra move used.
  *   Bonus awarded on solve within the "par" move count.
+ *   For ladder (solo difficulty) sessions the result is then multiplied by the
+ *   difficulty+level multiplier, so Hard/late levels pay far more than Easy/early
+ *   ones. Non-ladder sessions (difficulty == null) use a ×1 multiplier.
  */
 @Component
 public class ScoreEngine {
@@ -34,6 +38,15 @@ public class ScoreEngine {
      * @param solved    whether the puzzle is solved after this move
      */
     public int calculate(GameType type, int moveCount, boolean solved) {
+        return calculate(type, moveCount, solved, null, 0);
+    }
+
+    /**
+     * As {@link #calculate(GameType, int, boolean)}, but scaled for a difficulty
+     * ladder session. {@code difficulty == null} means a non-ladder session (×1).
+     */
+    public int calculate(GameType type, int moveCount, boolean solved,
+                         Difficulty difficulty, int level) {
         int base = switch (type) {
             case WORD_SEARCH -> WORD_SEARCH_BASE;
         };
@@ -43,6 +56,11 @@ public class ScoreEngine {
 
         int score = base - (Math.max(0, moveCount - 1) * MOVE_PENALTY);
         if (solved && moveCount <= par) score += SPEED_BONUS;
-        return Math.max(0, score);
+        score = Math.max(0, score);
+
+        if (difficulty != null) {
+            score = (int) Math.round(score * difficulty.pointsMultiplierFor(level));
+        }
+        return score;
     }
 }
