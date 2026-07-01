@@ -2,6 +2,10 @@ package com.gridclan.service;
 
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
 /**
  * Heuristic Gomoku (five-in-a-row) opponent. No search tree — it scores every
  * candidate square by the line patterns it would create for itself (offense)
@@ -16,6 +20,35 @@ public class GomokuAi {
 
     private static final int SIZE = 15;
     private static final int[][] AXES = { {0, 1}, {1, 0}, {1, 1}, {1, -1} };
+    private final Random rng = new Random();
+
+    /**
+     * Difficulty-aware move: with probability {@code blunderChance} the computer
+     * plays a deliberately weak (random) move instead of its best one, so easier
+     * ladders are beatable. 0 = full strength (used for hints).
+     */
+    public int[] bestMove(char[][] b, char stone, char opp, double blunderChance) {
+        if (blunderChance > 0 && rng.nextDouble() < blunderChance) {
+            int[] weak = randomMove(b);
+            if (weak != null) return weak;
+        }
+        return bestMove(b, stone, opp);
+    }
+
+    /** A random empty square — preferring one beside an existing stone, else any. */
+    private int[] randomMove(char[][] b) {
+        List<int[]> near = new ArrayList<>();
+        List<int[]> any  = new ArrayList<>();
+        for (int r = 0; r < SIZE; r++) {
+            for (int c = 0; c < SIZE; c++) {
+                if (b[r][c] != '.') continue;
+                any.add(new int[]{ r, c });
+                if (hasNeighbor(b, r, c)) near.add(new int[]{ r, c });
+            }
+        }
+        List<int[]> pool = !near.isEmpty() ? near : any;
+        return pool.isEmpty() ? null : pool.get(rng.nextInt(pool.size()));
+    }
 
     /**
      * Best square for `stone` to play, also weighing the value of blocking `opp`.

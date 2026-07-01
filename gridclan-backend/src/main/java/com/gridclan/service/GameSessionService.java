@@ -3,6 +3,7 @@ package com.gridclan.service;
 import com.gridclan.anticheat.AntiCheatEngine;
 import com.gridclan.dto.*;
 import com.gridclan.entity.ActiveSession;
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.entity.enums.GameTier;
 import com.gridclan.entity.enums.GameType;
 import com.gridclan.entity.enums.SessionStatus;
@@ -48,6 +49,7 @@ public class GameSessionService {
     private final ScoreEngine             scoreEngine;
     private final HintEngine              hintEngine;
     private final LeaderboardService      leaderboard;
+    private final LevelService            levelService;
 
     @Value("${gridclan.gems.hint-cost:10}")
     private long hintCostGems;
@@ -68,13 +70,30 @@ public class GameSessionService {
             tournamentService.validateEntry(userId, req.getTournamentId());
         }
 
+        // Difficulty ladder applies to SOLO play only. When chosen, the server
+        // enforces the locked ladder, sizes the board, and tags the session so
+        // scoring + completion are scaled. Client cannot override any of this.
+        Difficulty difficulty = null;
+        int level = 0;
+        if (req.getTier() == GameTier.SOLO && req.getDifficulty() != null) {
+            difficulty = req.getDifficulty();
+            level = req.getLevel() != null ? req.getLevel() : 1;
+            levelService.requireUnlocked(userId, req.getGameType(), difficulty, level);
+        }
+
+        Map<String, Object> board = difficulty != null
+            ? boardGenerator.generate(req.getGameType(), difficulty, level)
+            : boardGenerator.generate(req.getGameType());
+
         ActiveSession session = ActiveSession.builder()
             .id(UUID.randomUUID())
             .userId(userId)
             .gameType(req.getGameType())
             .tier(req.getTier())
             .tournamentId(req.getTournamentId())
-            .boardState(boardGenerator.generate(req.getGameType()))
+            .difficulty(difficulty)
+            .level(level)
+            .boardState(board)
             .status(SessionStatus.ACTIVE)
             // ← SERVER HARDCODES THIS — client payload cannot override
             .hintsAllowed(!isTournament)
@@ -83,8 +102,8 @@ public class GameSessionService {
             .build();
 
         sessionRepo.save(session);
-        log.info("Session started: userId={} type={} tier={} hints={}",
-            userId, req.getGameType(), req.getTier(), session.isHintsAllowed());
+        log.info("Session started: userId={} type={} tier={} diff={} level={} hints={}",
+            userId, req.getGameType(), req.getTier(), difficulty, level, session.isHintsAllowed());
 
         return SessionStartResponse.from(session);
     }
@@ -145,7 +164,8 @@ public class GameSessionService {
         var newBoard = boardGenerator.applyMove(
             session.getGameType(), session.getBoardState(), req.getMove());
         int newScore = scoreEngine.calculate(
-            session.getGameType(), session.getMoveCount(), newBoard.isSolved());
+            session.getGameType(), session.getMoveCount(), newBoard.isSolved(),
+            session.getDifficulty(), session.getLevel());
 
         session.setBoardState(newBoard.getState());
         session.setServerScore(newScore);
@@ -162,6 +182,11 @@ public class GameSessionService {
             // (Beginner 5 / Amateur 10 / Professional 15).
             gemService.creditGems(userId, rankService.gemsPerWin(userId),
                 "GAME_REWARD", session.getId());
+            // Ladder progress → record best score + unlock the next level.
+            if (session.getDifficulty() != null) {
+                levelService.recordCompletion(userId, session.getGameType(),
+                    session.getDifficulty(), session.getLevel(), newScore);
+            }
             if (session.getTournamentId() != null) {
                 leaderboard.submitScore(session.getTournamentId(), userId,
                     userId.toString(), newScore);

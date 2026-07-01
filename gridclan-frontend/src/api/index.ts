@@ -5,7 +5,9 @@ import type {
   HintResponse,
   PointsBalance, LedgerEntry,
   GemBalance, GemTransaction, GiftGemsRequest,
-  GameType,
+  GameType, LadderProgress, Difficulty,
+  GemQuote, PurchaseInit, PurchaseStatus,
+  SupportedCurrencies, CardQuote, CardPurchaseInit,
   UserProfile,
   Community, CommunityMemberInfo, ChatMessage,
   Tournament, TournamentGame, TournamentMe, LeaderboardEntry, PlayerRank,
@@ -30,6 +32,44 @@ export const gameApi = {
   /** Spend gems to replay a game with the same friend. */
   replay: (friendId: string, gameType: GameType) =>
     apiClient.post<SessionStartResponse>('/game/session/replay', { friendId, gameType }),
+};
+
+// ── Difficulty ladders (solo) ────────────────────────────────────────────────
+
+/** Build the ?difficulty=&level= query for a solo start (empty when not a ladder game). */
+function soloQuery(difficulty?: Difficulty, level?: number): string {
+  if (!difficulty) return '';
+  return `?difficulty=${difficulty}&level=${level ?? 1}`;
+}
+
+export const levelsApi = {
+  /** Ladder progress (per difficulty) for the level-select screen. Accepts any of
+   *  the four ladder games (WORD_SEARCH / GOMOKU / BATTLESHIP / SCRABBLE). */
+  getProgress: (gameType: string) =>
+    apiClient.get<LadderProgress[]>(`/levels/${gameType}`),
+};
+
+// ── Gem purchases (Relworx mobile money) ─────────────────────────────────────
+export const paymentsApi = {
+  /** Packs priced in the currency of the given mobile-money number. */
+  quote:    (msisdn: string) =>
+              apiClient.get<GemQuote>(`/payments/gems/quote?msisdn=${encodeURIComponent(msisdn)}`),
+  /** Start a purchase; the player then approves the mobile-money prompt. */
+  initiate: (packId: string, msisdn: string) =>
+              apiClient.post<PurchaseInit>('/payments/gems/initiate', { packId, msisdn }),
+  /** Poll a purchase's state (the webhook is the source of truth). */
+  status:   (reference: string) =>
+              apiClient.get<PurchaseStatus>(`/payments/gems/status?reference=${encodeURIComponent(reference)}`),
+
+  // ── Card (Visa/Mastercard) ──
+  /** Currencies offered for card payment. */
+  currencies:   () => apiClient.get<SupportedCurrencies>('/payments/gems/currencies'),
+  /** Packs priced in a chosen currency (card flow). */
+  cardQuote:    (currency: string) =>
+                  apiClient.get<CardQuote>(`/payments/gems/card-quote?currency=${encodeURIComponent(currency)}`),
+  /** Open a hosted card-payment session; returns a paymentUrl to send the player to. */
+  initiateCard: (packId: string, currency: string) =>
+                  apiClient.post<CardPurchaseInit>('/payments/gems/initiate-card', { packId, currency }),
 };
 
 // ── Points (pure score / leaderboard metric — no value, no conversion) ───────
@@ -205,7 +245,8 @@ export interface ScrabbleHint {
 
 export const scrabbleApi = {
   create: () => apiClient.post<ScrabbleView>('/scrabble'),
-  solo:   () => apiClient.post<ScrabbleView>('/scrabble/solo'),
+  solo:   (difficulty?: Difficulty, level?: number) =>
+            apiClient.post<ScrabbleView>(`/scrabble/solo${soloQuery(difficulty, level)}`),
   join:   (code: string) => apiClient.post<ScrabbleView>(`/scrabble/${code}/join`),
   get:    (id: string)   => apiClient.get<ScrabbleView>(`/scrabble/${id}`),
   move:   (id: string, placements: ScrabblePlacement[]) =>
@@ -235,7 +276,8 @@ export interface HintCell { row: number; col: number; hintsRemaining: number }
 
 export const gomokuApi = {
   create: () => apiClient.post<GomokuView>('/gomoku'),
-  solo:   () => apiClient.post<GomokuView>('/gomoku/solo'),
+  solo:   (difficulty?: Difficulty, level?: number) =>
+            apiClient.post<GomokuView>(`/gomoku/solo${soloQuery(difficulty, level)}`),
   join:   (code: string) => apiClient.post<GomokuView>(`/gomoku/${code}/join`),
   get:    (id: string)   => apiClient.get<GomokuView>(`/gomoku/${id}`),
   move:   (id: string, row: number, col: number) =>
@@ -261,7 +303,8 @@ export interface BattleshipView {
 
 export const battleshipApi = {
   create: () => apiClient.post<BattleshipView>('/battleship'),
-  solo:   () => apiClient.post<BattleshipView>('/battleship/solo'),
+  solo:   (difficulty?: Difficulty, level?: number) =>
+            apiClient.post<BattleshipView>(`/battleship/solo${soloQuery(difficulty, level)}`),
   join:   (code: string) => apiClient.post<BattleshipView>(`/battleship/${code}/join`),
   get:    (id: string)   => apiClient.get<BattleshipView>(`/battleship/${id}`),
   move:   (id: string, row: number, col: number) =>

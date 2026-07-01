@@ -1,5 +1,6 @@
 package com.gridclan.controller;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.service.GomokuGameService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -32,11 +33,16 @@ public class GomokuController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
     }
 
-    /** POST /gomoku/solo — start a game against the computer (you move first). */
+    /** POST /gomoku/solo — start a game against the computer (you move first).
+     *  Optional difficulty + level pick the AI strength / points and gate the ladder. */
     @PostMapping("/solo")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<Map<String, Object>> solo(Authentication auth) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.createSolo(userId(auth)));
+    public ResponseEntity<Map<String, Object>> solo(
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(defaultValue = "1") int level,
+            Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(service.createSolo(userId(auth), difficulty, level));
     }
 
     /** POST /gomoku/{id}/hint — solo only; highlights a suggested square (rank-limited). */

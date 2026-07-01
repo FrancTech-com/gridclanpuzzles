@@ -1,5 +1,6 @@
 package com.gridclan.controller;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.gridscrabble.Placement;
 import com.gridclan.service.ScrabbleGameService;
 import jakarta.validation.constraints.NotNull;
@@ -36,11 +37,16 @@ public class ScrabbleController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
     }
 
-    /** POST /scrabble/solo — start a game against the computer (you move first). */
+    /** POST /scrabble/solo — start a game against the computer (you move first).
+     *  Optional difficulty + level pick the AI strength / points and gate the ladder. */
     @PostMapping("/solo")
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<Map<String, Object>> solo(Authentication auth) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.createSolo(userId(auth)));
+    public ResponseEntity<Map<String, Object>> solo(
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(defaultValue = "1") int level,
+            Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(service.createSolo(userId(auth), difficulty, level));
     }
 
     /** POST /scrabble/{id}/hint — solo only; suggests the best word (rank-limited). */

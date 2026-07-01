@@ -73,6 +73,11 @@ export default function GemsScreen() {
       </Card>
 
       {/* Actions */}
+      <TouchableOpacity style={styles.buyBtn} onPress={() => router.push('/gems/buy' as never)}>
+        <Ionicons name="card" size={20} color={Colors.bg} />
+        <Text style={styles.buyBtnText}>{t('gems.buy', 'Buy gems')}</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.giftBtn} onPress={() => router.push('/gems/gift' as never)}>
         <Ionicons name="gift" size={20} color={Colors.bg} />
         <Text style={styles.giftBtnText}>{t('gems.gift')}</Text>
@@ -123,10 +128,16 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   statsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: Spacing.md, marginTop: Spacing.md },
   stat:     { color: Colors.textSecondary, fontSize: Font.size.xs },
 
+  buyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    backgroundColor: Colors.accent, borderRadius: Radius.md, paddingVertical: Spacing.md,
+    marginTop: Spacing.lg,
+  },
+  buyBtnText: { color: Colors.bg, fontWeight: Font.weight.bold, fontSize: Font.size.md },
   giftBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   giftBtnText: { color: Colors.bg, fontWeight: Font.weight.bold, fontSize: Font.size.md },
 
