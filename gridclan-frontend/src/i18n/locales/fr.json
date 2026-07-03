@@ -55,7 +55,8 @@
     "home": "Accueil",
     "play": "Jouer",
     "community": "Communauté",
-    "profile": "Profil"
+    "profile": "Profil",
+    "wallet": "Portefeuille"
   },
   "home": {
     "greeting": "Bonne partie,",

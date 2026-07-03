@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Text as RNText, TextInput as RNTextInput } from 'react-native';
+import { Platform, Text as RNText, TextInput as RNTextInput } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider as NavThemeProvider, DefaultTheme, DarkTheme } from '@react-navigation/native';
@@ -18,6 +18,7 @@ import { ThemeProvider, useTheme } from '@theme/theme';
 import { ErrorBoundary } from '@components/ErrorBoundary';
 import { WebContainer } from '@components/ui/WebContainer';
 import { SkyBackground } from '@components/ui/SkyBackground';
+import { IntroKicker, introAlreadyPlayed } from '@components/IntroKicker';
 import { installGlobalErrorHandlers } from '@services/errorReporter';
 import { startActivityTracker, stopActivityTracker } from '@services/activityTracker';
 import { installDeepLinkValidation, warnIfDeviceRooted } from '@services/deviceSecurity';
@@ -59,6 +60,13 @@ function RootNavigator() {
   const userId   = useSelector((s: RootState) => s.auth.userId);
   const prevUserIdRef = useRef<string | null>(null);
   const { scheme, colors } = useTheme();
+  // Opening cartoon — once per launch, over the first screen, tap to skip.
+  // NATIVE ONLY: web already has the two-act HTML splash (+html.tsx), whose
+  // Act 2 features the same buddy kicking the letters in — two intros
+  // back-to-back would drag.
+  const [showIntro, setShowIntro] = React.useState(
+    () => Platform.OS !== 'web' && !introAlreadyPlayed(),
+  );
 
   // Bundled brand fonts — Fredoka (display) + Nunito (body).
   const [fontsLoaded] = useFonts({
@@ -128,6 +136,7 @@ function RootNavigator() {
           <Stack.Screen name="tournament/[id]"     options={{ presentation: 'card' }} />
         </Stack>
       </WebContainer>
+      {showIntro && <IntroKicker onDone={() => setShowIntro(false)} />}
       </SkyBackground>
       </NavThemeProvider>
     </ErrorBoundary>

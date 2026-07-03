@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemePref } from '@theme/theme';
 import { isMuted, setMuted, playSfx } from '@services/sound';
@@ -8,7 +9,8 @@ import { isMuted, setMuted, playSfx } from '@services/sound';
 /**
  * Global floating quick-controls for the tab pages:
  *   - top-left  → theme (cycles system → light → dark)
- *   - top-right → sound (mute / unmute)
+ *   - top-right → sound (mute / unmute) + profile (person avatar; profile has
+ *                 no tab of its own — this corner button is its home)
  *
  * Rendered once in (tabs)/_layout over the screens. The container is
  * pointerEvents="box-none" so only the buttons capture taps; the rest of the
@@ -21,6 +23,7 @@ export function FloatingControls() {
   const { pref, scheme, colors, setPref } = useTheme();
   const insets = useSafeAreaInsets();
   const [muted, setMutedState] = useState(isMuted());
+  const onProfile = usePathname() === '/profile';
 
   const top = (Platform.OS === 'web' ? 10 : insets.top + 4);
 
@@ -56,15 +59,27 @@ export function FloatingControls() {
         <Ionicons name={themeIcon as any} size={20} color={scheme === 'dark' ? colors.textPrimary : colors.textPrimary} />
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={btn}
-        onPress={toggleSound}
-        accessibilityLabel={muted ? 'Sound off' : 'Sound on'}
-        activeOpacity={0.8}
-        hitSlop={8}
-      >
-        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={muted ? colors.textMuted : colors.primary} />
-      </TouchableOpacity>
+      <View style={styles.rightGroup}>
+        <TouchableOpacity
+          style={btn}
+          onPress={toggleSound}
+          accessibilityLabel={muted ? 'Sound off' : 'Sound on'}
+          activeOpacity={0.8}
+          hitSlop={8}
+        >
+          <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={20} color={muted ? colors.textMuted : colors.primary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={btn}
+          onPress={() => { playSfx('tap'); if (!onProfile) router.push('/profile' as never); }}
+          accessibilityLabel="Profile"
+          activeOpacity={0.8}
+          hitSlop={8}
+        >
+          <Ionicons name={onProfile ? 'person' : 'person-circle-outline'} size={onProfile ? 20 : 24} color={onProfile ? colors.primary : colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -75,6 +90,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between',
     zIndex: 50,
   },
+  rightGroup: { flexDirection: 'row', gap: 8 },
   btn: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
