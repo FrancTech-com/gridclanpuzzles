@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { communityApi } from '@api/index';
+import { communityInviteLink, shareInvite } from '@utils/invite';
 import { chatClient } from '@websocket/chatClient';
 import { RootState } from '@store/index';
 import { Button, Card, EmptyState, Input, LoadingSpinner } from '@components/ui/index';
@@ -29,6 +30,7 @@ export default function CommunityScreen() {
   const [desc,        setDesc]        = useState('');
   const [creating,    setCreating]    = useState(false);
   const [joiningId,   setJoiningId]   = useState<string | null>(null);
+  const [copiedId,    setCopiedId]    = useState<string | null>(null);
 
   async function load() {
     try {
@@ -59,6 +61,22 @@ export default function CommunityScreen() {
       await load();
     } catch {}
     setJoiningId(null);
+  }
+
+  // Share a tappable link that joins this community directly (see /j route).
+  async function handleInvite(c: Community) {
+    const link = communityInviteLink(c.id);
+    await shareInvite({
+      message: t('community.inviteMessage', {
+        name: c.name, link,
+        defaultValue: 'Join my community “{{name}}” on GridClan Puzzles! Tap to join: {{link}}',
+      }),
+      link,
+      onCopied: () => {
+        setCopiedId(c.id);
+        setTimeout(() => setCopiedId(null), 2500);
+      },
+    });
   }
 
   if (!userId) return (
@@ -106,12 +124,22 @@ export default function CommunityScreen() {
               <Text style={styles.communityStatText}>⬡ {t('community.pool', { points: c.weeklyPoolPts.toLocaleString() })}</Text>
             </View>
             {c.isMember ? (
-              <TouchableOpacity
-                style={styles.chatBtn}
-                onPress={() => router.push({ pathname: '/community/[id]/chat', params: { id: c.id, name: c.name } })}
-              >
-                <Text style={styles.chatBtnText}>💬 {t('community.openChat')}</Text>
-              </TouchableOpacity>
+              <>
+                <View style={styles.memberRow}>
+                  <TouchableOpacity
+                    style={[styles.chatBtn, styles.memberRowMain]}
+                    onPress={() => router.push({ pathname: '/community/[id]/chat', params: { id: c.id, name: c.name } })}
+                  >
+                    <Text style={styles.chatBtnText}>💬 {t('community.openChat')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.inviteBtn} onPress={() => handleInvite(c)}>
+                    <Text style={styles.chatBtnText}>🔗 {t('community.invite', 'Invite')}</Text>
+                  </TouchableOpacity>
+                </View>
+                {copiedId === c.id && (
+                  <Text style={styles.copiedText}>{t('community.inviteCopied', 'Invite link copied! Send it to a friend.')}</Text>
+                )}
+              </>
             ) : (
               <Button
                 title={t('community.join')}
@@ -148,4 +176,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   communityStatText: { color: Colors.textSecondary, fontSize: Font.size.sm },
   chatBtn:         { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   chatBtnText:     { color: Colors.primary, fontWeight: Font.weight.semi },
+  memberRow:       { flexDirection: 'row', gap: Spacing.sm },
+  memberRowMain:   { flex: 1 },
+  inviteBtn:       { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md },
+  copiedText:      { color: Colors.primary, fontSize: Font.size.xs, marginTop: Spacing.xs, textAlign: 'center' },
 });
