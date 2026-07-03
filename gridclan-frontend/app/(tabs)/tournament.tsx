@@ -161,7 +161,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
   pageTitle: { color: Colors.textPrimary, fontSize: Font.size.xxl, fontWeight: Font.weight.black },
   newBtn:     { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full },
-  newBtnText: { color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
+  newBtnText: { color: Colors.textOnBrand, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   tabs:        { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
   tab:         { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border },
@@ -186,7 +186,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   timeText:  { color: Colors.textMuted, fontSize: Font.size.xs },
 
   enterBtn:     { borderRadius: Radius.md, padding: Spacing.md, alignItems: 'center' },
-  enterBtnText: { color: Colors.bg, fontWeight: Font.weight.bold, fontSize: Font.size.md },
+  enterBtnText: { color: Colors.textOnBrand, fontWeight: Font.weight.bold, fontSize: Font.size.md },
   viewBtn:      { padding: Spacing.sm, alignItems: 'center' },
   viewBtnText:  { color: Colors.primary, fontSize: Font.size.sm },
 });

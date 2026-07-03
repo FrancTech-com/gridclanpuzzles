@@ -44,6 +44,8 @@ public class AuthController {
     private final JwtService             jwtService;
     private final AuditLogService        audit;
     private final FeatureFlagService     featureFlags;
+    private final com.gridclan.service.WalletService     walletService;
+    private final com.gridclan.config.WalletProperties   walletProps;
 
     private final BCryptPasswordEncoder encoder;  // Injected from PasswordEncoderConfig
 
@@ -96,6 +98,7 @@ public class AuthController {
             .countryCode(country)
             .role("USER")
             .ageVerified(true)
+            .isAdult(age >= 18)   // ads: minors get non-personalised only
             .marketingConsent(marketingConsent)
             .marketingConsentAt(marketingConsent ? now : null)
             .build();
@@ -103,6 +106,11 @@ public class AuthController {
 
         // Seed player_points row
         pointsRepo.save(PlayerPoints.builder().userId(user.getId()).balance(0L).build());
+
+        // Welcome credit: every player joins with a starting wallet balance
+        // (config: UGX 500). One-time, ledgered as WELCOME_BONUS.
+        walletService.credit(user.getId(), walletProps.getWelcomeCurrency(),
+            walletProps.getWelcomeBonus(), "WELCOME_BONUS", null, "Welcome credit");
 
         TokenPair tokens = issueTokens(user);
         audit.record(user.getId(), "USER_REGISTERED",

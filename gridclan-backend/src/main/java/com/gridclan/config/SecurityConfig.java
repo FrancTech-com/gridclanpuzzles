@@ -66,8 +66,9 @@ public class SecurityConfig {
                 // health is public for external uptime monitors
                 .requestMatchers("/ops/error-report").permitAll()
                 .requestMatchers("/ops/health").permitAll()
-                // Relworx payment webhook posts with no JWT; verified by signature.
+                // Relworx payment webhooks post with no JWT; verified by signature.
                 .requestMatchers("/payments/relworx/webhook").permitAll()
+                .requestMatchers("/payments/relworx/send-payment/webhook").permitAll()
                 // Legal documents must be public before login (blueprint:
                 // "privacy policy accessible at a public URL before app launch")
                 .requestMatchers("/legal/**").permitAll()

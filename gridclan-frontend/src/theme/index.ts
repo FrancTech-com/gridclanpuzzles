@@ -7,6 +7,7 @@ import { Platform } from 'react-native';
 export const darkColors = {
   // Backgrounds — deep, slightly brighter navy so the vibrant accents pop
   bg:          '#0a1b38',   // App background — deep navy
+  bgSolid:     '#0a1b38',   // Always-opaque bg (privacy shield, status bar)
   surface:     '#122a4f',   // Cards / sheets
   surfaceHigh: '#1c3a65',   // Elevated surfaces
   border:      '#2a4d78',   // Dividers, input borders
@@ -35,6 +36,7 @@ export const darkColors = {
   textPrimary:   '#ffffff',
   textSecondary: '#b6cde6',
   textMuted:     '#6d88a6',
+  textOnBrand:   '#0a1b38', // Text sitting on primary/accent-filled buttons
 
   // Status
   error:   '#ef4444',
@@ -55,15 +57,19 @@ export const darkColors = {
 
 export type ThemeColors = typeof darkColors;
 
-// Light palette — light backgrounds, navy text, brand teal/gold darkened for
-// contrast on white. Same keys as darkColors.
+// Light palette — the "sky glass" look and the app's default. The real
+// background is the SkyBackground gradient (light blue → near-white sky)
+// rendered once at the root; `bg` is TRANSPARENT so every screen shows it.
+// Surfaces are translucent white ("glass") over that sky — bold, rounded,
+// frosted (backdrop blur on web) like a real game app.
 export const lightColors: ThemeColors = {
-  bg:          '#f4f7fb',
-  surface:     '#ffffff',
-  surfaceHigh: '#eaf1f8',
-  border:      '#d3e0ec',
+  bg:          'transparent',            // sky gradient shows through screens
+  bgSolid:     '#b7dcf7',                // opaque stand-in (privacy shield etc.)
+  surface:     'rgba(255,255,255,0.60)', // glass cards
+  surfaceHigh: 'rgba(255,255,255,0.85)', // brighter glass (inputs, elevated)
+  border:      'rgba(255,255,255,0.85)', // glass edge highlight
 
-  // Same vibrant quartet, slightly deepened for contrast on white
+  // Same vibrant quartet, slightly deepened for contrast on the pale sky
   green:    '#16a34a',
   greenDim: '#15803d',
   red:      '#dc2626',
@@ -80,9 +86,10 @@ export const lightColors: ThemeColors = {
 
   wordSearch:  '#d97706',
 
-  textPrimary:   '#0c2138',
-  textSecondary: '#3d5a78',
-  textMuted:     '#6c829a',
+  textPrimary:   '#0c2b4d',
+  textSecondary: '#33587e',
+  textMuted:     '#5e7f9f',
+  textOnBrand:   '#ffffff',
 
   error:   '#dc2626',
   warning: '#d97706',
@@ -94,8 +101,8 @@ export const lightColors: ThemeColors = {
   kes:     '#2563eb',
   tzs:     '#ea7317',
 
-  overlay:     'rgba(12,33,56,0.45)',
-  overlayLight: 'rgba(12,33,56,0.2)',
+  overlay:     'rgba(23,60,102,0.45)',
+  overlayLight: 'rgba(23,60,102,0.2)',
 };
 
 // Back-compat default (dark). Prefer useColors() in themed components.
@@ -157,6 +164,14 @@ export const Font = {
     mono:  Platform.OS === 'ios' ? 'Courier New' : 'monospace',
   },
 } as const;
+
+// ── Glass ──────────────────────────────────────────────────────────────────
+// Frosted-glass blur behind translucent surfaces. Web-only: react-native-web
+// maps backdropFilter to CSS; native has no cheap equivalent, where the
+// translucent white fills alone still read as glass over the sky gradient.
+export const Glass = (Platform.OS === 'web'
+  ? { backdropFilter: 'blur(14px)' }
+  : {}) as Record<string, never>;
 
 // ── Shadows ────────────────────────────────────────────────────────────────
 export const Shadow = {

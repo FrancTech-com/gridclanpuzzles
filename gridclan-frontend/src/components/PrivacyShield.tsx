@@ -42,7 +42,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   cover: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.bgSolid,
     justifyContent: 'center',
   },
   logo: {

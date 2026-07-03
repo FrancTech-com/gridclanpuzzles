@@ -37,6 +37,12 @@ public class RelworxProperties {
      */
     private String webhookUrl = "https://api.gridclanpuzzle.win/payments/relworx/webhook";
 
+    /**
+     * The SEND-PAYMENT (payout) webhook URL registered in the Relworx dashboard.
+     * Also part of its signed string — must match byte-for-byte.
+     */
+    private String sendWebhookUrl = "https://api.gridclanpuzzle.win/payments/relworx/send-payment/webhook";
+
     /** Inbound header names Relworx uses (confirm/adjust from a real webhook). */
     private String signatureHeader = "Relworx-Signature";
     private String timestampHeader = "Relworx-Timestamp";

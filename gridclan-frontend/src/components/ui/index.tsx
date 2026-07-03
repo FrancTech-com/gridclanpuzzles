@@ -4,7 +4,7 @@ import {
   TextInputProps, TouchableOpacity, TouchableOpacityProps, View, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Font, Radius, Shadow, Spacing } from '@theme/index';
+import { Font, Glass, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 // ── Button ─────────────────────────────────────────────────────────────────
 interface ButtonProps extends TouchableOpacityProps {
@@ -175,6 +175,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
     borderWidth:     1,
     borderColor:     Colors.border,
     ...Shadow.sm,
+    ...Glass,
   },
 
   inputWrapper: { marginBottom: Spacing.md },

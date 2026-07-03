@@ -81,6 +81,61 @@ public class RelworxClient {
      *  plus the provider's human message (e.g. a failure reason). */
     public record StatusResult(boolean found, String status, String message) {}
 
+    /** How a send-payment (payout) request concluded. REJECTED means Relworx
+     *  definitively refused (safe to refund the hold); UNKNOWN means we couldn't
+     *  tell (timeout / network error) — the money MAY have moved, so the caller
+     *  must NOT refund and must reconcile via webhook / status poll instead. */
+    public enum SendOutcome { ACCEPTED, REJECTED, UNKNOWN }
+
+    /** Outcome of asking Relworx to pay out: outcome + their ref + message. */
+    public record SendResult(SendOutcome outcome, String providerReference, String message) {}
+
+    /**
+     * Ask Relworx to SEND {@code amount} {@code currency} to {@code msisdn}
+     * (POST /mobile-money/send-payment) — real money OUT to the player. The
+     * transfer completes asynchronously; the send-payment webhook (or a status
+     * poll) confirms delivery.
+     *
+     * Documented response: { success, message, internal_reference }.
+     */
+    public SendResult sendPayment(String reference, String msisdn, String currency,
+                                  BigDecimal amount, String description) {
+        HttpHeaders headers = jsonAuthHeaders();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("account_no",  props.getAccountNo());
+        body.put("reference",   reference);
+        body.put("msisdn",      msisdn);
+        body.put("currency",    currency);
+        body.put("amount",      amount.setScale(2, java.math.RoundingMode.HALF_UP));
+        body.put("description", description);
+
+        String url = props.getBaseUrl() + "/mobile-money/send-payment";
+        try {
+            ResponseEntity<Map<String, Object>> resp = rest.exchange(
+                url, HttpMethod.POST, new HttpEntity<>(body, headers), mapType());
+            Map<String, Object> map = resp.getBody() != null ? resp.getBody() : Map.of();
+            boolean ok = resp.getStatusCode().is2xxSuccessful()
+                && Boolean.TRUE.equals(map.get("success"));
+            String providerRef = str(map.get("internal_reference"));
+            String message = str(map.get("message"));
+            log.info("Relworx send-payment ref={} accepted={} providerRef={}",
+                reference, ok, providerRef);
+            return new SendResult(ok ? SendOutcome.ACCEPTED : SendOutcome.REJECTED,
+                providerRef, message);
+        } catch (org.springframework.web.client.RestClientResponseException he) {
+            // Relworx answered with an error status → the payout was refused.
+            log.error("Relworx send-payment HTTP {} ref={}: {}",
+                he.getStatusCode(), reference, he.getResponseBodyAsString());
+            return new SendResult(SendOutcome.REJECTED, null, "Payout request was refused.");
+        } catch (Exception e) {
+            // No definitive answer (timeout / connection drop): the payout may
+            // still have been accepted — the caller must not refund on this.
+            log.error("Relworx send-payment AMBIGUOUS ref={}: {}", reference, e.toString());
+            return new SendResult(SendOutcome.UNKNOWN, null, "Payout status unknown.");
+        }
+    }
+
     /**
      * Validate a mobile-money number (POST /mobile-money/validate). Returns whether
      * it's a usable mobile-money line and the registered customer name, so the UI

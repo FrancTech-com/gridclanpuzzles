@@ -17,6 +17,7 @@ import { LoadingSpinner } from '@components/ui/index';
 import { WordSearchBoard } from '@components/game/WordSearchBoard';
 import { GameResultOverlay, type SoloTier } from '@components/GameResultOverlay';
 import { PromptCard } from '@components/PromptCard';
+import { PostGameAd } from '@components/PostGameAd';
 import { Font, Spacing, GameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { WordSearchMove } from '@gridtypes/index';
@@ -195,6 +196,9 @@ export default function GameScreen() {
         onAccept={() => { setBuyPromptCost(null); router.push('/gems/buy' as never); }}
         onDecline={() => setBuyPromptCost(null)}
       />
+
+      {/* Popup ad once the puzzle is finished (skipped for ad-free players) */}
+      <PostGameAd over={status === 'COMPLETED'} />
     </SafeAreaView>
   );
 }

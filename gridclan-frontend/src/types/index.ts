@@ -111,7 +111,8 @@ export interface GemPack {
   id:    string;
   label?: string;
   gems:  number;
-  price: number;     // in the quote's currency
+  adFreeMonths?: number;   // popup-ad-free months the pack also buys
+  price: number;           // in the quote's currency
 }
 
 export interface GemQuote {
@@ -156,6 +157,88 @@ export interface CardPurchaseInit {
   amount:     number;
   currency:   string;
   paymentUrl: string;
+}
+
+/** One per-currency prize balance, from GET /payments/wallet. */
+export interface WalletBalance {
+  currency:          string;
+  balance:           number;
+  lifetimeEarned:    number;
+  lifetimeWithdrawn: number;
+}
+
+export interface WithdrawQuote {
+  configured:   boolean;
+  currency:     string | null;   // null = country not supported
+  numberValid?: boolean;
+  customerName?: string | null;  // mobile-money account name, when validated
+  balance:      number;          // withdrawable balance in that currency
+  minAmount?:   number | null;
+  maxAmount?:   number | null;
+}
+
+export interface WithdrawInit {
+  reference: string;
+  status:    'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  amount:    number;
+  currency:  string;
+  message:   string;
+}
+
+export interface WithdrawStatus {
+  reference: string;
+  status:    'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  amount:    number;
+  currency:  string;
+  reason?:   string | null;   // provider's reason when FAILED
+}
+
+export interface WithdrawalRecord {
+  reference: string;
+  msisdn:    string;
+  amount:    number;
+  currency:  string;
+  status:    'PENDING' | 'SUCCESSFUL' | 'FAILED';
+  reason?:   string | null;
+  createdAt: string;
+}
+
+/** One ad network in the failover chain, from GET /ads/status. */
+export interface AdProvider {
+  id:     string;   // adapter id (e.g. "admob")
+  name:   string;
+  role:   string;   // PRIMARY / SECONDARY / TERTIARY
+  appKey: string;   // SDK init key
+}
+
+export interface AdsStatus {
+  configured:     boolean;
+  testMode:       boolean;
+  providers:      AdProvider[];
+  rewardAmount:   number;
+  rewardCurrency: string;
+  dailyLimit:     number;
+  remainingToday: number;
+  adFree:         boolean;         // post-game popup ads blocked
+  adFreeUntil?:   string | null;
+  personalizedConsent: boolean;    // the player's toggle
+  personalizedAllowed: boolean;    // what ad SDKs may actually do (adults only)
+  /** False only for accounts that predate the 18+ flag — the client should
+   *  run the one-time "confirm your age" step. */
+  ageKnown: boolean;
+}
+
+export interface AdStart {
+  adSessionId:    string;
+  rewardAmount:   number;
+  rewardCurrency: string;
+}
+
+export interface AdComplete {
+  status:         'ISSUED' | 'COMPLETED';
+  rewardAmount:   number;
+  rewardCurrency: string;
+  remainingToday: number;
 }
 
 /** One difficulty's ladder progress, from GET /levels/{gameType}. */

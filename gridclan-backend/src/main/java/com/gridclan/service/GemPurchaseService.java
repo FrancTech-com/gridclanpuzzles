@@ -39,6 +39,7 @@ public class GemPurchaseService {
     private final PhoneCurrencyResolver   currencyResolver;
     private final GemPurchaseRepository    purchaseRepo;
     private final GemService              gemService;
+    private final AdRewardService         adRewardService;
     private final ObjectMapper            objectMapper;
 
     // ── Quote ────────────────────────────────────────────────────────────────
@@ -153,6 +154,7 @@ public class GemPurchaseService {
             m.put("id",    p.getId());
             m.put("label", p.getLabel());
             m.put("gems",  p.getGems());
+            m.put("adFreeMonths", p.getAdFreeMonths());
             m.put("price", price);
             packs.add(m);
         }
@@ -274,6 +276,12 @@ public class GemPurchaseService {
             purchaseRepo.save(purchase);
             gemService.creditGems(purchase.getUserId(), purchase.getGems(),
                 "PURCHASE", purchase.getId());
+            // Buying a pack also buys ad-FREE months: the post-game popup ads
+            // stop until the bought window runs out (1/4/8 months by pack).
+            GemStoreProperties.Pack pack = store.pack(purchase.getPackId());
+            if (pack != null && pack.getAdFreeMonths() > 0) {
+                adRewardService.extendAdFree(purchase.getUserId(), pack.getAdFreeMonths());
+            }
             log.info("Gem purchase credited: user={} gems={} ref={}",
                 purchase.getUserId(), purchase.getGems(), purchase.getReference());
         } else {

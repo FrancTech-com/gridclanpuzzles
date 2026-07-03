@@ -262,6 +262,11 @@ export default function BuyGemsScreen() {
                 <View style={styles.packLeft}>
                   <Text style={styles.packGems}>💎 {pack.gems.toLocaleString()} {t('buy.gems', 'gems')}</Text>
                   {!!pack.label && <Text style={styles.packLabel}>{pack.label}</Text>}
+                  {!!pack.adFreeMonths && (
+                    <Text style={styles.packAdFree}>
+                      {t('buy.adFree', '🚫 No popup ads for {{months}} months', { months: pack.adFreeMonths })}
+                    </Text>
+                  )}
                 </View>
                 {busyPack === pack.id
                   ? <ActivityIndicator color={Colors.primary} />
@@ -340,6 +345,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   packLeft:  { flex: 1 },
   packGems:  { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
   packLabel: { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: 2 },
+  packAdFree:{ color: Colors.success, fontSize: Font.size.xs, marginTop: 2 },
   packPrice: { color: Colors.primary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
 
   statusCard:  { alignItems: 'center', padding: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.md },

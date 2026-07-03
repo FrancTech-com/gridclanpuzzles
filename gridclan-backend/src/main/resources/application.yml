@@ -143,6 +143,7 @@ gridclan:
         - id: starter
           label: Starter
           gems: 50
+          ad-free-months: 1
           prices:
             UGX: 3000
             KES: 100
@@ -151,6 +152,7 @@ gridclan:
         - id: popular
           label: Most popular
           gems: 150
+          ad-free-months: 4
           prices:
             UGX: 7000
             KES: 250
@@ -159,6 +161,7 @@ gridclan:
         - id: best_value
           label: Best value
           gems: 400
+          ad-free-months: 8
           prices:
             UGX: 15000
             KES: 500
@@ -180,8 +183,62 @@ gridclan:
     account-no: ${RELWORX_ACCOUNT_NO:}
     webhook-secret: ${RELWORX_WEBHOOK_SECRET:}     # webhook signing key from Relworx dashboard
     webhook-url: ${RELWORX_WEBHOOK_URL:https://api.gridclanpuzzle.win/payments/relworx/webhook}
+    send-webhook-url: ${RELWORX_SEND_WEBHOOK_URL:https://api.gridclanpuzzle.win/payments/relworx/send-payment/webhook}
     signature-header: ${RELWORX_SIGNATURE_HEADER:Relworx-Signature}
     timestamp-header: ${RELWORX_TIMESTAMP_HEADER:Relworx-Timestamp}
+  # ── Prize-wallet withdrawals (money OUT via Relworx send-payment) ──
+  # Limits are per currency in clean local amounts (no FX maths). min keeps
+  # payouts above telco minimums + fees; max caps a single payout.
+  wallet:
+    default-min: 1
+    welcome-bonus: 500        # one-time credit for every new player
+    welcome-currency: UGX
+    min-withdraw:
+      UGX: 3000               # the withdrawal threshold: balance must reach this
+      KES: 200
+      TZS: 5000
+      RWF: 2000
+      BIF: 5000
+      ZMW: 50
+      GHS: 20
+      NGN: 2000
+      ZAR: 50
+    max-withdraw:
+      UGX: 5000000
+      KES: 150000
+      TZS: 3500000
+      RWF: 1500000
+      BIF: 4000000
+      ZMW: 30000
+      GHS: 15000
+      NGN: 2000000
+      ZAR: 25000
+  # ── Ad rewards (the earning system that funds payouts) ──
+  # Every completed ad credits reward-amount reward-currency to the wallet
+  # (reward-points is the points equivalence: 10 points ≙ UGX 5.00).
+  # Three networks form a failover chain — each has its ROLE (primary /
+  # secondary / tertiary) so one provider outage never breaks the app.
+  # A provider with a blank app-key is simply skipped. Keys live ONLY in env.
+  ads:
+    reward-points: 10
+    reward-amount: 5.00
+    reward-currency: UGX
+    daily-limit: ${ADS_DAILY_LIMIT:20}
+    session-expiry-minutes: 30
+    test-mode: ${ADS_TEST_MODE:false}   # DEV ONLY: placeholder ad plays + credits
+    providers:
+      - id: ${AD_PROVIDER_1_ID:}        # e.g. admob
+        name: ${AD_PROVIDER_1_NAME:}
+        role: PRIMARY
+        app-key: ${AD_PROVIDER_1_APP_KEY:}
+      - id: ${AD_PROVIDER_2_ID:}        # e.g. unity
+        name: ${AD_PROVIDER_2_NAME:}
+        role: SECONDARY
+        app-key: ${AD_PROVIDER_2_APP_KEY:}
+      - id: ${AD_PROVIDER_3_ID:}        # e.g. applovin
+        name: ${AD_PROVIDER_3_NAME:}
+        role: TERTIARY
+        app-key: ${AD_PROVIDER_3_APP_KEY:}
 
 logging:
   level:

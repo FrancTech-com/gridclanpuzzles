@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  Alert, Linking, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import Constants from 'expo-constants';
 import { AppDispatch, RootState } from '@store/index';
 import { logoutThunk } from '@store/slices/authSlice';
-import { profileApi, feedbackApi, type RankInfo } from '@api/index';
+import { adsApi, profileApi, feedbackApi, type RankInfo } from '@api/index';
+import { invalidateAdsStatus } from '@services/ads';
+import { ConfirmAgeForm } from '@components/ConfirmAge';
 import { confirm } from '@utils/confirm';
 import { appInviteLink, shareInvite } from '@utils/invite';
 import { changeLanguage, SUPPORTED_LANGUAGES } from '@i18n/index';
@@ -37,6 +39,9 @@ export default function ProfileScreen() {
   const [sendingFb,  setSendingFb]  = useState(false);
   const [fbSent,     setFbSent]     = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [personalizedAds, setPersonalizedAds] = useState(false);
+  const [adsAgeKnown, setAdsAgeKnown] = useState(true);
+  const [confirmingAge, setConfirmingAge] = useState(false);
 
   useEffect(() => {
     if (!userId) { setLoading(false); return; }
@@ -46,7 +51,25 @@ export default function ProfileScreen() {
       setLoading(false);
     }).catch(() => setLoading(false));
     profileApi.getRank().then(r => setRank(r.data)).catch(() => {});
+    adsApi.status().then(r => {
+      setPersonalizedAds(r.data.personalizedConsent);
+      setAdsAgeKnown(r.data.ageKnown !== false);
+    }).catch(() => {});
   }, [userId]);
+
+  async function handlePersonalizedAds(value: boolean) {
+    // Turning personalised ads ON needs a known age first (one-time check for
+    // accounts that predate the 18+ flag).
+    if (value && !adsAgeKnown) { setConfirmingAge(true); return; }
+    setPersonalizedAds(value);   // optimistic; server is the source of truth
+    try {
+      const r = await adsApi.consent(value);
+      setPersonalizedAds(r.data.personalizedConsent);
+      invalidateAdsStatus();     // next ad request picks up the new setting
+    } catch {
+      setPersonalizedAds(!value);
+    }
+  }
 
   async function handleSendFeedback() {
     if (!feedback.trim()) return;
@@ -100,6 +123,10 @@ export default function ProfileScreen() {
 
   function handlePrivacyPolicy() {
     Linking.openURL(`${API_BASE_URL}/legal/privacy-policy.html`);
+  }
+
+  function handleTerms() {
+    Linking.openURL(`${API_BASE_URL}/legal/terms-of-service.html`);
   }
 
   async function handleDeleteAccount() {
@@ -243,6 +270,39 @@ export default function ProfileScreen() {
       <Text style={styles.sectionLabel}>{t('settings.privacyAndData')}</Text>
       <Button title={t('settings.privacyPolicy')} variant="secondary"
         onPress={handlePrivacyPolicy} style={styles.actionBtn} />
+      <Button title={t('settings.termsOfService', 'Terms of service')} variant="secondary"
+        onPress={handleTerms} style={styles.actionBtn} />
+      <View style={styles.settingRow}>
+        <View style={styles.settingRowText}>
+          <Text style={styles.settingRowTitle}>{t('settings.personalizedAds', 'Personalised ads')}</Text>
+          <Text style={styles.settingRowHint}>
+            {t('settings.personalizedAdsHint', 'Off = ads are non-personalised. Only applies to adult accounts.')}
+          </Text>
+        </View>
+        <Switch
+          value={personalizedAds}
+          onValueChange={handlePersonalizedAds}
+          trackColor={{ false: Colors.border, true: Colors.primary }}
+          thumbColor="#ffffff"
+        />
+      </View>
+
+      {/* One-time age confirmation (accounts that predate the 18+ flag) */}
+      <Modal visible={confirmingAge} transparent animationType="fade"
+             onRequestClose={() => setConfirmingAge(false)}>
+        <View style={styles.ageBackdrop}>
+          <View style={styles.ageCard}>
+            <ConfirmAgeForm
+              onDone={() => {
+                setAdsAgeKnown(true);
+                setConfirmingAge(false);
+                handlePersonalizedAds(true);   // finish what the user started
+              }}
+              onCancel={() => setConfirmingAge(false)}
+            />
+          </View>
+        </View>
+      </Modal>
 
       <Separator />
 
@@ -331,6 +391,27 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   languageTextActive: { color: Colors.primary },
 
   actionBtn: { marginBottom: Spacing.sm },
+
+  settingRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.border,
+    padding: Spacing.md, marginBottom: Spacing.sm,
+  },
+  settingRowText:  { flex: 1 },
+  settingRowTitle: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.semi },
+  settingRowHint:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: 2 },
+
+  ageBackdrop: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.overlay, padding: Spacing.xl,
+  },
+  ageCard: {
+    width: '100%', maxWidth: 360,
+    backgroundColor: Colors.surfaceHigh, borderRadius: Radius.xl,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg,
+  },
 
   legalNote: { color: Colors.textMuted, fontSize: Font.size.xs, textAlign: 'center', lineHeight: 18, marginTop: Spacing.md },
 });

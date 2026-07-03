@@ -186,7 +186,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
   },
   tileCleared: { borderColor: Colors.accent },
-  tileLocked:  { opacity: 0.45, backgroundColor: Colors.bg },
+  tileLocked:  { opacity: 0.45, backgroundColor: Colors.bgSolid },
   tileNum:   { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
   tileBest:  { color: Colors.accent, fontSize: Font.size.xs, marginTop: 2 },
   tilePlay:  { color: Colors.primary, fontSize: Font.size.xs, marginTop: 2 },

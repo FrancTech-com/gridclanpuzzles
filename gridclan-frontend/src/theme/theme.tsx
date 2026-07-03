@@ -13,13 +13,15 @@ interface ThemeContextValue {
   setPref: (p: ThemePref) => void;
 }
 
+// Default = light ("sky glass"), the game's signature look from first open.
+// A saved preference (including dark) still wins once loaded.
 const ThemeContext = createContext<ThemeContextValue>({
-  pref: 'dark', scheme: 'dark', colors: darkColors, setPref: () => {},
+  pref: 'light', scheme: 'light', colors: lightColors, setPref: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const system = useColorScheme();               // 'light' | 'dark' | null
-  const [pref, setPrefState] = useState<ThemePref>('dark');
+  const [pref, setPrefState] = useState<ThemePref>('light');
 
   // Load saved preference once.
   useEffect(() => {

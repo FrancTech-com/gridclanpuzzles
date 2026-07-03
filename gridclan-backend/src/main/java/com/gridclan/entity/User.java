@@ -107,6 +107,12 @@ public class User {
     @Builder.Default
     private String countryCode = "UG";
 
+    /** Post-game popup ads are blocked until this instant (bought with gem
+     *  packs). Null / past = popups show. The opt-in rewarded-ad button is
+     *  never blocked — it's how players earn. */
+    @Column(name = "ad_free_until")
+    private Instant adFreeUntil;
+
     // ── Consent / age (data-protection only) ───────────────────────────────
     @Column(name = "marketing_consent", nullable = false)
     @Builder.Default
@@ -118,6 +124,17 @@ public class User {
     @Column(name = "age_verified", nullable = false)
     @Builder.Default
     private boolean ageVerified = false;
+
+    /** 18+ at registration (from the DOB check — the date itself is never
+     *  stored). NULL = unknown (pre-V33 account) → treated as a minor for
+     *  advertising: non-personalised, age-appropriate ads only. */
+    @Column(name = "is_adult")
+    private Boolean isAdult;
+
+    /** Explicit opt-in for personalised ads. Honoured only for adults. */
+    @Column(name = "ads_personalized", nullable = false)
+    @Builder.Default
+    private boolean adsPersonalized = false;
 
     // ── Privacy (V6) ───────────────────────────────────────────────────────
     @Column(name = "do_not_sell", nullable = false)
