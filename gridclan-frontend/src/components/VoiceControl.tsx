@@ -22,7 +22,7 @@ export function VoiceControl({ kind, gameId }: { kind: string; gameId: string })
   const userId = useSelector((s: RootState) => s.auth.userId);
 
   const [status, setStatus] = useState<VoiceStatus>({
-    state: 'idle', peerName: null, muted: false, supported: true,
+    state: 'idle', peerName: null, muted: false, supported: true, error: null,
   });
 
   useEffect(() => {
@@ -35,8 +35,16 @@ export function VoiceControl({ kind, gameId }: { kind: string; gameId: string })
 
   const peer = status.peerName ?? t('voice.friend', 'Your friend');
 
-  // Idle → round mic button.
+  // Idle → round mic button. If the last tap failed because the signalling
+  // socket was reconnecting, say so briefly instead of appearing dead.
   if (status.state === 'idle') {
+    if (status.error === 'signal-down') {
+      return (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🎙 {t('voice.reconnecting', 'Reconnecting… try again in a moment')}</Text>
+        </View>
+      );
+    }
     return (
       <TouchableOpacity style={styles.fab} onPress={() => voiceClient.requestVoice()} activeOpacity={0.85}>
         <Text style={styles.fabIcon}>🎙</Text>

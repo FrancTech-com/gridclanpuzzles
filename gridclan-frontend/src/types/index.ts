@@ -324,12 +324,33 @@ export interface Tournament {
   hintsAllowed: false;          // Always false — enforced by server
   maxPlayers:   number | null;
   startsAt:     string;
-  endsAt:       string;
+  /** Force-complete backstop (startsAt + 7d by default) — not user-facing. */
+  endsAt:       string | null;
   communityId:  string | null;
   currentRound?: number;
   winnerId?:    string | null;
   joinedCount?: number;
   joined?:      boolean;        // is the caller entered (only on GET /{id})
+}
+
+// ── Achievements / lifetime record (GET /user/stats) ───────────────────────
+
+export interface WinLossRecord {
+  wins:   number;
+  losses: number;
+  draws:  number;
+}
+
+export interface PlayerStats {
+  overall: WinLossRecord & { games: number; winRate: number };  // winRate = 0–100
+  /** Per board game, split by how the game was played. */
+  games: Record<TournamentGame, {
+    solo:       WinLossRecord;   // vs computer
+    friend:     WinLossRecord;   // invited / matched PvP
+    tournament: WinLossRecord;   // bracket matches
+  }>;
+  wordSearch:  { completed: number; bestScore: number };
+  tournaments: { joined: number; titles: number };
 }
 
 // Where the viewer stands in a tournament (drives the detail "hub").

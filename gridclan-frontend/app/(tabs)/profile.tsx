@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { AppDispatch, RootState } from '@store/index';
 import { logoutThunk } from '@store/slices/authSlice';
@@ -239,6 +240,18 @@ export default function ProfileScreen() {
         </Card>
       )}
 
+      {/* Achievements — lifetime wins/losses across all games */}
+      <TouchableOpacity onPress={() => router.push('/achievements' as never)} activeOpacity={0.85}>
+        <Card style={styles.achievementsCard}>
+          <Text style={styles.achievementsIcon}>🏆</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.achievementsTitle}>{t('achievements.title', 'Achievements')}</Text>
+            <Text style={styles.achievementsSub}>{t('achievements.entryHint', 'Your wins & losses — solo, friends and tournaments')}</Text>
+          </View>
+          <Text style={styles.achievementsChevron}>›</Text>
+        </Card>
+      </TouchableOpacity>
+
       {/* Profile details */}
       <Card style={styles.detailsCard}>
         <DetailRow label={t('profile.country')}  value={profile?.countryCode ?? '—'} />
@@ -391,6 +404,15 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   saveBtn:   { marginBottom: 0 },
 
   detailsCard: { marginBottom: Spacing.lg },
+
+  achievementsCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    padding: Spacing.md, marginBottom: Spacing.lg,
+  },
+  achievementsIcon:    { fontSize: 28 },
+  achievementsTitle:   { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
+  achievementsSub:     { color: Colors.textSecondary, fontSize: Font.size.xs, marginTop: 2 },
+  achievementsChevron: { color: Colors.textSecondary, fontSize: 26, fontWeight: Font.weight.semi },
 
   rankCard:   { marginBottom: Spacing.lg },
   rankHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm },

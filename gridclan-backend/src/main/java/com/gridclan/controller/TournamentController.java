@@ -124,6 +124,16 @@ public class TournamentController {
             return ResponseEntity.badRequest().body(Map.of(
                 "error", "gameType must be one of SCRABBLE, GOMOKU, BATTLESHIP"));
 
+        // The creator picks when the tournament starts (small skew allowance so
+        // "starts now" from a slow client isn't rejected). endsAt is no longer
+        // user-facing: it is a force-complete backstop a week after the start.
+        if (req.getStartsAt().isBefore(Instant.now().minusSeconds(120)))
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "startsAt must be in the future"));
+        Instant endsAt = req.getEndsAt() != null
+            ? req.getEndsAt()
+            : req.getStartsAt().plus(java.time.Duration.ofDays(7));
+
         // hints_allowed is ALWAYS false for tournaments — enforced here and in DB
         Tournament t = Tournament.builder()
             .name(req.getName())
@@ -136,7 +146,7 @@ public class TournamentController {
             .hintsAllowed(false)   // ← immutable — always false
             .maxPlayers(req.getMaxPlayers())
             .startsAt(req.getStartsAt())
-            .endsAt(req.getEndsAt())
+            .endsAt(endsAt)
             .createdBy(userId)
             .build();
 
@@ -224,7 +234,7 @@ public class TournamentController {
         @NotNull
         private Instant startsAt;
 
-        @NotNull
+        /** Optional — defaults to startsAt + 7 days (force-complete backstop). */
         private Instant endsAt;
     }
 }

@@ -14,6 +14,7 @@ import type {
   Community, CommunityMemberInfo, ChatMessage,
   Tournament, TournamentGame, TournamentMe, LeaderboardEntry, PlayerRank,
   GlobalLeaderboardEntry, GameLeaderboardEntry, GameKey,
+  PlayerStats,
 } from '@gridtypes/index';
 
 // ── Game ───────────────────────────────────────────────────────────────────
@@ -194,6 +195,10 @@ export const profileApi = {
   getSessions: (limit = 20) =>
     apiClient.get(`/user/sessions?limit=${limit}`),
 
+  /** Lifetime wins/losses across all games — the achievements screen. */
+  getStats: () =>
+    apiClient.get<PlayerStats>('/user/stats'),
+
   // The caller's most-recent unfinished game to resume, or 204 (empty) if none.
   getActiveGame: () =>
     apiClient.get<ActiveGameResume | ''>('/user/active-game'),
@@ -261,8 +266,8 @@ export const tournamentApi = {
     gameType: TournamentGame;
     communityId?: string;
     maxPlayers?: number;
-    startsAt: string;   // ISO-8601
-    endsAt: string;     // ISO-8601
+    startsAt: string;   // ISO-8601 — when the bracket kicks off
+    endsAt?: string;    // ISO-8601 — optional; server defaults to startsAt + 7d
   }) =>
     apiClient.post<{ tournamentId: string; name: string; status: string }>(
       '/tournament', payload,

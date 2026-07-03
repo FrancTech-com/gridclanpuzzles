@@ -1,33 +1,44 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { tournamentApi, communityApi } from '@api/index';
 import { Button, Card, Input } from '@components/ui/index';
 import { Font, Radius, Spacing, TournamentGameMeta } from '@theme/index';
-import { useColors } from '@theme/theme';
+import { useColors, useTheme } from '@theme/theme';
 import type { Community, TournamentGame } from '@gridtypes/index';
 
 const GAME_ORDER: TournamentGame[] = ['SCRABBLE', 'GOMOKU', 'BATTLESHIP'];
 
-// Duration presets (hours) — avoids a native date-picker dependency and keeps
-// the flow one-tap. The tournament starts now and ends now + duration.
-const DURATIONS: { key: string; hours: number }[] = [
-  { key: 'h1', hours: 1 },
-  { key: 'd1', hours: 24 },
-  { key: 'w1', hours: 24 * 7 },
+// The creator picks WHEN the tournament starts (players join while it's
+// UPCOMING; the scheduler seeds the bracket at start time). Quick presets keep
+// it one-tap; "custom" opens a date+time entry — a native browser
+// datetime-local input on web, plain date/time text fields on native (no
+// date-picker dependency).
+const START_PRESETS: { key: 'm30' | 'h1' | 'h3'; minutes: number }[] = [
+  { key: 'm30', minutes: 30 },
+  { key: 'h1',  minutes: 60 },
+  { key: 'h3',  minutes: 180 },
 ];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const toDateStr = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const toTimeStr = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
 export default function CreateTournamentScreen() {
   const Colors = useColors();
+  const { scheme } = useTheme();
   const styles = React.useMemo(() => makeStyles(Colors), [Colors]);
   const { t } = useTranslation();
 
   const [name, setName]             = useState('');
   const [gameType, setGameType]     = useState<TournamentGame>('SCRABBLE');
-  const [durationH, setDurationH]   = useState(24);
+  const [startKey, setStartKey]     = useState<'m30' | 'h1' | 'h3' | 'custom'>('h1');
+  // Custom start, prefilled with "tomorrow, same hour" as a sensible seed.
+  const [customDate, setCustomDate] = useState(() => toDateStr(new Date(Date.now() + 24 * 3600_000)));
+  const [customTime, setCustomTime] = useState(() => toTimeStr(new Date(Date.now() + 24 * 3600_000)));
   const [maxPlayers, setMaxPlayers] = useState('');
   const [communityId, setCommunityId] = useState<string | undefined>(undefined);
   const [communities, setCommunities] = useState<Community[]>([]);
@@ -40,21 +51,32 @@ export default function CreateTournamentScreen() {
       .catch(() => {});
   }, []);
 
-  const valid = name.trim().length >= 3;
+  // The chosen start moment, or null while the custom entry is invalid / past.
+  function computeStartsAt(): Date | null {
+    if (startKey !== 'custom') {
+      const preset = START_PRESETS.find(p => p.key === startKey)!;
+      return new Date(Date.now() + preset.minutes * 60_000);
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(customDate.trim())) return null;
+    if (!/^\d{1,2}:\d{2}$/.test(customTime.trim()))     return null;
+    const d = new Date(`${customDate.trim()}T${customTime.trim().padStart(5, '0')}`);
+    if (Number.isNaN(d.getTime()) || d.getTime() < Date.now() + 60_000) return null;
+    return d;
+  }
+
+  const startsAtDate = computeStartsAt();
+  const valid = name.trim().length >= 3 && startsAtDate !== null;
 
   async function handleCreate() {
     if (!valid || submitting) return;
     setSubmitting(true);
-    const now = new Date();
-    const ends = new Date(now.getTime() + durationH * 3600_000);
     const maxNum = parseInt(maxPlayers, 10);
     const result = await tournamentApi.create({
       name: name.trim(),
       gameType,
       communityId,
       maxPlayers: Number.isFinite(maxNum) && maxNum > 0 ? maxNum : undefined,
-      startsAt: now.toISOString(),
-      endsAt: ends.toISOString(),
+      startsAt: startsAtDate!.toISOString(),
     }).catch(() => null);
     setSubmitting(false);
 
@@ -101,21 +123,86 @@ export default function CreateTournamentScreen() {
             ))}
           </View>
 
-          {/* Duration */}
-          <Text style={styles.label}>{t('tournament.duration', 'Duration')}</Text>
+          {/* Start time */}
+          <Text style={styles.label}>{t('tournament.startTime', 'Starts')}</Text>
           <View style={styles.chips}>
-            {DURATIONS.map(d => (
+            {START_PRESETS.map(p => (
               <TouchableOpacity
-                key={d.key}
-                style={[styles.chip, durationH === d.hours && styles.chipActive]}
-                onPress={() => setDurationH(d.hours)}
+                key={p.key}
+                style={[styles.chip, startKey === p.key && styles.chipActive]}
+                onPress={() => setStartKey(p.key)}
               >
-                <Text style={[styles.chipText, durationH === d.hours && { color: Colors.primary }]}>
-                  {t(`tournament.dur_${d.key}`)}
+                <Text style={[styles.chipText, startKey === p.key && { color: Colors.primary }]}>
+                  {t(`tournament.start_${p.key}`)}
                 </Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.chip, startKey === 'custom' && styles.chipActive]}
+              onPress={() => setStartKey('custom')}
+            >
+              <Text style={[styles.chipText, startKey === 'custom' && { color: Colors.primary }]}>
+                {t('tournament.start_custom', 'Pick date & time')}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          {startKey === 'custom' && (
+            Platform.OS === 'web'
+              ? (
+                <View style={styles.customRow}>
+                  {React.createElement('input', {
+                    type: 'datetime-local',
+                    value: `${customDate}T${customTime}`,
+                    min: `${toDateStr(new Date())}T${toTimeStr(new Date())}`,
+                    onChange: (e: any) => {
+                      const [d, tm] = String(e.target.value).split('T');
+                      if (d)  setCustomDate(d);
+                      if (tm) setCustomTime(tm.slice(0, 5));
+                    },
+                    style: {
+                      background: 'transparent', color: Colors.textPrimary,
+                      border: `1px solid ${Colors.border}`, borderRadius: 10,
+                      padding: '10px 12px', fontSize: 15, colorScheme: scheme,
+                    },
+                  })}
+                </View>
+              ) : (
+                <View style={styles.customRow}>
+                  <View style={styles.customField}>
+                    <Input
+                      label={t('tournament.startDate', 'Date')}
+                      value={customDate}
+                      onChangeText={setCustomDate}
+                      placeholder="YYYY-MM-DD"
+                    />
+                  </View>
+                  <View style={styles.customField}>
+                    <Input
+                      label={t('tournament.startClock', 'Time (24h)')}
+                      value={customTime}
+                      onChangeText={setCustomTime}
+                      placeholder="18:30"
+                    />
+                  </View>
+                </View>
+              )
+          )}
+
+          {startKey === 'custom' && !startsAtDate && (
+            <Text style={styles.timeError}>
+              {t('tournament.startInvalid', 'Enter a valid future date and time')}
+            </Text>
+          )}
+          {startsAtDate && (
+            <Text style={styles.startSummary}>
+              🕒 {t('tournament.startsAt', 'Starts {{when}}', {
+                when: startsAtDate.toLocaleString(undefined, {
+                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                }),
+              })}
+            </Text>
+          )}
 
           {/* Community (optional) */}
           {communities.length > 0 && (
@@ -182,6 +269,11 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   chip:       { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, maxWidth: 180 },
   chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
   chipText:   { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.medium },
+
+  customRow:    { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, alignItems: 'flex-start' },
+  customField:  { flex: 1 },
+  timeError:    { color: Colors.error, fontSize: Font.size.sm, marginTop: Spacing.sm },
+  startSummary: { color: Colors.textSecondary, fontSize: Font.size.sm, marginTop: Spacing.sm },
 
   note: { color: Colors.warning, fontSize: Font.size.sm, marginTop: Spacing.lg },
   cta:  { marginTop: Spacing.lg },
