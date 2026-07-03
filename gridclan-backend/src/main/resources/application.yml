@@ -215,6 +215,15 @@ gridclan:
       GHS: 15000
       NGN: 2000000
       ZAR: 25000
+  # ── In-game voice (WebRTC ICE servers) ──
+  # STUN finds a direct path; TURN relays audio when carrier-grade NAT blocks
+  # P2P (most Ugandan mobile data). Defaults = Open Relay's free public TURN;
+  # swap in a paid/self-hosted relay via the VOICE_* env vars when scaling.
+  voice:
+    stun-urls: ${VOICE_STUN_URLS:stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302}
+    turn-urls: ${VOICE_TURN_URLS:turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turns:openrelay.metered.ca:443?transport=tcp}
+    turn-username: ${VOICE_TURN_USERNAME:openrelayproject}
+    turn-credential: ${VOICE_TURN_CREDENTIAL:openrelayproject}
   # ── Ad rewards (the earning system that funds payouts) ──
   # Every completed ad credits reward-amount reward-currency to the wallet.
   # The app displays balances as reward points at 1 point = UGX 0.2, so the
