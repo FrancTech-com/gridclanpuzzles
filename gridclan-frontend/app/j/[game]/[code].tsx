@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { battleshipApi, gomokuApi, scrabbleApi } from '@api/index';
+import { battleshipApi, communityApi, gomokuApi, scrabbleApi } from '@api/index';
 import { Button, LoadingSpinner } from '@components/ui/index';
 import { Font, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -44,6 +44,33 @@ export default function JoinByLinkScreen() {
     // Async challenges have a dedicated hub that handles accept + results.
     if (game === 'challenge') { router.replace(`/challenge/${code}`); return; }
 
+    // Community invites: /j/community/<communityId>. Join by id (case-sensitive
+    // UUID — not the uppercased game code) and land in the community chat.
+    // 409 = already a member, which for an invite link is success.
+    if (game === 'community') {
+      const communityId = (params.code ?? '').trim();
+      if (communityId.length < 10) {
+        setError(t('join.badLink', "This invite link doesn't look right. Ask your friend to resend it."));
+        return;
+      }
+      if (!userId) {
+        router.replace({ pathname: '/(auth)/register', params: { next: `/j/community/${communityId}` } });
+        return;
+      }
+      if (attempted.current) return;
+      attempted.current = true;
+      const openChat = () =>
+        router.replace({ pathname: '/community/[id]/chat', params: { id: communityId } });
+      communityApi.join(communityId)
+        .then(openChat)
+        .catch((e: any) => {
+          if (e?.response?.status === 409) { openChat(); return; }
+          setError(t('join.communityFailed',
+            'Could not join this community. The link may be wrong or the community no longer exists.'));
+        });
+      return;
+    }
+
     if (!(game in JOINERS) || code.length < 4) {
       setError(t('join.badLink', "This invite link doesn't look right. Ask your friend to resend it."));
       return;
@@ -71,7 +98,9 @@ export default function JoinByLinkScreen() {
 
   const header = {
     headerShown: true,
-    title: t('join.title', 'Joining game…'),
+    title: game === 'community'
+      ? t('join.communityTitle', 'Joining community…')
+      : t('join.title', 'Joining game…'),
     headerStyle: { backgroundColor: Colors.surface },
     headerTintColor: Colors.textPrimary,
   };

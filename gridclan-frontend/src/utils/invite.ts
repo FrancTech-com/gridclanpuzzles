@@ -34,6 +34,12 @@ export function challengeInviteLink(code: string): string {
   return `${WEB_BASE_URL}/challenge/${encodeURIComponent(code)}`;
 }
 
+/** Tappable link that joins a community and lands in its chat (auto-join,
+ *  see app/j/[game]/[code].tsx — communities join by id, not code). */
+export function communityInviteLink(communityId: string): string {
+  return `${WEB_BASE_URL}/j/community/${encodeURIComponent(communityId)}`;
+}
+
 /**
  * Tappable link inviting someone to join the app itself (not a specific game).
  * Points at the public web home so anyone can play instantly with no install,
