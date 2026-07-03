@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
-import { Font } from '@theme/index';
+import { Font, Glass } from '@theme/index';
 import { useColors } from '@theme/theme';
 import { FloatingControls } from '@components/ui/FloatingControls';
 export default function TabsLayout() {
@@ -12,9 +12,12 @@ export default function TabsLayout() {
   return (
     <View style={{ flex: 1 }}>
     <Tabs
+      // Let the root SkyBackground show through tab scenes (the navigator
+      // otherwise paints its own opaque default background).
+      sceneContainerStyle={{ backgroundColor: 'transparent' }}
       screenOptions={{
         headerShown:          false,
-        tabBarStyle:          { backgroundColor: Colors.surface, borderTopColor: Colors.border, height: 60, paddingBottom: 8 },
+        tabBarStyle:          { backgroundColor: Colors.surface, borderTopColor: Colors.border, height: 60, paddingBottom: 8, ...Glass },
         tabBarActiveTintColor:   Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
         tabBarLabelStyle:     { fontSize: Font.size.xs, fontFamily: Font.family.displaySemi },

@@ -10,6 +10,7 @@ import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { Button, Card, PointsBadge, LoadingSpinner } from '@components/ui/index';
 import { RegisterBanner } from '@components/AuthGate';
 import { BouncingEmblem } from '@components/BouncingEmblem';
+import { AdModal } from '@components/AdModal';
 import { pointsApi, profileApi, type ActiveGameResume } from '@api/index';
 import { playSfx } from '@services/sound';
 import { Font, GameMeta, Radius, Shadow, Spacing } from '@theme/index';
@@ -44,6 +45,7 @@ export default function HomeScreen() {
 
   const [selectedGame, setSelectedGame] = useState<GameType>('WORD_SEARCH');
   const [selectedTier, setSelectedTier] = useState<GameTier>('SOLO');
+  const [showAd, setShowAd] = useState(false);   // "watch ad for rewards"
 
   // On a desktop-width web screen, lay the home out in two columns (play flow |
   // live games). Phones (and narrow web windows) keep the single stacked column.
@@ -245,6 +247,22 @@ export default function HomeScreen() {
             size="lg"
             style={styles.playBtn}
           />
+
+          {/* Watch an ad → real money into the wallet (the earning system) */}
+          {!isGuest && (
+            <TouchableOpacity
+              style={styles.watchAdBtn}
+              onPress={() => { playSfx('tap'); setShowAd(true); }}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.watchAdIcon}>🎬</Text>
+              <View style={styles.watchAdText}>
+                <Text style={styles.watchAdTitle}>{t('home.watchAd', 'Watch ad for rewards')}</Text>
+                <Text style={styles.watchAdDesc}>{t('home.watchAdDesc', 'Every ad you watch adds money to your wallet.')}</Text>
+              </View>
+              <Text style={styles.watchAdArrow}>›</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* ── Right: real-time 2-player games (their own turn-based flows) ─── */}
@@ -352,6 +370,9 @@ export default function HomeScreen() {
           </View>
         </View>
       </View>
+
+      {/* Rewarded ad in flight (opened by "Watch ad for rewards") */}
+      <AdModal visible={showAd} placement="REWARDED" onClose={() => setShowAd(false)} />
     </ScrollView>
   );
 }
@@ -379,7 +400,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   authBtns:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   signInText:     { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
   registerBtn:    { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full },
-  registerBtnText:{ color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
+  registerBtnText:{ color: Colors.textOnBrand, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   sectionLabel: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.8 },
 
@@ -400,7 +421,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   resumeDismissBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   resumeDismissText: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
   resumeBtn:   { flex: 1, backgroundColor: Colors.primary, paddingVertical: Spacing.sm, borderRadius: Radius.full, alignItems: 'center' },
-  resumeBtnText: { color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
+  resumeBtnText: { color: Colors.textOnBrand, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   gameGrid: { gap: Spacing.sm, marginBottom: Spacing.lg },
 
@@ -429,6 +450,18 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   noHintsText:   { color: Colors.warning, fontSize: Font.size.sm, textAlign: 'center' },
 
   playBtn: { marginTop: Spacing.md },
+
+  watchAdBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.surface, borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.accent,
+    padding: Spacing.md, marginTop: Spacing.md,
+  },
+  watchAdIcon:  { fontSize: 26 },
+  watchAdText:  { flex: 1 },
+  watchAdTitle: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
+  watchAdDesc:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: 2 },
+  watchAdArrow: { color: Colors.textMuted, fontSize: Font.size.xl },
 
   // Responsive grid: cards sit in a row that wraps — 1 column on phones,
   // 2–3 across on a desktop screen (each card has a min width).

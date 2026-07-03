@@ -74,13 +74,19 @@ export default function GemsScreen() {
 
       {/* Actions */}
       <TouchableOpacity style={styles.buyBtn} onPress={() => router.push('/gems/buy' as never)}>
-        <Ionicons name="card" size={20} color={Colors.bg} />
+        <Ionicons name="card" size={20} color={Colors.textOnBrand} />
         <Text style={styles.buyBtnText}>{t('gems.buy', 'Buy gems')}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.giftBtn} onPress={() => router.push('/gems/gift' as never)}>
-        <Ionicons name="gift" size={20} color={Colors.bg} />
+        <Ionicons name="gift" size={20} color={Colors.textOnBrand} />
         <Text style={styles.giftBtnText}>{t('gems.gift')}</Text>
+      </TouchableOpacity>
+
+      {/* Prize winnings are a separate real-cash balance (not gems). */}
+      <TouchableOpacity style={styles.withdrawBtn} onPress={() => router.push('/wallet/withdraw' as never)}>
+        <Ionicons name="cash-outline" size={20} color={Colors.textPrimary} />
+        <Text style={styles.withdrawBtnText}>{t('gems.withdraw', 'Withdraw winnings')}</Text>
       </TouchableOpacity>
 
       {/* History */}
@@ -133,13 +139,19 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
     backgroundColor: Colors.accent, borderRadius: Radius.md, paddingVertical: Spacing.md,
     marginTop: Spacing.lg,
   },
-  buyBtnText: { color: Colors.bg, fontWeight: Font.weight.bold, fontSize: Font.size.md },
+  buyBtnText: { color: Colors.textOnBrand, fontWeight: Font.weight.bold, fontSize: Font.size.md },
   giftBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
     backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md,
     marginTop: Spacing.sm,
   },
-  giftBtnText: { color: Colors.bg, fontWeight: Font.weight.bold, fontSize: Font.size.md },
+  giftBtnText: { color: Colors.textOnBrand, fontWeight: Font.weight.bold, fontSize: Font.size.md },
+  withdrawBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
+    backgroundColor: Colors.surface, borderRadius: Radius.md, paddingVertical: Spacing.md,
+    marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
+  },
+  withdrawBtnText: { color: Colors.textPrimary, fontWeight: Font.weight.bold, fontSize: Font.size.md },
 
   sectionTitle: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginTop: Spacing.xl, marginBottom: Spacing.sm },
   historyCard:  { padding: 0 },

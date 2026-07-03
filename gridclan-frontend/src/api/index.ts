@@ -8,6 +8,8 @@ import type {
   GameType, LadderProgress, Difficulty,
   GemQuote, PurchaseInit, PurchaseStatus,
   SupportedCurrencies, CardQuote, CardPurchaseInit,
+  WalletBalance, WithdrawQuote, WithdrawInit, WithdrawStatus, WithdrawalRecord,
+  AdsStatus, AdStart, AdComplete,
   UserProfile,
   Community, CommunityMemberInfo, ChatMessage,
   Tournament, TournamentGame, TournamentMe, LeaderboardEntry, PlayerRank,
@@ -70,6 +72,46 @@ export const paymentsApi = {
   /** Open a hosted card-payment session; returns a paymentUrl to send the player to. */
   initiateCard: (packId: string, currency: string) =>
                   apiClient.post<CardPurchaseInit>('/payments/gems/initiate-card', { packId, currency }),
+};
+
+// ── Prize wallet + withdrawals (real cash OUT via Relworx send-payment) ──────
+export const walletApi = {
+  /** The player's prize balances, one per currency. */
+  balances:  () => apiClient.get<WalletBalance[]>('/payments/wallet'),
+  /** What withdrawing to this number looks like: currency, balance, limits, name. */
+  quote:     (msisdn: string) =>
+               apiClient.get<WithdrawQuote>(`/payments/withdraw/quote?msisdn=${encodeURIComponent(msisdn)}`),
+  /** Hold the funds and send the payout to the number. */
+  initiate:  (msisdn: string, amount: number) =>
+               apiClient.post<WithdrawInit>('/payments/withdraw/initiate', { msisdn, amount }),
+  /** Poll a withdrawal's state (the webhook is the source of truth). */
+  status:    (reference: string) =>
+               apiClient.get<WithdrawStatus>(`/payments/withdraw/status?reference=${encodeURIComponent(reference)}`),
+  /** Recent withdrawals. */
+  history:   (limit = 20) =>
+               apiClient.get<WithdrawalRecord[]>(`/payments/withdraw/history?limit=${limit}`),
+};
+
+// ── Ad rewards (watching ads earns the withdrawable money) ───────────────────
+export const adsApi = {
+  /** Provider chain, reward per ad, remaining today, ad-free state. */
+  status:   () => apiClient.get<AdsStatus>('/ads/status'),
+  /** Issue an ad session before the ad plays. deviceId ties the daily cap to
+   *  the device too, so multi-account farming on one phone can't multiply it. */
+  start:    (placement: 'REWARDED' | 'POST_GAME' = 'REWARDED', deviceId?: string) =>
+              apiClient.post<AdStart>('/ads/start', { placement, deviceId }),
+  /** The ad finished — credit the wallet (idempotent per session). */
+  complete: (adSessionId: string, providerId?: string) =>
+              apiClient.post<AdComplete>('/ads/complete', { adSessionId, providerId }),
+  /** Opt in/out of personalised ads (server only honours it for adults). */
+  consent:  (personalized: boolean) =>
+              apiClient.post<{ personalizedConsent: boolean; personalizedAllowed: boolean }>(
+                '/ads/consent', { personalized }),
+  /** One-time age confirmation for pre-existing accounts. The date is checked
+   *  server-side and discarded — only the 18+ yes/no is kept. */
+  confirmAge: (dateOfBirth: string) =>
+              apiClient.post<{ ageKnown: boolean; personalizedConsent: boolean; personalizedAllowed: boolean }>(
+                '/ads/confirm-age', { dateOfBirth }),
 };
 
 // ── Points (pure score / leaderboard metric — no value, no conversion) ───────
