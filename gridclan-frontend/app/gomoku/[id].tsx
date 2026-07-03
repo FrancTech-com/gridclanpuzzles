@@ -346,11 +346,13 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
 
   voiceFloat: { position: 'absolute', top: Spacing.sm, right: Spacing.md, alignItems: 'flex-end', zIndex: 20 },
   chatWrap: { width: BOARD_W, marginTop: Spacing.md },
-  board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.blue, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: '#caa86a33', alignSelf: 'center', ...Shadow.md },
+  // Fixed wood-goban palette (theme-independent): the translucent tan washed
+  // out over the light glass background and its faint grid vanished on dark.
+  board:    { width: BOARD_W, borderWidth: 3, borderColor: Colors.blue, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: '#c99a55', alignSelf: 'center', ...Shadow.md },
   boardRow: { flexDirection: 'row' },
   cell: {
     width: CELL, height: CELL,
-    borderWidth: 1, borderColor: '#00000033',
+    borderWidth: 1, borderColor: '#00000045',
     alignItems: 'center', justifyContent: 'center',
   },
   cellLastMove: { backgroundColor: Colors.accent + '33' },
@@ -358,6 +360,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   hintMark: { position: 'absolute', fontSize: CELL * 0.55 },
   lastDot: { position: 'absolute', width: CELL * 0.22, height: CELL * 0.22, borderRadius: CELL, backgroundColor: Colors.accent },
   stone:   { width: CELL * 0.8, height: CELL * 0.8, borderRadius: CELL, ...Shadow.sm },
-  stoneP1: { backgroundColor: '#15181c', borderWidth: 1, borderColor: '#000' },
-  stoneP2: { backgroundColor: '#fbfbfb', borderWidth: 1, borderColor: '#9aa' },
+  // Lighter rim on black / darker rim on white so both stones read as round
+  // pieces on the wood in either app theme.
+  stoneP1: { backgroundColor: '#17191d', borderWidth: 1.5, borderColor: '#3d434b' },
+  stoneP2: { backgroundColor: '#f7f7f4', borderWidth: 1.5, borderColor: '#aab2ba' },
 });
