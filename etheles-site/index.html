@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ETHELES STUDIO — Independent Game Studio, Kampala</title>
+  <meta name="description" content="ETHELES STUDIO is an independent game studio in Kampala, Uganda — makers of GridClan Puzzles, a free skill-based puzzle platform you can play right in your browser.">
+  <link rel="canonical" href="https://etheles.studio/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ETHELES STUDIO — Independent Game Studio">
+  <meta property="og:description" content="Makers of GridClan Puzzles. Skill-based games, playable free in your browser.">
+  <meta property="og:url" content="https://etheles.studio/">
+
+  <!-- Same emblem as the game's opening animation -->
+  <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5" fill="%230b100d" stroke="%232fd06a" stroke-width="6" stroke-linejoin="round"/><polygon points="50,17 79,33.5 79,66.5 50,83 21,66.5 21,33.5" fill="none" stroke="%23ffffff" stroke-width="2.4" stroke-linejoin="round"/><text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-family="serif" font-style="italic" font-weight="700" font-size="44" fill="%23ffffff">E</text></svg>'>
+
+  <!-- Same chancery-style italic the in-game intro uses -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,600;1,700&family=Inter:wght@400;500;600;700&display=swap">
+
+  <style>
+    :root {
+      --green:  #2fd06a;
+      --ink:    #0b100d;   /* emblem fill */
+      --bg:     #051124;   /* deep navy from the splash */
+      --bg2:    #0e2440;
+      --panel:  rgba(255,255,255,.045);
+      --line:   rgba(255,255,255,.12);
+      --text:   #eef3f0;
+      --muted:  #9fb0be;
+      --chancery: 'Cormorant Garamond', 'Apple Chancery', 'URW Chancery L', serif;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background:
+        radial-gradient(1100px 600px at 75% -10%, rgba(47,208,106,.10), transparent 60%),
+        radial-gradient(900px 700px at -10% 110%, rgba(63,134,255,.10), transparent 55%),
+        linear-gradient(160deg, var(--bg) 0%, var(--bg2) 100%);
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 100vh;
+    }
+    a { color: var(--green); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Hero ─────────────────────────────────────────────── */
+    header { padding: 96px 0 72px; text-align: center; }
+    .hex { width: 92px; height: 92px; margin: 0 auto 22px; filter: drop-shadow(0 8px 18px rgba(0,0,0,.5)); }
+    .wordmark {
+      font-family: var(--chancery);
+      font-style: italic; font-weight: 700;
+      font-size: clamp(40px, 9vw, 76px);
+      letter-spacing: 1px; line-height: 1.1;
+      text-shadow: 0 2px 0 #000, 0 3px 12px rgba(0,0,0,.6), 0 0 18px rgba(47,208,106,.30);
+      white-space: nowrap;
+    }
+    .wordmark .l { display: inline-block; }
+    .wordmark .g { color: var(--green); }
+    .wordmark .w { color: #ffffff; }
+    .wordmark .sp { display: inline-block; width: .32em; }
+    .tagline { margin-top: 14px; color: var(--muted); font-size: 17px; }
+    .tagline b { color: var(--text); font-weight: 600; }
+
+    /* entrance swoosh, echoing the in-game intro */
+    @media (prefers-reduced-motion: no-preference) {
+      .hex { opacity: 0; transform: scale(.35) translateY(10px) rotate(-14deg);
+             animation: pop .55s cubic-bezier(.2,.9,.25,1.35) .15s forwards; }
+      .wordmark .l { opacity: 0; transform: translateY(-24px) rotate(-9deg) scale(.55);
+                     animation: drop .42s cubic-bezier(.2,.9,.25,1.3) forwards; }
+      .tagline, .cta-row { opacity: 0; animation: fade .6s ease 1.35s forwards; }
+      @keyframes pop  { to { opacity: 1; transform: none; } }
+      @keyframes drop { to { opacity: 1; transform: none; } }
+      @keyframes fade { to { opacity: 1; } }
+    }
+
+    .cta-row { margin-top: 34px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block; padding: 13px 30px; border-radius: 999px;
+      font-weight: 600; font-size: 16px; transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-2px); }
+    .btn-primary { background: var(--green); color: #04120a; box-shadow: 0 6px 22px rgba(47,208,106,.35); }
+    .btn-primary:hover { box-shadow: 0 10px 28px rgba(47,208,106,.45); }
+    .btn-ghost { border: 1px solid var(--line); color: var(--text); background: var(--panel); }
+
+    /* ── Sections ─────────────────────────────────────────── */
+    section { padding: 56px 0; }
+    .kicker {
+      font-size: 13px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+      color: var(--green); margin-bottom: 10px;
+    }
+    h2 { font-size: clamp(26px, 4.5vw, 34px); font-weight: 700; letter-spacing: -.01em; margin-bottom: 14px; }
+    .lede { color: var(--muted); max-width: 640px; }
+
+    /* game card */
+    .game-card {
+      margin-top: 30px; border: 1px solid var(--line); border-radius: 20px;
+      background: var(--panel); backdrop-filter: blur(8px);
+      padding: 34px; display: grid; grid-template-columns: 1fr; gap: 26px;
+    }
+    @media (min-width: 760px) { .game-card { grid-template-columns: 1.2fr 1fr; align-items: center; } }
+    .game-name { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+    .game-name span { color: var(--green); }
+    .game-desc { color: var(--muted); margin-bottom: 18px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+    .chip {
+      border: 1px solid var(--line); border-radius: 999px; padding: 5px 13px;
+      font-size: 13px; color: var(--text); background: rgba(255,255,255,.03);
+    }
+    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .tile {
+      border: 1px solid var(--line); border-radius: 14px; padding: 16px 14px;
+      background: rgba(255,255,255,.03); text-align: center;
+    }
+    .tile .em { font-size: 26px; display: block; margin-bottom: 6px; }
+    .tile .nm { font-size: 14px; font-weight: 600; }
+    .tile .md { font-size: 12px; color: var(--muted); }
+
+    /* values */
+    .values { margin-top: 30px; display: grid; gap: 14px; grid-template-columns: 1fr; }
+    @media (min-width: 760px) { .values { grid-template-columns: repeat(3, 1fr); } }
+    .value {
+      border: 1px solid var(--line); border-radius: 16px; padding: 22px;
+      background: var(--panel);
+    }
+    .value h3 { font-size: 16px; margin-bottom: 8px; }
+    .value h3 .dot { color: var(--green); }
+    .value p { font-size: 14px; color: var(--muted); }
+
+    /* contact */
+    .contact-card {
+      margin-top: 26px; border: 1px solid var(--line); border-radius: 18px;
+      background: var(--panel); padding: 28px;
+      display: flex; flex-wrap: wrap; gap: 26px; justify-content: space-between; align-items: center;
+    }
+    .contact-card .rows p { margin: 4px 0; color: var(--muted); font-size: 15px; }
+    .contact-card .rows b { color: var(--text); font-weight: 600; }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 30px 0 44px; margin-top: 40px;
+      color: var(--muted); font-size: 14px;
+    }
+    .foot { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; }
+    .foot nav { display: flex; flex-wrap: wrap; gap: 18px; }
+    .foot a { color: var(--muted); }
+    .foot a:hover { color: var(--green); }
+  </style>
+</head>
+<body>
+
+  <div class="wrap">
+
+    <!-- ── Hero ─────────────────────────────────────────────── -->
+    <header>
+      <div class="hex">
+        <svg viewBox="0 0 100 100" width="100%" height="100%" role="img" aria-label="ETHELES STUDIO emblem">
+          <polygon points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5"
+            fill="#0b100d" stroke="#2fd06a" stroke-width="6" stroke-linejoin="round"/>
+          <polygon points="50,17 79,33.5 79,66.5 50,83 21,66.5 21,33.5"
+            fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/>
+          <text x="50" y="54" text-anchor="middle" dominant-baseline="central"
+            font-family="'Cormorant Garamond','Apple Chancery',serif"
+            font-style="italic" font-weight="700" font-size="44" fill="#ffffff">E</text>
+        </svg>
+      </div>
+
+      <h1 class="wordmark" aria-label="ETHELES STUDIO">
+        <span class="l g" style="animation-delay:.30s">E</span><span class="l w" style="animation-delay:.37s">T</span><span class="l g" style="animation-delay:.44s">H</span><span class="l w" style="animation-delay:.51s">E</span><span class="l g" style="animation-delay:.58s">L</span><span class="l w" style="animation-delay:.65s">E</span><span class="l g" style="animation-delay:.72s">S</span><span class="sp"></span><span class="l w" style="animation-delay:.82s">S</span><span class="l g" style="animation-delay:.89s">T</span><span class="l w" style="animation-delay:.96s">U</span><span class="l g" style="animation-delay:1.03s">D</span><span class="l w" style="animation-delay:1.10s">I</span><span class="l g" style="animation-delay:1.17s">O</span>
+      </h1>
+
+      <p class="tagline">An independent game studio in <b>Kampala, Uganda</b> — building skill-based games the whole continent can play, right in the browser.</p>
+
+      <div class="cta-row">
+        <a class="btn btn-primary" href="https://gridclanpuzzle.win" target="_blank" rel="noopener">▶&nbsp; Play GridClan Puzzles</a>
+        <a class="btn btn-ghost" href="#contact">Get in touch</a>
+      </div>
+    </header>
+
+    <!-- ── Our game ─────────────────────────────────────────── -->
+    <section id="games">
+      <p class="kicker">Our games</p>
+      <h2>GridClan Puzzles</h2>
+      <p class="lede">A free, skill-based puzzle platform: four classic grid games, solo difficulty ladders, live head-to-head matches with friends, communities and knockout tournaments — no install needed.</p>
+
+      <div class="game-card">
+        <div>
+          <div class="game-name">GridClan <span>Puzzles</span></div>
+          <p class="game-desc">Climb the ranks from Beginner to Professional, challenge friends in real time with in-game voice chat, and earn reward points you can redeem for mobile-money rewards — all funded by optional ads, never pay-to-win.</p>
+          <div class="chips">
+            <span class="chip">Free to play</span>
+            <span class="chip">Plays in the browser</span>
+            <span class="chip">Live 2-player</span>
+            <span class="chip">Tournaments</span>
+            <span class="chip">Pure skill</span>
+          </div>
+          <a class="btn btn-primary" href="https://gridclanpuzzle.win" target="_blank" rel="noopener">Play free →</a>
+        </div>
+        <div class="tiles">
+          <div class="tile"><span class="em">🔠</span><span class="nm">Grid Scrabble</span><br><span class="md">Real rules, shared board</span></div>
+          <div class="tile"><span class="em">🔍</span><span class="nm">Word Search</span><br><span class="md">Solo ladder, 60 levels</span></div>
+          <div class="tile"><span class="em">⚫</span><span class="nm">Gomoku</span><br><span class="md">Five in a row, live</span></div>
+          <div class="tile"><span class="em">🚢</span><span class="nm">Battleship</span><br><span class="md">Classic naval duels</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── About ────────────────────────────────────────────── -->
+    <section id="about">
+      <p class="kicker">About the studio</p>
+      <h2>Games made in Uganda, for everyone</h2>
+      <p class="lede">ETHELES STUDIO builds games that respect the player: skill decides who wins, tournaments are never pay-to-win, and everything runs on the devices and networks people actually have — starting with any phone browser.</p>
+
+      <div class="values">
+        <div class="value">
+          <h3><span class="dot">◆</span> Skill first</h3>
+          <p>Points, ranks and tournament brackets measure ability, not spending. Nothing you can buy makes you win.</p>
+        </div>
+        <div class="value">
+          <h3><span class="dot">◆</span> Fair rewards</h3>
+          <p>Players earn reward points through optional ads and redeem them for real mobile-money rewards — transparently, with the value always shown before confirming.</p>
+        </div>
+        <div class="value">
+          <h3><span class="dot">◆</span> Privacy by design</h3>
+          <p>Minimal data, in-app data export and deletion, and full compliance with the Uganda Data Protection and Privacy Act 2019.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Contact ──────────────────────────────────────────── -->
+    <section id="contact">
+      <p class="kicker">Contact</p>
+      <h2>Get in touch</h2>
+      <div class="contact-card">
+        <div class="rows">
+          <p><b>Business &amp; partnerships:</b> <a href="mailto:hello@etheles.studio">hello@etheles.studio</a></p>
+          <p><b>Player support:</b> <a href="mailto:support.gridclanpuzzles@gmail.com">support.gridclanpuzzles@gmail.com</a></p>
+          <p><b>Studio:</b> Kampala, Uganda</p>
+        </div>
+        <a class="btn btn-ghost" href="mailto:hello@etheles.studio">Email the studio</a>
+      </div>
+    </section>
+
+    <!-- ── Footer ───────────────────────────────────────────── -->
+    <footer>
+      <div class="foot">
+        <div>© 2026 ETHELES STUDIO · Kampala, Uganda</div>
+        <nav>
+          <a href="https://gridclanpuzzle.win" target="_blank" rel="noopener">Play</a>
+          <a href="https://api.gridclanpuzzle.win/legal/privacy-policy.html" target="_blank" rel="noopener">Privacy Policy</a>
+          <a href="https://api.gridclanpuzzle.win/legal/terms-of-service.html" target="_blank" rel="noopener">Terms of Service</a>
+        </nav>
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>
