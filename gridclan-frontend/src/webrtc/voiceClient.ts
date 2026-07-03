@@ -1,4 +1,5 @@
 import { stompConnection } from '@websocket/stompClient';
+import { voiceApi } from '@api/index';
 
 /**
  * Friend-to-friend in-game voice over WebRTC.
@@ -13,8 +14,10 @@ import { stompConnection } from '@websocket/stompClient';
  * "voice on web for now" hint instead of a broken button. Native support arrives
  * with react-native-webrtc in a later phase — the signalling stays identical.
  *
- * STUN only for now (no TURN), so calls connect on most desktop/Wi-Fi networks;
- * strict mobile NATs will need the TURN step from the design doc.
+ * ICE servers (STUN + TURN) come from the backend (/voice/ice-servers) so the
+ * relay can be swapped via env without a release. TURN matters here: on
+ * carrier-grade NAT (most mobile data) a direct P2P path is blocked and calls
+ * only connect by relaying through TURN.
  */
 
 export type VoiceState =
@@ -42,9 +45,22 @@ interface VoiceSignal {
   fromName?:   string;
 }
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-};
+// Fallback if the config endpoint is unreachable — STUN-only (P2P paths only).
+const FALLBACK_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+// Fetched once per session; all calls share it.
+let iceServersCache: RTCIceServer[] | null = null;
+async function getIceServers(): Promise<RTCIceServer[]> {
+  if (iceServersCache) return iceServersCache;
+  try {
+    const res = await voiceApi.iceServers();
+    if (Array.isArray(res.data) && res.data.length > 0) {
+      iceServersCache = res.data as RTCIceServer[];
+      return iceServersCache;
+    }
+  } catch { /* fall through to STUN-only */ }
+  return FALLBACK_ICE;
+}
 
 const supported = (): boolean =>
   typeof RTCPeerConnection !== 'undefined' &&
@@ -104,11 +120,15 @@ class VoiceClient {
 
   // ── User actions ────────────────────────────────────────────────────────────
 
-  /** Ring my friend. */
+  /** Ring my friend. No-op (stays idle) if the signalling socket is down —
+   *  better than showing "Ringing…" for a frame that was never delivered. */
   requestVoice() {
     if (!supported() || this.state !== 'idle') return;
+    if (!this.send({ type: 'REQUEST' })) {
+      console.warn('Voice ring not sent — signalling socket is down');
+      return;
+    }
     this.state = 'requesting';
-    this.send({ type: 'REQUEST' });
     this.emit();
   }
 
@@ -219,7 +239,7 @@ class VoiceClient {
       console.warn('Microphone permission denied / unavailable', e);
       return false;
     }
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const pc = new RTCPeerConnection({ iceServers: await getIceServers() });
     this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream!));
 
     pc.onicecandidate = ev => {
@@ -229,7 +249,9 @@ class VoiceClient {
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
       if (st === 'connected' && this.state !== 'connected') { this.state = 'connected'; this.emit(); }
-      else if (st === 'failed' || st === 'closed' || st === 'disconnected') {
+      // 'disconnected' is often transient (a network blip WebRTC recovers from
+      // by itself) — only tear down on definitive 'failed' / 'closed'.
+      else if (st === 'failed' || st === 'closed') {
         if (this.state !== 'idle') this.reset();
       }
     };
@@ -283,8 +305,8 @@ class VoiceClient {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private send(sig: Pick<VoiceSignal, 'type' | 'sdp' | 'candidate'>) {
-    stompConnection.publish(`/app/${this.kind}/${this.gameId}/voice`, JSON.stringify(sig));
+  private send(sig: Pick<VoiceSignal, 'type' | 'sdp' | 'candidate'>): boolean {
+    return stompConnection.publish(`/app/${this.kind}/${this.gameId}/voice`, JSON.stringify(sig));
   }
 
   private emit() {

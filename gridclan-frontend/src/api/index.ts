@@ -150,6 +150,28 @@ export const gemsApi = {
       '/user/gems/ad-reward', { adSessionId }),
 };
 
+// ── In-game chat (REST side: history + reliable send; WS topic = fast path) ─
+export interface GameChatMessageView {
+  id:         string;
+  senderId:   string;
+  senderName: string;
+  content:    string;
+  sentAt:     string;
+}
+
+export const gameChatApi = {
+  history: (kind: string, gameId: string) =>
+    apiClient.get<GameChatMessageView[]>(`/game-chat/${kind}/${gameId}`),
+  send: (kind: string, gameId: string, content: string) =>
+    apiClient.post<GameChatMessageView>(`/game-chat/${kind}/${gameId}`, { content }),
+};
+
+// ── In-game voice (WebRTC ICE servers, incl. TURN for mobile NATs) ──────────
+export const voiceApi = {
+  iceServers: () =>
+    apiClient.get<{ urls: string; username?: string; credential?: string }[]>('/voice/ice-servers'),
+};
+
 // ── Profile ────────────────────────────────────────────────────────────────
 export interface ActiveGameResume {
   kind:        'gomoku' | 'battleship' | 'scrabble';
