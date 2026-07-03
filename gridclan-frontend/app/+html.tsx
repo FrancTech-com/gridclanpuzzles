@@ -156,40 +156,27 @@ if ('serviceWorker' in navigator) {
 
           {/* ── Act 2: GRIDCLAN PUZZLES ───────────────────────────────── */}
           <div className="gc-stage gc-grid">
-            <svg className="gc-arc" viewBox="0 0 360 360" aria-hidden="true">
-              <defs>
-                <path id="gcArcTop" d="M 48 180 A 132 132 0 0 1 312 180" />
-                <path id="gcArcBot" d="M 48 180 A 132 132 0 0 0 312 180" />
-              </defs>
-              <text className="gc-arc-text" fontSize="36">
-                <textPath href="#gcArcTop" startOffset="50%" textAnchor="middle">
-                  <tspan className="gc-sl" fill="#2fd06a">G</tspan>
-                  <tspan className="gc-sl" fill="#e23b3b">R</tspan>
-                  <tspan className="gc-sl" fill="#ffffff">I</tspan>
-                  <tspan className="gc-sl" fill="#3f86ff">D</tspan>
-                  <tspan className="gc-sl" fill="#14212e">C</tspan>
-                  <tspan className="gc-sl" fill="#2fd06a">L</tspan>
-                  <tspan className="gc-sl" fill="#e23b3b">A</tspan>
-                  <tspan className="gc-sl" fill="#ffffff">N</tspan>
-                </textPath>
-              </text>
-              <text className="gc-arc-text" fontSize="32">
-                <textPath href="#gcArcBot" startOffset="50%" textAnchor="middle">
-                  <tspan className="gc-sl" fill="#3f86ff">P</tspan>
-                  <tspan className="gc-sl" fill="#2fd06a">U</tspan>
-                  <tspan className="gc-sl" fill="#e23b3b">Z</tspan>
-                  <tspan className="gc-sl" fill="#ffffff">Z</tspan>
-                  <tspan className="gc-sl" fill="#14212e">L</tspan>
-                  <tspan className="gc-sl" fill="#3f86ff">E</tspan>
-                  <tspan className="gc-sl" fill="#2fd06a">S</tspan>
-                </textPath>
-              </text>
-            </svg>
+            {/* The arc letters live here — created by the timeline script as
+                HTML spans (SVG textPath glyphs can't fly), so the buddy below
+                can KICK each one up into its slot on the circle. */}
+            <div className="gc-word-layer" />
             <div className="gc-emblem">
               <img className="gc-piece gc-p0" src="/splash-piece-0.png" alt="" />
               <img className="gc-piece gc-p1" src="/splash-piece-1.png" alt="" />
               <img className="gc-piece gc-p2" src="/splash-piece-2.png" alt="" />
               <img className="gc-piece gc-p3" src="/splash-piece-3.png" alt="" />
+            </div>
+            {/* The cartoon buddy who kicks the letters in, then smiles */}
+            <div className="gc-buddy">
+              <div className="gc-b-body">
+                <div className="gc-b-eyes"><span /><span /></div>
+                <div className="gc-b-cheeks"><span /><span /></div>
+                <div className="gc-b-mouth" />
+              </div>
+              <div className="gc-b-legs">
+                <span className="gc-b-leg" />
+                <span className="gc-b-leg gc-b-kickleg" />
+              </div>
             </div>
           </div>
         </div>
@@ -215,7 +202,7 @@ html, body { background-color: #051124; }
   -webkit-tap-highlight-color: transparent;
   /* Safety net: if the timeline script never runs (JS disabled / error), the
      overlay still gets out of the way instead of trapping the user. */
-  animation: gcSafety 0.6s ease 8s forwards;
+  animation: gcSafety 0.6s ease 10.5s forwards;
 }
 #gc-splash.gc-out { opacity: 0; visibility: hidden; pointer-events: none;
   transition: opacity 0.55s ease, visibility 0.55s ease; }
@@ -255,18 +242,95 @@ html, body { background-color: #051124; }
 #gc-splash .gc-eth-word .gc-sp { display: inline-block; width: .34em; }
 
 /* Act 2 — GRIDCLAN PUZZLES */
-#gc-splash .gc-arc { position: absolute; width: min(88vw, 360px); height: min(88vw, 360px); overflow: visible; }
-#gc-splash .gc-arc-text {
-  font-family: 'Rye','Bevan',serif; font-weight: 700;
-  filter: drop-shadow(0 2px 2px rgba(0,0,0,.55));
+#gc-splash .gc-word-layer {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(88vw, 360px); height: min(88vw, 360px); overflow: visible;
 }
-#gc-splash .gc-sl {
-  opacity: 0;
+#gc-splash .gc-kl {
+  position: absolute; opacity: 0; will-change: transform;
+  font-family: 'Rye','Bevan',serif; font-weight: 700; line-height: 1;
   /* Light cream "carved" rim so every letter — including the near-black one —
      reads on the dark backdrop while keeping the wood-type look. */
-  paint-order: stroke; stroke: #efe2b8; stroke-width: 1.7px;
+  -webkit-text-stroke: 1.2px #efe2b8;
+  text-shadow: 0 2px 2px rgba(0,0,0,.55);
 }
-#gc-splash .gc-sl.in { opacity: 1; transition: opacity 0.3s ease; }
+#gc-splash .gc-kl.in {
+  opacity: 1;
+  transition: transform 0.44s cubic-bezier(.2,.9,.25,1.3), opacity 0.22s ease;
+}
+
+/* The buddy — a round yellow fellow below the emblem doing the kicking */
+#gc-splash .gc-buddy {
+  position: absolute; left: 50%;
+  top: calc(50% + min(44vw, 180px) + 2px);
+  transform: translateX(-50%) scale(0);
+  display: flex; flex-direction: column; align-items: center;
+  filter: drop-shadow(0 5px 10px rgba(0,0,0,.45));
+}
+#gc-splash .gc-buddy.in {
+  transform: translateX(-50%) scale(1);
+  transition: transform 0.35s cubic-bezier(.2,.9,.25,1.4);
+}
+#gc-splash .gc-b-body {
+  position: relative; width: 62px; height: 62px; border-radius: 50%;
+  background: #ffd34d; border: 3px solid #e8a900;
+  display: flex; flex-direction: column; align-items: center;
+}
+#gc-splash .gc-buddy.kick .gc-b-body { animation: gcLean 0.24s ease; }
+@keyframes gcLean {
+  0% { transform: none; } 30% { transform: rotate(5deg) translateY(1px); }
+  65% { transform: rotate(-9deg) translateY(-4px); } 100% { transform: none; }
+}
+#gc-splash .gc-b-eyes { display: flex; gap: 9px; margin-top: 15px; }
+#gc-splash .gc-b-eyes span {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: #fff; border: 2px solid #3a2b00; position: relative;
+}
+#gc-splash .gc-b-eyes span::after {
+  content: ''; position: absolute; left: 3px; top: 3px;
+  width: 5px; height: 5px; border-radius: 50%; background: #3a2b00;
+}
+/* Happy eyes: closed "^ ^" arcs */
+#gc-splash .gc-buddy.happy .gc-b-eyes span {
+  height: 7px; background: transparent; border: none;
+  border-top: 3px solid #3a2b00; border-radius: 7px 7px 0 0; margin-top: 3px;
+}
+#gc-splash .gc-buddy.happy .gc-b-eyes span::after { display: none; }
+#gc-splash .gc-b-cheeks {
+  display: none; position: absolute; top: 28px; left: 0; right: 0;
+  justify-content: space-between; padding: 0 6px;
+}
+#gc-splash .gc-buddy.happy .gc-b-cheeks { display: flex; }
+#gc-splash .gc-b-cheeks span {
+  width: 8px; height: 8px; border-radius: 50%; background: rgba(255,110,110,.7);
+}
+#gc-splash .gc-b-mouth {
+  width: 11px; height: 3px; border-radius: 2px; background: #7a4a00; margin-top: 9px;
+}
+#gc-splash .gc-buddy.happy .gc-b-mouth {
+  width: 26px; height: 13px; border-radius: 0 0 13px 13px; background: #7a3a00; margin-top: 6px;
+}
+#gc-splash .gc-b-legs { display: flex; gap: 11px; margin-top: -3px; }
+#gc-splash .gc-b-leg {
+  position: relative; width: 8px; height: 19px; border-radius: 4px; background: #e8a900;
+}
+#gc-splash .gc-b-leg::after {  /* shoe */
+  content: ''; position: absolute; left: -4px; bottom: -3px;
+  width: 17px; height: 8px; border-radius: 4px; background: #37455b;
+}
+#gc-splash .gc-b-kickleg { transform-origin: top center; }
+#gc-splash .gc-buddy.kick .gc-b-kickleg { animation: gcKick 0.24s ease; }
+@keyframes gcKick {
+  0% { transform: none; } 30% { transform: rotate(-30deg); }
+  65% { transform: rotate(55deg); } 100% { transform: none; }
+}
+#gc-splash .gc-buddy.happy { animation: gcHop 0.65s ease 0.1s; }
+@keyframes gcHop {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  25% { transform: translateX(-50%) translateY(-16px) scale(1); }
+  50% { transform: translateX(-50%) scale(1); }
+  70% { transform: translateX(-50%) translateY(-9px) scale(1); }
+}
 #gc-splash .gc-emblem { position: relative; width: 174px; height: 174px; }
 #gc-splash .gc-piece {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0;
@@ -298,9 +362,57 @@ const splashScript = `
   var emblem = splash.querySelector('.gc-emblem');
   var letters = splash.querySelectorAll('.gc-eth-word .gc-l');
   var pieces  = splash.querySelectorAll('.gc-piece');
-  var arcTexts = splash.querySelectorAll('.gc-arc-text');
-  var gridGlyphs = arcTexts[0] ? arcTexts[0].querySelectorAll('.gc-sl') : [];
-  var puzzGlyphs = arcTexts[1] ? arcTexts[1].querySelectorAll('.gc-sl') : [];
+  var layer = splash.querySelector('.gc-word-layer');
+  var buddy = splash.querySelector('.gc-buddy');
+
+  // ---- Arc letters (built as HTML spans so they can be kicked into place) --
+  // Geometry mirrors the old SVG textPath: a 360-unit circle, r=132, GRIDCLAN
+  // arched over the top, PUZZLES under the bottom. Positions are set in % of
+  // the layer so they scale with the viewport; the kick-flight offset (from
+  // the buddy's boot below the circle) is computed in px at reveal time.
+  var arcLetters = [];
+  (function () {
+    var topW = 'GRIDCLAN', botW = 'PUZZLES';
+    var cols = ['#2fd06a', '#e23b3b', '#ffffff', '#3f86ff', '#14212e'];
+    var i, a;
+    for (i = 0; i < topW.length; i++) {
+      a = (-90 + (i - (topW.length - 1) / 2) * 13) * Math.PI / 180;
+      arcLetters.push({ ch: topW[i], col: cols[i % cols.length],
+        x: 180 + 132 * Math.cos(a), y: 180 + 132 * Math.sin(a),
+        rot: a * 180 / Math.PI + 90, size: 36 });
+    }
+    for (i = 0; i < botW.length; i++) {
+      a = (90 - (i - (botW.length - 1) / 2) * 12.5) * Math.PI / 180;
+      arcLetters.push({ ch: botW[i], col: cols[(i + 3) % cols.length],
+        x: 180 + 132 * Math.cos(a), y: 180 + 132 * Math.sin(a),
+        rot: a * 180 / Math.PI - 90, size: 32 });
+    }
+  })();
+  var letterEls = [];
+  function buildLetters() {
+    var s = layer.getBoundingClientRect().width / 360;
+    arcLetters.forEach(function (L, i) {
+      var el = document.createElement('span');
+      el.className = 'gc-kl';
+      el.textContent = L.ch;
+      el.style.color = L.col;
+      el.style.fontSize = (L.size * s) + 'px';
+      el.style.left = (L.x / 360 * 100) + '%';
+      el.style.top  = (L.y / 360 * 100) + '%';
+      // Start at the buddy's boot (below the circle's bottom), spun & small.
+      var dx = (180 - L.x) * s, dy = (392 - L.y) * s;
+      el.style.transform = 'translate(-50%,-50%) translate(' + dx + 'px,' + dy + 'px) ' +
+        'rotate(' + (i % 2 ? -200 : 160) + 'deg) scale(.4)';
+      el.dataset.final = 'translate(-50%,-50%) rotate(' + L.rot + 'deg)';
+      layer.appendChild(el);
+      letterEls.push(el);
+    });
+  }
+  function kickBuddy() {
+    buddy.classList.remove('kick');
+    void buddy.offsetWidth;          // restart the kick animation
+    buddy.classList.add('kick');
+  }
 
   // ---- Web Audio (best-effort; browsers may block until a gesture) --------
   var AC = window.AudioContext || window.webkitAudioContext;
@@ -357,7 +469,7 @@ const splashScript = `
     });
   }
 
-  // A little "bubble" pop for each GRIDCLAN / PUZZLES letter.
+  // A little "bubble" pop for each GRIDCLAN / PUZZLES letter landing.
   function bubble() {
     var c = ac(); if (!c) return; var t = c.currentTime;
     var o = c.createOscillator(), g = c.createGain();
@@ -368,6 +480,20 @@ const splashScript = `
     g.gain.exponentialRampToValueAtTime(0.15, t + 0.012);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
     o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.15);
+  }
+
+  // A happy three-note chirp for the buddy's smile at the end.
+  function yay() {
+    var c = ac(); if (!c) return; var t = c.currentTime;
+    [523, 659, 784].forEach(function (f, i) {
+      var o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      var s = t + i * 0.09;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(0.14, s + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.22);
+      o.connect(g); g.connect(c.destination); o.start(s); o.stop(s + 0.25);
+    });
   }
 
   var timers = [];
@@ -386,9 +512,14 @@ const splashScript = `
   if (reduce) {
     // Honour reduced-motion: reveal the final brand mark briefly, no animation.
     act2.classList.add('gc-show');
+    buildLetters();
     for (var i = 0; i < pieces.length; i++) pieces[i].classList.add('in');
-    for (var j = 0; j < gridGlyphs.length; j++) gridGlyphs[j].classList.add('in');
-    for (var k = 0; k < puzzGlyphs.length; k++) puzzGlyphs[k].classList.add('in');
+    letterEls.forEach(function (el) {
+      el.style.transition = 'none';
+      el.style.transform = el.dataset.final;
+      el.classList.add('in');
+    });
+    buddy.classList.add('in', 'happy');
     at(1400, finish);
     return;
   }
@@ -415,16 +546,22 @@ const splashScript = `
   var settleAt = pieceStart + pieces.length * pieceStep + 60;
   at(settleAt, function () { emblem.classList.add('settle'); ting(2700); });
 
-  // GRIDCLAN (top) and PUZZLES (bottom) bubble in around the emblem.
-  var wordStart = settleAt + 220, wordStep = 80;
-  gridGlyphs.forEach(function (el, i) {
-    at(wordStart + i * wordStep, function () { el.classList.add('in'); bubble(); });
+  // The buddy hops up and KICKS the GRIDCLAN / PUZZLES letters into their
+  // arc slots one per kick, then breaks into a smile and does a happy hop.
+  at(act2Start, buildLetters);
+  at(settleAt + 160, function () { buddy.classList.add('in'); });
+  var kickStart = settleAt + 420, kickStep = 160;
+  arcLetters.forEach(function (_, i) {
+    at(kickStart + i * kickStep, function () {
+      kickBuddy(); swoosh();
+      var el = letterEls[i];
+      el.classList.add('in');
+      el.style.transform = el.dataset.final;
+    });
+    at(kickStart + i * kickStep + 430, bubble);   // the letter lands
   });
-  puzzGlyphs.forEach(function (el, i) {
-    at(wordStart + 220 + i * wordStep, function () { el.classList.add('in'); bubble(); });
-  });
-
-  var holdEnd = wordStart + 220 + Math.max(gridGlyphs.length, puzzGlyphs.length) * wordStep + 900;
-  at(holdEnd, finish);
+  var smileAt = kickStart + arcLetters.length * kickStep + 300;
+  at(smileAt, function () { buddy.classList.remove('kick'); buddy.classList.add('happy'); yay(); });
+  at(smileAt + 1500, finish);
 })();
 `;

@@ -52,12 +52,16 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="wallet"
         options={{
-          title: t('tabs.profile'),
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
+          title: t('tabs.wallet', 'Wallet'),
+          tabBarIcon: ({ color, size }) => <Ionicons name="wallet" size={size} color={color} />,
         }}
       />
+      {/* Profile lives in the top-right corner button (FloatingControls), not
+          the tab bar — href:null keeps the route (tab bar stays visible on it)
+          without rendering a tab. */}
+      <Tabs.Screen name="profile" options={{ href: null }} />
     </Tabs>
     <FloatingControls />
     </View>
