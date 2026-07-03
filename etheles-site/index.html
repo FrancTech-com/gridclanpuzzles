@@ -12,6 +12,31 @@
   <meta property="og:description" content="Makers of GridClan Puzzles. Skill-based games, playable free in your browser.">
   <meta property="og:url" content="https://etheles.studio/">
 
+  <!-- Structured data: tells Google who the company and its founder are,
+       so searches for "ETHELES STUDIO" or "Ofoyrwoth Francis" resolve here. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "ETHELES STUDIO",
+    "url": "https://etheles.studio",
+    "foundingDate": "2026",
+    "email": "hello@etheles.studio",
+    "description": "Independent game studio in Kampala, Uganda — makers of GridClan Puzzles.",
+    "location": {
+      "@type": "Place",
+      "address": { "@type": "PostalAddress", "addressLocality": "Kampala", "addressCountry": "UG" }
+    },
+    "founder": {
+      "@type": "Person",
+      "name": "Ofoyrwoth Francis",
+      "jobTitle": "Founder & CEO",
+      "affiliation": { "@type": "CollegeOrUniversity", "name": "Makerere University" },
+      "worksFor": { "@type": "Organization", "name": "ETHELES STUDIO" }
+    }
+  }
+  </script>
+
   <!-- Same emblem as the game's opening animation -->
   <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><polygon points="50,3 91,26.5 91,73.5 50,97 9,73.5 9,26.5" fill="%230b100d" stroke="%232fd06a" stroke-width="6" stroke-linejoin="round"/><polygon points="50,17 79,33.5 79,66.5 50,83 21,66.5 21,33.5" fill="none" stroke="%23ffffff" stroke-width="2.4" stroke-linejoin="round"/><text x="50" y="54" text-anchor="middle" dominant-baseline="central" font-family="serif" font-style="italic" font-weight="700" font-size="44" fill="%23ffffff">E</text></svg>'>
 
@@ -133,6 +158,26 @@
     .value h3 .dot { color: var(--green); }
     .value p { font-size: 14px; color: var(--muted); }
 
+    /* founder */
+    .founder-card {
+      margin-top: 34px; border: 1px solid var(--line); border-radius: 20px;
+      background: var(--panel); padding: 30px;
+      display: flex; gap: 24px; align-items: center; flex-wrap: wrap;
+    }
+    .founder-avatar {
+      width: 88px; height: 88px; border-radius: 50%; flex: 0 0 auto;
+      background: radial-gradient(circle at 35% 30%, #14432a, #0b100d);
+      border: 2px solid var(--green);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--chancery); font-style: italic; font-weight: 700;
+      font-size: 34px; color: #ffffff;
+      box-shadow: 0 6px 18px rgba(47,208,106,.25);
+    }
+    .founder-info { flex: 1; min-width: 240px; }
+    .founder-name { font-size: 21px; font-weight: 700; }
+    .founder-role { color: var(--green); font-weight: 600; font-size: 14px; margin: 2px 0 10px; }
+    .founder-bio { color: var(--muted); font-size: 15px; }
+
     /* contact */
     .contact-card {
       margin-top: 26px; border: 1px solid var(--line); border-radius: 18px;
@@ -211,11 +256,20 @@
       </div>
     </section>
 
-    <!-- ── About ────────────────────────────────────────────── -->
+    <!-- ── About us ─────────────────────────────────────────── -->
     <section id="about">
-      <p class="kicker">About the studio</p>
+      <p class="kicker">About us</p>
       <h2>Games made in Uganda, for everyone</h2>
-      <p class="lede">ETHELES STUDIO builds games that respect the player: skill decides who wins, tournaments are never pay-to-win, and everything runs on the devices and networks people actually have — starting with any phone browser.</p>
+      <p class="lede">Founded in 2026, ETHELES STUDIO builds games that respect the player: skill decides who wins, tournaments are never pay-to-win, and everything runs on the devices and networks people actually have — starting with any phone browser.</p>
+
+      <div class="founder-card">
+        <div class="founder-avatar" aria-hidden="true">OF</div>
+        <div class="founder-info">
+          <div class="founder-name">Ofoyrwoth Francis</div>
+          <div class="founder-role">Founder &amp; CEO</div>
+          <p class="founder-bio">A student at Makerere University in Kampala, Francis founded ETHELES STUDIO in 2026 to prove that world-class games can be built in Uganda — games that are fair to play, kind to low-end phones, and rewarding for the players who love them.</p>
+        </div>
+      </div>
 
       <div class="values">
         <div class="value">
