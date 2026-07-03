@@ -187,7 +187,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   tournName:  { color: Colors.textPrimary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
   tournMeta:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: 2 },
   joinBtn:    { backgroundColor: Colors.primary, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
-  joinBtnText:{ color: Colors.bg, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
+  joinBtnText:{ color: Colors.textOnBrand, fontSize: Font.size.sm, fontWeight: Font.weight.bold },
 
   messageList: { padding: Spacing.md, gap: Spacing.sm },
 

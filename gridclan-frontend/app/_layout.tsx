@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Text as RNText, TextInput as RNTextInput } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { ThemeProvider as NavThemeProvider, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { Provider, useDispatch, useSelector } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import * as SplashScreen from 'expo-splash-screen';
@@ -16,6 +17,7 @@ import { Font } from '@theme/index';
 import { ThemeProvider, useTheme } from '@theme/theme';
 import { ErrorBoundary } from '@components/ErrorBoundary';
 import { WebContainer } from '@components/ui/WebContainer';
+import { SkyBackground } from '@components/ui/SkyBackground';
 import { installGlobalErrorHandlers } from '@services/errorReporter';
 import { startActivityTracker, stopActivityTracker } from '@services/activityTracker';
 import { installDeepLinkValidation, warnIfDeviceRooted } from '@services/deviceSecurity';
@@ -99,9 +101,23 @@ function RootNavigator() {
 
   if (!fontsLoaded) return null;                // splash stays up until fonts ready
 
+  // Navigation theme with a TRANSPARENT background: react-navigation otherwise
+  // paints its default grey/black behind every scene, hiding the SkyBackground.
+  const navTheme = {
+    ...(scheme === 'light' ? DefaultTheme : DarkTheme),
+    colors: {
+      ...(scheme === 'light' ? DefaultTheme : DarkTheme).colors,
+      background: 'transparent',
+      card:       'transparent',
+      primary:    colors.primary,
+    },
+  };
+
   return (
     <ErrorBoundary>
-      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} backgroundColor={colors.bg} />
+      <StatusBar style={scheme === 'light' ? 'dark' : 'light'} backgroundColor={colors.bgSolid} />
+      <NavThemeProvider value={navTheme}>
+      <SkyBackground>
       <WebContainer>
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
           {/* Guests can browse (tabs); logged-in users skip the auth group. */}
@@ -112,6 +128,8 @@ function RootNavigator() {
           <Stack.Screen name="tournament/[id]"     options={{ presentation: 'card' }} />
         </Stack>
       </WebContainer>
+      </SkyBackground>
+      </NavThemeProvider>
     </ErrorBoundary>
   );
 }

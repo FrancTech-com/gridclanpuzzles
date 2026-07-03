@@ -2,7 +2,11 @@ package com.gridclan.controller;
 
 import com.gridclan.dto.InitiateCardRequest;
 import com.gridclan.dto.InitiatePurchaseRequest;
+import com.gridclan.dto.InitiateWithdrawalRequest;
+import com.gridclan.entity.PlayerWallet;
 import com.gridclan.service.GemPurchaseService;
+import com.gridclan.service.WalletService;
+import com.gridclan.service.WithdrawalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +14,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,6 +33,8 @@ import java.util.UUID;
 public class PaymentController {
 
     private final GemPurchaseService service;
+    private final WalletService      walletService;
+    private final WithdrawalService  withdrawalService;
 
     /** GET /payments/gems/quote?msisdn= — packs priced in the number's currency. */
     @GetMapping("/gems/quote")
@@ -77,6 +86,63 @@ public class PaymentController {
         return ResponseEntity.ok(service.status(userId, reference));
     }
 
+    // ── Prize wallet + withdrawals (money OUT via Relworx send-payment) ────────
+
+    /** GET /payments/wallet — the player's prize balances, one per currency. */
+    @GetMapping("/wallet")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<List<Map<String, Object>>> wallet(Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (PlayerWallet w : walletService.balances(userId)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("currency",          w.getCurrency());
+            m.put("balance",           w.getBalance());
+            m.put("lifetimeEarned",    w.getLifetimeEarned());
+            m.put("lifetimeWithdrawn", w.getLifetimeWithdrawn());
+            out.add(m);
+        }
+        return ResponseEntity.ok(out);
+    }
+
+    /** GET /payments/withdraw/quote?msisdn= — payout currency, balance + limits. */
+    @GetMapping("/withdraw/quote")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> withdrawQuote(
+            @RequestParam String msisdn, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(withdrawalService.quote(userId, msisdn));
+    }
+
+    /** POST /payments/withdraw/initiate — hold funds and send the payout. */
+    @PostMapping("/withdraw/initiate")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> withdrawInitiate(
+            @Valid @RequestBody InitiateWithdrawalRequest req,
+            Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(
+            withdrawalService.initiate(userId, req.getMsisdn(), req.getAmount()));
+    }
+
+    /** GET /payments/withdraw/status?reference= — poll a withdrawal's state. */
+    @GetMapping("/withdraw/status")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> withdrawStatus(
+            @RequestParam String reference, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(withdrawalService.status(userId, reference));
+    }
+
+    /** GET /payments/withdraw/history — the player's recent withdrawals. */
+    @GetMapping("/withdraw/history")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<List<Map<String, Object>>> withdrawHistory(
+            @RequestParam(defaultValue = "20") int limit, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok(withdrawalService.history(userId, Math.min(limit, 100)));
+    }
+
     /**
      * POST /payments/relworx/webhook — Relworx payment callback (public; verified
      * by signature in the service). All headers are forwarded so the service can
@@ -87,6 +153,19 @@ public class PaymentController {
             @RequestBody String rawBody,
             @RequestHeader Map<String, String> headers) {
         service.handleWebhook(rawBody, headers);
+        return ResponseEntity.ok(Map.of("received", true));
+    }
+
+    /**
+     * POST /payments/relworx/send-payment/webhook — Relworx SEND-PAYMENT (payout)
+     * callback (public; verified by signature in the service). Register this URL
+     * as the send-payment webhook in the Relworx dashboard.
+     */
+    @PostMapping("/relworx/send-payment/webhook")
+    public ResponseEntity<Map<String, Object>> sendPaymentWebhook(
+            @RequestBody String rawBody,
+            @RequestHeader Map<String, String> headers) {
+        withdrawalService.handleWebhook(rawBody, headers);
         return ResponseEntity.ok(Map.of("received", true));
     }
 }

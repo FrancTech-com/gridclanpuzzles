@@ -43,6 +43,8 @@ public class GemStoreProperties {
         private String label;
         /** Gems granted on a successful purchase. */
         private long gems;
+        /** Months of post-game popup-ad freedom the pack also buys (0 = none). */
+        private int adFreeMonths;
         /** Currency code (UGX, KES, …) → price in that currency's normal unit. */
         private Map<String, BigDecimal> prices = new LinkedHashMap<>();
 

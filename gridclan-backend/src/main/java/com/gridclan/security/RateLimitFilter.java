@@ -55,7 +55,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         Map.entry("/user/gems/balance",    new int[]{10,  60}),
         Map.entry("/user/gems/ad-reward",  new int[]{5,  300}),
         Map.entry("/game/session/revive",  new int[]{5,   60}),
-        Map.entry("/game/session/replay",  new int[]{3,   60})
+        Map.entry("/game/session/replay",  new int[]{3,   60}),
+        // Ad money faucet: a real ad takes ~30s, so >6 completes/3min = abuse.
+        Map.entry("/ads/start",            new int[]{10, 180}),
+        Map.entry("/ads/complete",         new int[]{6,  180})
     );
 
     @Override

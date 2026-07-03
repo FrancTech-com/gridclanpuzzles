@@ -35,6 +35,7 @@ class GemPurchaseTest {
     @Mock RelworxClient        client;
     @Mock GemPurchaseRepository purchaseRepo;
     @Mock GemService           gemService;
+    @Mock com.gridclan.service.AdRewardService adRewardService;
 
     private final PhoneCurrencyResolver resolver = new PhoneCurrencyResolver();
 
@@ -43,6 +44,7 @@ class GemPurchaseTest {
         GemStoreProperties.Pack pack = new GemStoreProperties.Pack();
         pack.setId("popular");
         pack.setGems(150);
+        pack.setAdFreeMonths(4);
         pack.setPrices(Map.of("UGX", new BigDecimal("7000")));
         s.setPacks(List.of(pack));
         return s;
@@ -56,7 +58,7 @@ class GemPurchaseTest {
 
     private GemPurchaseService svc() {
         return new GemPurchaseService(store(), configured(), client, resolver,
-            purchaseRepo, gemService, new ObjectMapper());
+            purchaseRepo, gemService, adRewardService, new ObjectMapper());
     }
 
     // ── Phone → currency ───────────────────────────────────────────────────────
@@ -161,9 +163,12 @@ class GemPurchaseTest {
         svc.handleWebhook(body, headers);                     // first delivery → credit
         assertThat(purchase.getStatus()).isEqualTo("SUCCESSFUL");
         verify(gemService, times(1)).creditGems(eq(user), eq(150L), eq("PURCHASE"), eq(purchase.getId()));
+        // The paid pack also buys its ad-free months, exactly once.
+        verify(adRewardService, times(1)).extendAdFree(user, 4);
 
         svc.handleWebhook(body, headers);                     // duplicate delivery → no-op
         verify(gemService, times(1)).creditGems(any(), anyLong(), anyString(), any());
+        verify(adRewardService, times(1)).extendAdFree(any(), anyInt());
     }
 
     @Test

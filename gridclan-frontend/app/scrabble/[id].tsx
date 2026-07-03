@@ -12,6 +12,7 @@ import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
+import { PostGameAd } from '@components/PostGameAd';
 import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -377,6 +378,9 @@ export default function ScrabbleGameScreen() {
         outcome={complete ? (game.outcome ?? 'TIE') : null}
         onClose={() => setShowResult(false)}
       />
+
+      {/* Popup ad once the game ends (skipped for ad-free players) */}
+      <PostGameAd over={complete} />
     </View>
   );
 }
