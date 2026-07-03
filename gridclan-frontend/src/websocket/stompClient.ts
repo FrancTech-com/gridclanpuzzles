@@ -49,10 +49,14 @@ class StompConnection {
     return () => this.unsubscribe(topic, handler);
   }
 
-  publish(destination: string, body: string) {
+  /** Publish if connected. Returns false when the socket is down so callers
+   *  can fall back (REST) or avoid pretending the frame was delivered. */
+  publish(destination: string, body: string): boolean {
     if (this.client?.connected) {
       this.client.publish({ destination, body });
+      return true;
     }
+    return false;
   }
 
   /** Listen for connection status changes. Fires immediately with the current status. */
