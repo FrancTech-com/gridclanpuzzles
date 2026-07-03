@@ -275,6 +275,8 @@ export interface ScrabbleView {
   tilesInBag:    number;
   vsComputer?:   boolean;
   hintsRemaining?: number;
+  difficulty?:   Difficulty;   // present on solo ladder games
+  level?:        number;
   outcome?:      'WON' | 'LOST' | 'TIE';
 }
 
@@ -311,6 +313,8 @@ export interface GomokuView {
   hasOpponent: boolean;
   vsComputer?: boolean;
   hintsRemaining?: number;
+  difficulty?: Difficulty;     // present on solo ladder games
+  level?:      number;
   outcome?:    'WON' | 'LOST' | 'TIE';
 }
 
@@ -341,6 +345,8 @@ export interface BattleshipView {
   vsComputer?:   boolean;
   hintsRemaining?: number;
   lastShot?:     'HIT' | 'MISS' | 'SUNK' | 'WIN';
+  difficulty?:   Difficulty;   // present on solo ladder games
+  level?:        number;
   outcome?:      'WON' | 'LOST' | 'TIE';
 }
 
