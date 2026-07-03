@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { scrabbleApi, type ScrabblePlacement, type ScrabbleView, type ScrabbleHint } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
+import { LEVELS_PER_DIFFICULTY } from '@gridtypes/index';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
@@ -49,6 +50,7 @@ export default function ScrabbleGameScreen() {
   const prevBoardRef = useRef<string[] | null>(null);
   // Big win/lose popup — shown once when the game finishes.
   const [showResult, setShowResult] = useState(false);
+  const [nextBusy, setNextBusy] = useState(false);
   const announced = useRef(false);
   // Solo hint: the AI's suggested word, ghosted on the board until you move.
   const [hint, setHint] = useState<ScrabbleHint | null>(null);
@@ -223,6 +225,34 @@ export default function ScrabbleGameScreen() {
         : null,
   };
 
+  // Ladder win vs the computer → the next level is already unlocked
+  // server-side; start it and stay on this screen (the id param flips).
+  const startNextLevel = useCallback(async () => {
+    const d = game?.difficulty, lvl = game?.level ?? 0;
+    if (!d || lvl <= 0 || lvl >= LEVELS_PER_DIFFICULTY || nextBusy) return;
+    playSfx('tap');
+    setNextBusy(true);
+    try {
+      const res = await scrabbleApi.solo(d, lvl + 1);
+      const newId = res.data?.gameId;
+      if (newId) {
+        // Same screen instance, fresh game — reset the per-game bits.
+        announced.current = false;
+        prevBoardRef.current = null;
+        setLastMove(new Set());
+        setPending([]);
+        setSelChar(null);
+        setBlankAt(null);
+        setHint(null);
+        setShowResult(false);
+        setGame(null);
+        setLoading(true);
+        router.replace(`/scrabble/${newId}`);
+      }
+    } catch { /* level gate or network hiccup — stay on the result */ }
+    finally { setNextBusy(false); }
+  }, [game, nextBusy]);
+
   if (loading) return <LoadingSpinner />;
   if (!game) return (
     <View style={styles.center}><Stack.Screen options={header} />
@@ -232,6 +262,8 @@ export default function ScrabbleGameScreen() {
   );
 
   const complete = game.status === 'COMPLETE';
+  const canNextLevel = complete && game.outcome === 'WON' && !!game.vsComputer
+    && !!game.difficulty && (game.level ?? 0) > 0 && (game.level ?? 0) < LEVELS_PER_DIFFICULTY;
   const waiting = game.status === 'WAITING_FOR_OPPONENT';
 
   // Suggested-cell lookup for the ghosted hint letters.
@@ -376,6 +408,8 @@ export default function ScrabbleGameScreen() {
       <GameResultOverlay
         visible={showResult}
         outcome={complete ? (game.outcome ?? 'TIE') : null}
+        onNext={canNextLevel ? startNextLevel : null}
+        nextBusy={nextBusy}
         onClose={() => setShowResult(false)}
       />
 

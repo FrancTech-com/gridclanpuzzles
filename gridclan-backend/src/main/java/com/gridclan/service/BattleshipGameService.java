@@ -358,6 +358,10 @@ public class BattleshipGameService {
         out.put("hasOpponent",   g.getPlayer2Id() != null);
         out.put("vsComputer",    g.isVsComputer());
         out.put("hintsRemaining", g.getHintsRemaining());
+        if (g.getLevel() > 0) {              // solo ladder game → let the client offer "Next level"
+            out.put("difficulty", g.getDifficulty());
+            out.put("level",      g.getLevel());
+        }
         if (lastShot != null) out.put("lastShot", lastShot);
         if ("COMPLETE".equals(g.getStatus())) {
             out.put("outcome", g.getWinnerId() == null ? "TIE"

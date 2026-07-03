@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import {
-  Animated, Easing, Modal, StyleSheet, Text,
+  ActivityIndicator, Animated, Easing, Modal, StyleSheet, Text,
   TouchableOpacity, useWindowDimensions, View,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -20,12 +20,16 @@ export interface SoloResult { tier: SoloTier; score: number; moves?: number }
  * Tap the backdrop or the button to dismiss.
  */
 export function GameResultOverlay({
-  visible, outcome, solo, onClose,
+  visible, outcome, solo, onClose, onNext, nextBusy,
 }: {
   visible: boolean;
   outcome?: GameOutcome | null;
   solo?: SoloResult | null;
   onClose: () => void;
+  /** Ladder win → jump straight into the just-unlocked level (primary button);
+   *  Continue demotes to a quiet secondary. */
+  onNext?: (() => void) | null;
+  nextBusy?: boolean;
 }) {
   const Colors = useColors();
   const { width, height } = useWindowDimensions();
@@ -104,9 +108,22 @@ export function GameResultOverlay({
               <Text style={styles.scorePillLabel}>{t('common.pts', 'pts')}</Text>
             </View>
           )}
-          <TouchableOpacity style={styles.btn} onPress={onClose} activeOpacity={0.85}>
-            <Text style={styles.btnText}>{t('result.continue', 'Continue')}</Text>
-          </TouchableOpacity>
+          {onNext ? (
+            <>
+              <TouchableOpacity style={styles.btn} onPress={onNext} disabled={nextBusy} activeOpacity={0.85}>
+                {nextBusy
+                  ? <ActivityIndicator color={Colors.textPrimary} />
+                  : <Text style={styles.btnText}>{t('result.nextLevel', 'Next level ▶')}</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnGhost} onPress={onClose} disabled={nextBusy} activeOpacity={0.85}>
+                <Text style={styles.btnGhostText}>{t('result.continue', 'Continue')}</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <TouchableOpacity style={styles.btn} onPress={onClose} activeOpacity={0.85}>
+              <Text style={styles.btnText}>{t('result.continue', 'Continue')}</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -175,4 +192,6 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   scorePillLabel: { color: Colors.textMuted, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
   btn:      { backgroundColor: Colors.primary, borderRadius: Radius.full, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm, minWidth: 160, alignItems: 'center' },
   btnText:  { color: Colors.textPrimary, fontWeight: Font.weight.bold, fontSize: Font.size.md },
+  btnGhost:     { marginTop: Spacing.sm, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.xs, minWidth: 160, alignItems: 'center' },
+  btnGhostText: { color: Colors.textMuted, fontWeight: Font.weight.semi, fontSize: Font.size.sm },
 });
