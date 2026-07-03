@@ -16,7 +16,7 @@ import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PostGameAd } from '@components/PostGameAd';
 import { GameChat } from '@components/GameChat';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
-import { useColors } from '@theme/theme';
+import { useColors, useTheme } from '@theme/theme';
 
 // Standard 15×15 premium layout (mirrors backend Premiums): T/D/t/d.
 const PREMIUMS = [
@@ -31,6 +31,7 @@ const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 export default function ScrabbleGameScreen() {
   const { t } = useTranslation();
   const Colors = useColors();
+  const isLight = useTheme().scheme === 'light';
   const { width } = useWindowDimensions();
   const maxW = Math.min(width || 360, 480) - Spacing.lg * 2;
   const cell = Math.floor(maxW / SIZE);
@@ -55,6 +56,9 @@ export default function ScrabbleGameScreen() {
   // Solo hint: the AI's suggested word, ghosted on the board until you move.
   const [hint, setHint] = useState<ScrabbleHint | null>(null);
   const [hinting, setHinting] = useState(false);
+  // Swap mode: pick rack tiles to exchange for fresh ones (uses your turn).
+  const [swapMode, setSwapMode] = useState(false);
+  const [swapSel, setSwapSel] = useState<number[]>([]);
   useEffect(() => {
     if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
       announced.current = true;
@@ -175,6 +179,29 @@ export default function ScrabbleGameScreen() {
     const res = await scrabbleApi.pass(id).catch(() => null);
     setBusy(false);
     if (res?.data) { commitGame(res.data); setPending([]); setSelChar(null); }
+  }
+
+  // ── Swap (exchange) ── pick tiles, confirm, server deals replacements and
+  // the turn passes — standard Scrabble exchange.
+  function enterSwapMode() {
+    setPending([]); setSelChar(null); setSwapSel([]); setSwapMode(true);
+    playSfx('tap');
+  }
+  function exitSwapMode() { setSwapMode(false); setSwapSel([]); }
+  function toggleSwapTile(rackIdx: number) {
+    playSfx('tap');
+    setSwapSel(sel => sel.includes(rackIdx) ? sel.filter(i => i !== rackIdx) : [...sel, rackIdx]);
+  }
+  async function doExchange() {
+    if (!id || !game || swapSel.length === 0 || busy) return;
+    setBusy(true);
+    const tiles = swapSel.map(i => game.yourRack[i]).join('');
+    const res = await scrabbleApi.exchange(id, tiles).catch((e: any) => {
+      Alert.alert(t('scrabble.swapFailed', 'Swap failed'), e?.response?.data?.message ?? '');
+      return null;
+    });
+    setBusy(false);
+    if (res?.data) { commitGame(res.data); exitSwapMode(); playSfx('move'); }
   }
 
   async function doForfeit() {
@@ -332,7 +359,8 @@ export default function ScrabbleGameScreen() {
                     onPress={() => tapCell(r, c)}
                     style={[
                       styles.cell,
-                      { backgroundColor: premColor(prem, Colors) },
+                      { backgroundColor: premColor(prem, Colors, isLight) },
+                      cell && styles.cellTile,   // any tile → classic cream chip
                       cell && !cell.pending && lastMove.has(`${r},${c}`) && styles.cellLastMove,
                       cell?.pending && styles.cellPending,
                       !!hintLetter && styles.cellHint,
@@ -360,21 +388,45 @@ export default function ScrabbleGameScreen() {
                 <TouchableOpacity
                   key={`${tile.idx}-${i}`}
                   activeOpacity={0.7}
-                  onPress={() => tapTile(tile.char, tile.idx)}
-                  style={[styles.rackTile, selChar?.rackIdx === tile.idx && styles.rackTileSel]}
+                  onPress={() => swapMode ? toggleSwapTile(tile.idx) : tapTile(tile.char, tile.idx)}
+                  style={[
+                    styles.rackTile,
+                    !swapMode && selChar?.rackIdx === tile.idx && styles.rackTileSel,
+                    swapMode && swapSel.includes(tile.idx) && styles.rackTileSwapSel,
+                  ]}
                 >
                   <Text style={styles.rackTileText}>{tile.char === '_' ? '▢' : tile.char}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={styles.dragHint}>{t('scrabble.tapHint', 'Tap a tile, then tap a square to place it')}</Text>
+            <Text style={styles.dragHint}>
+              {swapMode
+                ? t('scrabble.swapHint', 'Tap the tiles you want to swap, then confirm — new tiles are dealt and your turn ends.')
+                : t('scrabble.tapHint', 'Tap a tile, then tap a square to place it')}
+            </Text>
 
             {/* Actions */}
-            <View style={styles.actions}>
-              <Button title={t('scrabble.submit', 'Submit')} onPress={submit} loading={busy} disabled={!game.yourTurn || pending.length === 0} style={styles.actionBtn} />
-              <Button title={t('scrabble.recall', 'Recall')} onPress={() => setPending([])} variant="secondary" disabled={pending.length === 0} style={styles.actionBtn} />
-              <Button title={t('scrabble.pass', 'Pass')} onPress={doPass} variant="ghost" disabled={!game.yourTurn} style={styles.actionBtn} />
-            </View>
+            {swapMode ? (
+              <View style={styles.actions}>
+                <Button
+                  title={swapSel.length > 0
+                    ? t('scrabble.swapConfirm', 'Swap {{count}} tiles', { count: swapSel.length })
+                    : t('scrabble.swapPick', 'Pick tiles to swap')}
+                  onPress={doExchange} loading={busy} disabled={swapSel.length === 0} style={styles.actionBtn}
+                />
+                <Button title={t('common.cancel', 'Cancel')} onPress={exitSwapMode} variant="secondary" disabled={busy} style={styles.actionBtn} />
+              </View>
+            ) : (
+              <View style={styles.actions}>
+                <Button title={t('scrabble.submit', 'Submit')} onPress={submit} loading={busy} disabled={!game.yourTurn || pending.length === 0} style={styles.actionBtn} />
+                <Button title={t('scrabble.recall', 'Recall')} onPress={() => setPending([])} variant="secondary" disabled={pending.length === 0} style={styles.actionBtn} />
+                <Button title={t('scrabble.swap', 'Swap')} onPress={enterSwapMode} variant="ghost" disabled={!game.yourTurn || game.tilesInBag < 7} style={styles.actionBtn} />
+                <Button title={t('scrabble.pass', 'Pass')} onPress={doPass} variant="ghost" disabled={!game.yourTurn} style={styles.actionBtn} />
+              </View>
+            )}
+            {!swapMode && game.yourTurn && game.tilesInBag < 7 && (
+              <Text style={styles.dragHint}>{t('scrabble.swapUnavailable', 'Swapping needs at least 7 tiles left in the bag.')}</Text>
+            )}
             {!game.yourTurn && !waiting && <Text style={styles.muted}>{t('scrabble.notYourTurn', 'Wait for your friend to play.')}</Text>}
           </>
         )}
@@ -431,15 +483,24 @@ function Score({ label, value, hi, styles, Colors }: { label: string; value: num
 function premLabel(p: string) {
   return { T: 'TW', D: 'DW', t: 'TL', d: 'DL' }[p] ?? '';
 }
-function premColor(p: string, Colors: ReturnType<typeof useColors>) {
+// Premium squares need much stronger fills in light mode — the translucent
+// dark-mode tints all but vanish over the light glass background.
+function premColor(p: string, Colors: ReturnType<typeof useColors>, isLight: boolean) {
+  const a = isLight ? 'aa' : '55';
   switch (p) {
-    case 'T': return '#c0392b55';
-    case 'D': return '#e8745b55';
-    case 't': return '#2e86c155';
-    case 'd': return '#5dade255';
-    default:  return Colors.surfaceHigh;
+    case 'T': return '#c0392b' + a;
+    case 'D': return '#e8745b' + a;
+    case 't': return '#2e86c1' + a;
+    case 'd': return '#5dade2' + a;
+    default:  return isLight ? '#efe7d8' : Colors.surfaceHigh;   // warm parchment / navy
   }
 }
+
+// Classic cream Scrabble-tile colours — fixed, so tiles read instantly on the
+// board in BOTH themes instead of blending into the background.
+const TILE_BG     = '#f6e7c5';
+const TILE_BORDER = '#c9a96a';
+const TILE_TEXT   = '#2b1d07';
 
 const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W: number) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
@@ -473,17 +534,22 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   board:     { width: BOARD_W, borderWidth: 3, borderColor: Colors.accent, borderRadius: Radius.md, overflow: 'hidden', backgroundColor: Colors.surface, alignSelf: 'center', ...Shadow.md },
   boardRow:  { flexDirection: 'row' },
   cell:      { width: CELL, height: CELL, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  cellPending: { backgroundColor: Colors.accent, borderColor: Colors.accentDim },
-  cellLastMove: { backgroundColor: Colors.primary + '4D', borderColor: Colors.primary, borderWidth: 2 },
-  tileText:  { color: Colors.textPrimary, fontSize: CELL * 0.56, fontFamily: Font.family.displayBold },
-  blankText: { color: Colors.primary },
+  // A placed tile — committed or pending — is a cream chip, like the rack.
+  cellTile:  { backgroundColor: TILE_BG, borderColor: TILE_BORDER, borderRadius: 3 },
+  // Your uncommitted tiles: green border (matches the brand "your action").
+  cellPending: { borderColor: Colors.primary, borderWidth: 2, backgroundColor: '#fdf3d7' },
+  // What the last move placed: amber ring, distinct from pending's green.
+  cellLastMove: { borderColor: Colors.accentDim, borderWidth: 2 },
+  tileText:  { color: TILE_TEXT, fontSize: CELL * 0.56, fontFamily: Font.family.displayBold },
+  blankText: { color: '#15803d' },
   premText:  { color: Colors.textSecondary, fontSize: CELL * 0.3, fontFamily: Font.family.bodyBold },
   starText:  { color: Colors.accent, fontSize: CELL * 0.66 },
 
   rack:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, justifyContent: 'center', marginTop: Spacing.lg },
-  rackTile:  { width: 44, height: 48, borderRadius: Radius.sm, backgroundColor: Colors.accent, borderWidth: 1, borderColor: Colors.accentDim, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : null) },
+  rackTile:  { width: 44, height: 48, borderRadius: Radius.sm, backgroundColor: TILE_BG, borderWidth: 1, borderColor: TILE_BORDER, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : null) },
   rackTileSel:{ borderColor: Colors.primary, borderWidth: 2, transform: [{ translateY: -4 }] },
-  rackTileText:{ color: '#1a1206', fontSize: Font.size.lg, fontFamily: Font.family.displayBold },
+  rackTileSwapSel: { borderColor: Colors.error, borderWidth: 2, transform: [{ translateY: -4 }], opacity: 0.9 },
+  rackTileText:{ color: TILE_TEXT, fontSize: Font.size.lg, fontFamily: Font.family.displayBold },
 
   dragHint:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: Spacing.sm, textAlign: 'center' },
 
