@@ -388,16 +388,18 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   boardRow: { flexDirection: 'row' },
   cell: {
     width: CELL, height: CELL,
-    borderWidth: 1, borderColor: '#2a4d7855',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center', justifyContent: 'center',
   },
-  cellWater: { backgroundColor: '#1f6f9e33' },
-  cellShip:  { backgroundColor: Colors.textSecondary },
-  cellHit:   { backgroundColor: Colors.red },
-  cellMiss:  { backgroundColor: Colors.surfaceHigh },
+  // Fixed sea palette (theme-independent): the old translucent water/miss
+  // tints were near-invisible over the light glass background.
+  cellWater: { backgroundColor: '#1d6fa8' },
+  cellShip:  { backgroundColor: '#5f6e7d', borderColor: '#8fa1b1' },
+  cellHit:   { backgroundColor: '#d64541' },
+  cellMiss:  { backgroundColor: '#16537f' },
   cellLastMove: { borderColor: Colors.accent, borderWidth: 2 },
   cellHintTarget: { borderColor: Colors.primary, borderWidth: 2, backgroundColor: Colors.primary + '55' },
   hintMark: { position: 'absolute', fontSize: CELL * 0.5 },
   mark:      { color: '#fff', fontSize: CELL * 0.62, fontFamily: Font.family.displayBold },
-  missDot:   { width: CELL * 0.28, height: CELL * 0.28, borderRadius: CELL, backgroundColor: Colors.textMuted },
+  missDot:   { width: CELL * 0.28, height: CELL * 0.28, borderRadius: CELL, backgroundColor: '#e6eef5' },
 });
