@@ -7,7 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch, RootState } from '@store/index';
-import { submitMoveThunk, requestHintThunk, reviveThunk, clearGame, clearError, type GameReject } from '@store/slices/gameSlice';
+import { startSessionThunk, submitMoveThunk, requestHintThunk, reviveThunk, clearGame, clearError, type GameReject } from '@store/slices/gameSlice';
 import { fetchBalanceThunk } from '@store/slices/pointsSlice';
 import { fetchGemBalanceThunk } from '@store/slices/gemsSlice';
 
@@ -20,7 +20,7 @@ import { PromptCard } from '@components/PromptCard';
 import { PostGameAd } from '@components/PostGameAd';
 import { Font, Spacing, GameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
-import type { WordSearchMove } from '@gridtypes/index';
+import { LEVELS_PER_DIFFICULTY, type WordSearchMove } from '@gridtypes/index';
 
 export default function GameScreen() {
   const Colors = useColors();
@@ -36,6 +36,7 @@ export default function GameScreen() {
   const [showResult, setShowResult] = useState(false);
   // When set, a card offers to buy gems (out of gems for a hint or revive).
   const [buyPromptCost, setBuyPromptCost] = useState<number | null>(null);
+  const [nextBusy, setNextBusy] = useState(false);
 
   const movesLeft = moveLimit > 0 ? Math.max(0, moveLimit - moveCount) : null;
   const outOfMoves = status === 'OUT_OF_MOVES';
@@ -88,6 +89,24 @@ export default function GameScreen() {
       setBuyPromptCost(REVIVE_COST_GEMS);   // out of gems → offer to buy
     }
   }, [sessionId]);
+
+  // Ladder win → the next level is already unlocked server-side; jump straight in.
+  const nextLevel = session?.difficulty && (session.level ?? 0) > 0
+    && (session.level ?? 0) < LEVELS_PER_DIFFICULTY ? (session.level ?? 0) + 1 : null;
+
+  const startNextLevel = useCallback(async () => {
+    if (!session?.difficulty || !nextLevel || nextBusy) return;
+    setNextBusy(true);
+    const result = await dispatch(startSessionThunk({
+      gameType: session.gameType, tier: 'SOLO',
+      difficulty: session.difficulty, level: nextLevel,
+    }));
+    setNextBusy(false);
+    if (startSessionThunk.fulfilled.match(result)) {
+      setShowResult(false);
+      router.replace(`/game/${result.payload.sessionId}`);
+    }
+  }, [session, nextLevel, nextBusy]);
 
   const handleQuit = () => {
     Alert.alert(t('game.quitTitle'), t('game.quitBody'), [
@@ -169,6 +188,8 @@ export default function GameScreen() {
       <GameResultOverlay
         visible={showResult}
         solo={{ tier, score, moves: moveCount }}
+        onNext={nextLevel ? startNextLevel : null}
+        nextBusy={nextBusy}
         onClose={() => { setShowResult(false); dispatch(clearGame()); router.back(); }}
       />
 

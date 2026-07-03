@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { battleshipApi, type BattleshipView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
+import { LEVELS_PER_DIFFICULTY } from '@gridtypes/index';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
@@ -54,6 +55,7 @@ export default function BattleshipGameScreen() {
   const [showRevive, setShowRevive] = useState(false);
   const [reviving, setReviving] = useState(false);
   const [buyPrompt, setBuyPrompt] = useState(false);
+  const [nextBusy, setNextBusy] = useState(false);
   // Solo hint: the enemy ship cell the AI reveals, highlighted until you fire.
   const [hintCell, setHintCell] = useState<string | null>(null);
   const [hinting, setHinting] = useState(false);
@@ -190,6 +192,33 @@ export default function BattleshipGameScreen() {
         : null,
   };
 
+  // Ladder win vs the computer → the next level is already unlocked
+  // server-side; start it and stay on this screen (the id param flips).
+  const startNextLevel = useCallback(async () => {
+    const d = game?.difficulty, lvl = game?.level ?? 0;
+    if (!d || lvl <= 0 || lvl >= LEVELS_PER_DIFFICULTY || nextBusy) return;
+    playSfx('tap');
+    setNextBusy(true);
+    try {
+      const res = await battleshipApi.solo(d, lvl + 1);
+      const newId = res.data?.gameId;
+      if (newId) {
+        // Same screen instance, fresh game — reset the per-game bits.
+        announced.current = false;
+        prevTrackingRef.current = null;
+        prevOwnRef.current = null;
+        setLastEnemy(new Set());
+        setLastOwn(new Set());
+        setHintCell(null);
+        setShowResult(false);
+        setGame(null);
+        setLoading(true);
+        router.replace(`/battleship/${newId}`);
+      }
+    } catch { /* level gate or network hiccup — stay on the result */ }
+    finally { setNextBusy(false); }
+  }, [game, nextBusy]);
+
   if (loading) return <LoadingSpinner />;
   if (!game) return (
     <View style={styles.center}><Stack.Screen options={header} />
@@ -199,6 +228,8 @@ export default function BattleshipGameScreen() {
   );
 
   const complete = game.status === 'COMPLETE';
+  const canNextLevel = complete && game.outcome === 'WON' && !!game.vsComputer
+    && !!game.difficulty && (game.level ?? 0) > 0 && (game.level ?? 0) < LEVELS_PER_DIFFICULTY;
   const waiting = game.status === 'WAITING_FOR_OPPONENT';
   const statusText = complete
     ? (game.outcome === 'WON' ? t('battleship.youWon', 'You won!') : game.outcome === 'LOST' ? t('battleship.youLost', 'You lost') : t('battleship.tie', 'Draw'))
@@ -297,6 +328,8 @@ export default function BattleshipGameScreen() {
       <GameResultOverlay
         visible={showResult}
         outcome={complete ? (game.outcome ?? 'TIE') : null}
+        onNext={canNextLevel ? startNextLevel : null}
+        nextBusy={nextBusy}
         onClose={() => setShowResult(false)}
       />
 
