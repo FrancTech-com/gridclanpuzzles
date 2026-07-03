@@ -22,6 +22,30 @@ import { useColors } from '@theme/theme';
 const SIZE = 15;
 const REVIVE_COST_GEMS = 20;
 
+// How long the winning five-in-a-row glows before the result popup covers it.
+const WIN_LINE_MS = 1600;
+
+/** Find a run of 5+ equal stones on the final board — the winning line.
+ *  Returns its cells as "r,c" keys, or null (forfeit / draw / timeout). */
+function findWinLine(board: string[]): Set<string> | null {
+  const DIRS = [[0, 1], [1, 0], [1, 1], [-1, 1]] as const;   // → ↓ ↘ ↗
+  for (let r = 0; r < board.length; r++) {
+    for (let c = 0; c < (board[r]?.length ?? 0); c++) {
+      const v = board[r][c];
+      if (v !== '1' && v !== '2') continue;
+      for (const [dr, dc] of DIRS) {
+        // Only start counting at the beginning of a run.
+        if (board[r - dr]?.[c - dc] === v) continue;
+        const line: string[] = [];
+        let rr = r, cc = c;
+        while (board[rr]?.[cc] === v) { line.push(`${rr},${cc}`); rr += dr; cc += dc; }
+        if (line.length >= 5) return new Set(line);
+      }
+    }
+  }
+  return null;
+}
+
 export default function GomokuGameScreen() {
   const { t } = useTranslation();
   const Colors = useColors();
@@ -44,6 +68,11 @@ export default function GomokuGameScreen() {
   // Big win/lose popup — shown once when the game finishes.
   const [showResult, setShowResult] = useState(false);
   const announced = useRef(false);
+  // The winning five-in-a-row, highlighted briefly BEFORE the result popup so
+  // the player sees how the game was decided.
+  const [winLine, setWinLine] = useState<Set<string>>(() => new Set());
+  const resultTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (resultTimer.current) clearTimeout(resultTimer.current); }, []);
   // Solo loss → offer to revive; out of gems → offer to buy.
   const [showRevive, setShowRevive] = useState(false);
   const [reviving, setReviving] = useState(false);
@@ -92,8 +121,19 @@ export default function GomokuGameScreen() {
     if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
       announced.current = true;
       // Lost to the computer → offer a revive first; otherwise the result popup.
-      if (game.outcome === 'LOST' && game.vsComputer) setShowRevive(true);
-      else setShowResult(true);
+      const announce = () => {
+        if (game.outcome === 'LOST' && game.vsComputer) setShowRevive(true);
+        else setShowResult(true);
+      };
+      // Show the winning five first (when there is one — forfeits/draws have
+      // none), then the popup. The line stays highlighted underneath it too.
+      const line = findWinLine(game.board);
+      if (line) {
+        setWinLine(line);
+        resultTimer.current = setTimeout(announce, WIN_LINE_MS);
+      } else {
+        announce();
+      }
     }
   }, [game?.status, game?.outcome]);
 
@@ -109,6 +149,7 @@ export default function GomokuGameScreen() {
     if (res?.data) {
       announced.current = false;   // a future loss can prompt again
       setShowRevive(false);
+      setWinLine(new Set());
       playSfx('move');
       commitGame(res.data);
     }
@@ -196,6 +237,7 @@ export default function GomokuGameScreen() {
         announced.current = false;
         prevBoardRef.current = null;
         setLastMove(new Set());
+        setWinLine(new Set());
         setHintCell(null);
         setShowResult(false);
         setGame(null);
@@ -259,12 +301,13 @@ export default function GomokuGameScreen() {
             <View key={r} style={styles.boardRow}>
               {Array.from({ length: SIZE }).map((__, c) => {
                 const v = game.board[r]?.[c];
-                const isLast = v !== '.' && lastMove.has(`${r},${c}`);
+                const isWin  = winLine.has(`${r},${c}`);
+                const isLast = !isWin && v !== '.' && lastMove.has(`${r},${c}`);
                 const isHint = hintCell === `${r},${c}` && v === '.';
                 return (
-                  <TouchableOpacity key={c} activeOpacity={0.7} onPress={() => tap(r, c)} style={[styles.cell, isLast && styles.cellLastMove, isHint && styles.cellHint]}>
-                    {v === '1' && <View style={[styles.stone, styles.stoneP1]} />}
-                    {v === '2' && <View style={[styles.stone, styles.stoneP2]} />}
+                  <TouchableOpacity key={c} activeOpacity={0.7} onPress={() => tap(r, c)} style={[styles.cell, isLast && styles.cellLastMove, isWin && styles.cellWin, isHint && styles.cellHint]}>
+                    {v === '1' && <View style={[styles.stone, styles.stoneP1, isWin && styles.stoneWin]} />}
+                    {v === '2' && <View style={[styles.stone, styles.stoneP2, isWin && styles.stoneWin]} />}
                     {isLast && <View style={styles.lastDot} />}
                     {isHint && <Text style={styles.hintMark}>💡</Text>}
                   </TouchableOpacity>
@@ -356,6 +399,10 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
     alignItems: 'center', justifyContent: 'center',
   },
   cellLastMove: { backgroundColor: Colors.accent + '33' },
+  // The winning five: golden squares + gold-ringed stones, shown before (and
+  // kept under) the result popup so the decisive line is unmissable.
+  cellWin:  { backgroundColor: '#facc1566' },
+  stoneWin: { borderColor: '#facc15', borderWidth: 2.5, ...Shadow.md },
   cellHint: { backgroundColor: Colors.primary + '55', borderColor: Colors.primary, borderWidth: 2 },
   hintMark: { position: 'absolute', fontSize: CELL * 0.55 },
   lastDot: { position: 'absolute', width: CELL * 0.22, height: CELL * 0.22, borderRadius: CELL, backgroundColor: Colors.accent },
