@@ -11,19 +11,22 @@ import { walletApi } from '@api/index';
 import { playSfx } from '@services/sound';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
+import { fmtPoints, toAmount, toPoints, POINTS_PER_CURRENCY_UNIT } from '@utils/rewardPoints';
 import type { WalletBalance, WithdrawQuote, WithdrawalRecord } from '@gridtypes/index';
 
-/** A withdrawal in flight. */
+/** A redemption in flight. */
 interface ActiveWithdrawal {
   reference: string; amount: number; currency: string;
 }
 
 /**
- * Withdraw prize winnings to mobile money via Relworx send-payment. The payout
- * currency comes from the destination number's country and must match a wallet
- * balance. Funds are held server-side the moment the withdrawal starts and are
- * refunded automatically if the payout fails — this screen initiates and
- * reflects status.
+ * Redeem reward points to mobile money via Relworx send-payment. The UI speaks
+ * in points (1 point = 1 unit of the wallet currency); the actual cash value
+ * being sent is disclosed at the confirmation step. The payout currency comes
+ * from the destination number's country and must match a wallet balance. Funds
+ * are held server-side the moment the redemption starts and are refunded
+ * automatically if the payout fails — this screen initiates and reflects
+ * status.
  */
 export default function WithdrawScreen() {
   const Colors = useColors();
@@ -47,7 +50,9 @@ export default function WithdrawScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const numberLooksValid = msisdn.replace(/[^0-9]/g, '').length >= 9;
-  const amountNum = Number(amount.replace(/[^0-9.]/g, ''));
+  // The input is in POINTS; the server API stays in currency.
+  const pointsNum = Number(amount.replace(/[^0-9]/g, ''));
+  const amountCur = toAmount(pointsNum);
 
   async function loadWallet() {
     try {
@@ -64,26 +69,29 @@ export default function WithdrawScreen() {
     setQuote(null); setNotice(null); setError(null); setLoading(true);
     try {
       const res = await walletApi.quote(msisdn.trim());
-      if (!res.data.configured) setNotice(t('withdraw.unavailable', 'Withdrawals aren’t available right now. Please try again later.'));
-      else if (!res.data.currency) setNotice(t('withdraw.countryUnsupported', 'We don’t support withdrawals to that number’s country yet.'));
+      if (!res.data.configured) setNotice(t('withdraw.unavailable', 'Redemptions aren’t available right now. Please try again later.'));
+      else if (!res.data.currency) setNotice(t('withdraw.countryUnsupported', 'We don’t support redemptions to that number’s country yet.'));
       else setQuote(res.data);
     } catch { setError(t('withdraw.quoteFailed', 'Could not check that number. Please try again.')); }
     finally { setLoading(false); }
   }
 
-  const amountValid = quote?.currency != null && amountNum > 0
-    && amountNum <= quote.balance
-    && (quote.minAmount == null || amountNum >= quote.minAmount)
-    && (quote.maxAmount == null || amountNum <= quote.maxAmount);
+  // Whole currency units only (mobile money can't pay fractions), so points
+  // must be a multiple of POINTS_PER_CURRENCY_UNIT.
+  const amountValid = quote?.currency != null && pointsNum > 0
+    && Number.isInteger(amountCur)
+    && amountCur <= quote.balance
+    && (quote.minAmount == null || amountCur >= quote.minAmount)
+    && (quote.maxAmount == null || amountCur <= quote.maxAmount);
 
   async function start() {
     if (!amountValid || starting || withdrawal) return;
     playSfx('tap'); setError(null); setStarting(true);
     try {
-      const res = await walletApi.initiate(msisdn.trim(), amountNum);
+      const res = await walletApi.initiate(msisdn.trim(), amountCur);
       setWithdrawal(res.data);
     } catch (e: any) {
-      setError(e?.response?.data?.message || t('withdraw.startFailed', 'Could not start the withdrawal. Please try again.'));
+      setError(e?.response?.data?.message || t('withdraw.startFailed', 'Could not start the redemption. Please try again.'));
     } finally { setStarting(false); }
   }
 
@@ -110,12 +118,14 @@ export default function WithdrawScreen() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [withdrawal?.reference, done]);
 
-  const fmt = (n: number, cur: string) => `${cur} ${n.toLocaleString()}`;
+  // The UI speaks in points (rate in @utils/rewardPoints); the real cash
+  // value sent to mobile money is disclosed before confirming.
+  const fmtCash = (n: number, cur: string) => `${cur} ${n.toLocaleString()}`;
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{
-        headerShown: true, title: t('withdraw.title', 'Withdraw winnings'),
+        headerShown: true, title: t('withdraw.title', 'Redeem points'),
         headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
       }} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -123,9 +133,9 @@ export default function WithdrawScreen() {
         {/* Balances */}
         {balances && balances.length > 0 && (
           <Card style={styles.balanceCard}>
-            <Text style={styles.balanceLabel}>{t('withdraw.yourWinnings', 'Your wallet')}</Text>
+            <Text style={styles.balanceLabel}>{t('withdraw.yourWinnings', 'Your reward points')}</Text>
             {balances.map((b) => (
-              <Text key={b.currency} style={styles.balanceValue}>{fmt(b.balance, b.currency)}</Text>
+              <Text key={b.currency} style={styles.balanceValue}>{fmtPoints(b.balance)}</Text>
             ))}
             {!withdrawal && (
               <Button
@@ -138,13 +148,13 @@ export default function WithdrawScreen() {
           </Card>
         )}
         {balances && balances.length === 0 && !withdrawal && (
-          <Text style={styles.notice}>{t('withdraw.noWinnings', 'Nothing to withdraw yet. Watch ads to earn money into your wallet — then withdraw it to mobile money once you reach the minimum.')}</Text>
+          <Text style={styles.notice}>{t('withdraw.noWinnings', 'No points to redeem yet. Watch ads to earn points — then redeem them to mobile money once you reach the minimum.')}</Text>
         )}
 
         {/* ── Number entry ── */}
         {!withdrawal && (
           <Card style={styles.card}>
-            <Text style={styles.label}>{t('withdraw.numberLabel', 'Mobile money number to pay')}</Text>
+            <Text style={styles.label}>{t('withdraw.numberLabel', 'Mobile money number to receive your reward')}</Text>
             <Input
               value={msisdn}
               onChangeText={(v) => { setMsisdn(v); setQuote(null); setNotice(null); setError(null); }}
@@ -172,19 +182,25 @@ export default function WithdrawScreen() {
             {!!quote.customerName && (
               <Text style={styles.sendingTo}>{t('withdraw.sendingTo', 'Sending to {{name}}', { name: quote.customerName })}</Text>
             )}
-            <Text style={styles.label}>{t('withdraw.amountLabel', 'Amount ({{currency}})', { currency: quote.currency })}</Text>
+            <Text style={styles.label}>{t('withdraw.amountLabel', 'Points to redeem')}</Text>
             <Input
               value={amount}
               onChangeText={setAmount}
-              placeholder={quote.minAmount != null ? String(quote.minAmount) : '0'}
+              placeholder={quote.minAmount != null ? String(toPoints(quote.minAmount)) : '0'}
               keyboardType="numeric"
             />
             <Text style={styles.limits}>
-              {t('withdraw.available', 'Available: {{amount}}', { amount: fmt(quote.balance, quote.currency) })}
-              {quote.minAmount != null ? ` · ${t('withdraw.min', 'Min')} ${fmt(quote.minAmount, quote.currency)}` : ''}
+              {t('withdraw.available', 'Available: {{amount}}', { amount: fmtPoints(quote.balance) })}
+              {quote.minAmount != null ? ` · ${t('withdraw.min', 'Min')} ${fmtPoints(quote.minAmount)}` : ''}
+              {` · ${t('withdraw.steps', 'In steps of {{step}}', { step: POINTS_PER_CURRENCY_UNIT })}`}
             </Text>
+            {amountValid && (
+              <Text style={styles.youReceive}>
+                {t('withdraw.youReceive', 'You’ll receive {{cash}} on your mobile money.', { cash: fmtCash(amountCur, quote.currency) })}
+              </Text>
+            )}
             <Button
-              title={starting ? t('withdraw.starting', 'Sending…') : t('withdraw.confirm', 'Withdraw')}
+              title={starting ? t('withdraw.starting', 'Sending…') : t('withdraw.confirm', 'Redeem')}
               onPress={start}
               loading={starting}
               disabled={!amountValid}
@@ -193,44 +209,44 @@ export default function WithdrawScreen() {
           </Card>
         )}
 
-        {/* ── In-flight withdrawal ── */}
+        {/* ── In-flight redemption ── */}
         {withdrawal && !done && (
           <Card style={styles.statusCard}>
             <ActivityIndicator color={Colors.primary} />
-            <Text style={styles.statusTitle}>{t('withdraw.sendingTitle', 'Sending your money…')}</Text>
+            <Text style={styles.statusTitle}>{t('withdraw.sendingTitle', 'Sending your reward…')}</Text>
             <Text style={styles.statusBody}>
-              {t('withdraw.sendingBody', 'We’re sending {{amount}} to {{number}}. This usually takes under a minute — you can leave this screen; the money arrives either way.', { amount: fmt(withdrawal.amount, withdrawal.currency), number: msisdn.trim() })}
+              {t('withdraw.sendingBody', 'We’re redeeming {{points}} and sending {{cash}} to {{number}}. This usually takes under a minute — you can leave this screen; the reward arrives either way.', { points: fmtPoints(withdrawal.amount), cash: fmtCash(withdrawal.amount, withdrawal.currency), number: msisdn.trim() })}
             </Text>
           </Card>
         )}
         {done === 'SUCCESSFUL' && (
           <Card style={styles.statusCard}>
-            <Text style={styles.successEmoji}>💸</Text>
-            <Text style={styles.statusTitle}>{t('withdraw.successTitle', 'Money sent!')}</Text>
-            <Text style={styles.statusBody}>{t('withdraw.successBody', '{{amount}} is on its way to your mobile money.', { amount: withdrawal ? fmt(withdrawal.amount, withdrawal.currency) : '' })}</Text>
+            <Text style={styles.successEmoji}>🎁</Text>
+            <Text style={styles.statusTitle}>{t('withdraw.successTitle', 'Points redeemed!')}</Text>
+            <Text style={styles.statusBody}>{t('withdraw.successBody', 'Your reward of {{cash}} is on its way to your mobile money.', { cash: withdrawal ? fmtCash(withdrawal.amount, withdrawal.currency) : '' })}</Text>
           </Card>
         )}
         {done === 'FAILED' && (
           <Text style={styles.notice}>
             {failReason
-              ? `${failReason} ${t('withdraw.refunded', 'Your balance was not touched — the amount is back in your winnings.')}`
-              : t('withdraw.failed', 'That withdrawal didn’t go through. The amount is back in your winnings — you can try again.')}
+              ? `${failReason} ${t('withdraw.refunded', 'Your balance was not touched — the points are back in your wallet.')}`
+              : t('withdraw.failed', 'That redemption didn’t go through. The points are back in your wallet — you can try again.')}
           </Text>
         )}
 
         {!!error && <Text style={styles.error}>{error}</Text>}
 
-        {/* ── Recent withdrawals ── */}
+        {/* ── Recent redemptions ── */}
         {history.length > 0 && (
           <View>
-            <Text style={styles.sectionTitle}>{t('withdraw.recent', 'Recent withdrawals')}</Text>
+            <Text style={styles.sectionTitle}>{t('withdraw.recent', 'Recent redemptions')}</Text>
             <Card style={styles.historyCard}>
               {history.map((w, i) => (
                 <View key={w.reference}>
                   {i > 0 && <Separator />}
                   <View style={styles.txRow}>
                     <View style={styles.txLeft}>
-                      <Text style={styles.txAmount}>{fmt(w.amount, w.currency)}</Text>
+                      <Text style={styles.txAmount}>{fmtPoints(w.amount)}</Text>
                       <Text style={styles.txDate}>{w.msisdn} · {new Date(w.createdAt).toLocaleString()}</Text>
                     </View>
                     <Text style={[styles.txStatus, {
@@ -248,7 +264,7 @@ export default function WithdrawScreen() {
           </View>
         )}
 
-        <Text style={styles.footnote}>{t('withdraw.footnote', 'You earn by watching ads. Withdrawals go to the mobile-money account of the number you enter once your balance reaches the minimum; failed payouts are refunded automatically.')}</Text>
+        <Text style={styles.footnote}>{t('withdraw.footnote', 'You earn points by watching ads. Redeeming sends the equivalent reward to the mobile-money account of the number you enter once your points reach the minimum; failed redemptions are refunded automatically.')}</Text>
       </ScrollView>
 
       {/* Rewarded ad in flight — refresh the balance once it credits */}
@@ -273,6 +289,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   label:   { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginBottom: Spacing.xs },
   btn:     { marginTop: Spacing.sm },
   limits:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: Spacing.xs },
+  youReceive: { color: Colors.success, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginTop: Spacing.sm },
   sendingTo: { color: Colors.success, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginBottom: Spacing.sm },
 
   statusCard:  { alignItems: 'center', padding: Spacing.lg, gap: Spacing.sm, marginBottom: Spacing.md },

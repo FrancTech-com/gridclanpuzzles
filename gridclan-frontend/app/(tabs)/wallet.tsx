@@ -13,13 +13,16 @@ import { RegisterGate } from '@components/AuthGate';
 import { AdModal } from '@components/AdModal';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
+import { fmtPoints, toPoints } from '@utils/rewardPoints';
 import type { WalletBalance, WithdrawalRecord } from '@gridtypes/index';
 
 /**
- * Wallet tab — the real-cash prize balance (separate from gems, which have no
- * cash value). Money lands here from ad rewards and the welcome bonus, and
- * leaves via mobile-money withdrawals. This tab is the money home screen:
- * balance, earn (watch an ad), withdraw, and recent payouts.
+ * Wallet tab — the player's REWARD POINTS balance. The UI speaks in points
+ * ("earn points", "redeem your points"); under the hood the balance is the
+ * same server-side prize wallet (rate in @utils/rewardPoints: 1 pt = UGX 0.2)
+ * and redeeming still pays real value to mobile money via Relworx. Points land
+ * here from ad rewards and the welcome bonus. Distinct from game/score points
+ * (pure skill metric) and gems (closed-loop) — neither of those is redeemable.
  */
 export default function WalletScreen() {
   const Colors = useColors();
@@ -51,15 +54,14 @@ export default function WalletScreen() {
   if (!userId) return (
     <RegisterGate
       icon="💰"
-      title={t('guest.walletTitle', 'Your prize wallet')}
-      subtitle={t('guest.walletSubtitle', 'Create an account to earn real money by watching ads and withdraw it to mobile money.')}
+      title={t('guest.walletTitle', 'Your reward points')}
+      subtitle={t('guest.walletSubtitle', 'Create an account to earn reward points by watching ads and redeem them to mobile money.')}
     />
   );
 
   if (balances === null) return <LoadingSpinner />;
 
-  const fmt = (n: number, cur: string) => `${cur} ${n.toLocaleString()}`;
-  const hasMoney = balances.some((b) => b.balance > 0);
+  const hasPoints = balances.some((b) => b.balance > 0);
 
   return (
     <ScrollView
@@ -74,18 +76,18 @@ export default function WalletScreen() {
           {balances.length === 0
             ? <Text style={styles.balanceValue}>0</Text>
             : balances.map((b) => (
-                <Text key={b.currency} style={styles.balanceValue}>{fmt(b.balance, b.currency)}</Text>
+                <Text key={b.currency} style={styles.balanceValue}>{toPoints(b.balance).toLocaleString()}</Text>
               ))}
         </View>
-        <Text style={styles.balanceLabel}>{t('wallet.balance', 'Prize winnings')}</Text>
+        <Text style={styles.balanceLabel}>{t('wallet.balance', 'Reward points')}</Text>
         <Text style={styles.explainer}>
-          {t('wallet.explainer', 'Real money — earn it by watching ads, withdraw it to mobile money. Gems are separate and can’t be cashed out.')}
+          {t('wallet.explainer', 'Earn points by watching ads, then redeem them to mobile money. Game score and gems are separate and can’t be redeemed.')}
         </Text>
         {balances.map((b) => (
           <Text key={b.currency} style={styles.lifetime}>
-            {t('wallet.lifetime', 'Earned {{earned}} · Withdrawn {{withdrawn}}', {
-              earned: fmt(b.lifetimeEarned, b.currency),
-              withdrawn: fmt(b.lifetimeWithdrawn, b.currency),
+            {t('wallet.lifetime', 'Earned {{earned}} · Redeemed {{redeemed}}', {
+              earned: fmtPoints(b.lifetimeEarned),
+              redeemed: fmtPoints(b.lifetimeWithdrawn),
             })}
           </Text>
         ))}
@@ -94,21 +96,21 @@ export default function WalletScreen() {
       {/* Actions */}
       <TouchableOpacity style={styles.earnBtn} onPress={() => setShowAd(true)}>
         <Ionicons name="play-circle" size={20} color={Colors.textOnBrand} />
-        <Text style={styles.earnBtnText}>{t('wallet.earn', 'Watch an ad · earn money')}</Text>
+        <Text style={styles.earnBtnText}>{t('wallet.earn', 'Watch an ad · earn points')}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
-        style={[styles.withdrawBtn, !hasMoney && styles.btnDisabled]}
+        style={[styles.withdrawBtn, !hasPoints && styles.btnDisabled]}
         onPress={() => router.push('/wallet/withdraw' as never)}
       >
-        <Ionicons name="cash-outline" size={20} color={Colors.textPrimary} />
-        <Text style={styles.withdrawBtnText}>{t('wallet.withdraw', 'Withdraw to mobile money')}</Text>
+        <Ionicons name="gift-outline" size={20} color={Colors.textPrimary} />
+        <Text style={styles.withdrawBtnText}>{t('wallet.withdraw', 'Redeem your points')}</Text>
       </TouchableOpacity>
 
-      {/* Recent withdrawals */}
-      <Text style={styles.sectionTitle}>{t('wallet.recent', 'Recent withdrawals')}</Text>
+      {/* Recent redemptions */}
+      <Text style={styles.sectionTitle}>{t('wallet.recent', 'Recent redemptions')}</Text>
       {history.length === 0 ? (
-        <EmptyState icon="cash-outline" title={t('wallet.noWithdrawals', 'No withdrawals yet — watch ads to grow your balance.')} />
+        <EmptyState icon="gift-outline" title={t('wallet.noWithdrawals', 'No redemptions yet — watch ads to grow your points.')} />
       ) : (
         <Card style={styles.historyCard}>
           {history.map((w, i) => (
@@ -116,7 +118,7 @@ export default function WalletScreen() {
               {i > 0 && <Separator />}
               <View style={styles.txRow}>
                 <View style={styles.txLeft}>
-                  <Text style={styles.txAmount}>{fmt(w.amount, w.currency)}</Text>
+                  <Text style={styles.txAmount}>{fmtPoints(w.amount)}</Text>
                   <Text style={styles.txDate}>{w.msisdn} · {new Date(w.createdAt).toLocaleString()}</Text>
                 </View>
                 <Text style={[styles.txStatus, {

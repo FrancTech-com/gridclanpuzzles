@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FlatList, Image, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  FlatList, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+import Constants from 'expo-constants';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +14,9 @@ import { Button, Input, Card } from '@components/ui/index';
 import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 import { COUNTRIES, flagOf } from '@data/countries';
+
+const API_BASE_URL: string =
+  Constants.expoConfig?.extra?.API_BASE_URL ?? 'https://api.gridclanpuzzle.win';
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -56,6 +60,7 @@ export default function RegisterScreen() {
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [activePicker, setActivePicker] = useState<'country' | 'month' | 'year' | null>(null);
   const [search,     setSearch]     = useState('');
+  const [agreeTerms, setAgreeTerms] = useState(false);
 
   const selectedCountry = COUNTRIES.find(c => c.code === country);
   const filteredCountries = useMemo(() => {
@@ -90,6 +95,7 @@ export default function RegisterScreen() {
       password,
       countryCode:       country,
       dateOfBirth:       dob,
+      termsAccepted:     agreeTerms,
     }));
     if (registerThunk.fulfilled.match(result)) router.replace((safeNextPath(next) ?? '/(tabs)') as never);
   }
@@ -169,11 +175,34 @@ export default function RegisterScreen() {
           <Text style={styles.countryChevron}>▾</Text>
         </TouchableOpacity>
 
+        {/* Terms & privacy consent — required, recorded server-side */}
+        <TouchableOpacity style={styles.consentRow} onPress={() => setAgreeTerms(v => !v)} activeOpacity={0.8}>
+          <View style={[styles.checkbox, agreeTerms && styles.checkboxChecked]}>
+            {agreeTerms && <Text style={styles.checkboxTick}>✓</Text>}
+          </View>
+          <Text style={styles.consentText}>
+            {t('auth.agreeTermsPrefix', 'I agree to the ')}
+            <Text
+              style={styles.consentLink}
+              onPress={() => Linking.openURL(`${API_BASE_URL}/legal/terms-of-service.html`)}
+            >
+              {t('auth.termsLink', 'Terms of Service')}
+            </Text>
+            {t('auth.agreeTermsAnd', ' and ')}
+            <Text
+              style={styles.consentLink}
+              onPress={() => Linking.openURL(`${API_BASE_URL}/legal/privacy-policy.html`)}
+            >
+              {t('auth.privacyLink', 'Privacy Policy')}
+            </Text>
+          </Text>
+        </TouchableOpacity>
+
         <Button
           title={t('auth.register')}
           onPress={handleRegister}
           loading={isLoading}
-          disabled={!username.trim() || !email || !password || !dob || !country}
+          disabled={!username.trim() || !email || !password || !dob || !country || !agreeTerms}
           style={styles.submitBtn}
         />
 
@@ -301,6 +330,15 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
 
   consentRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
   consentText: { color: Colors.textSecondary, fontSize: Font.size.sm, flex: 1 },
+  consentLink: { color: Colors.primary, fontWeight: Font.weight.semi, textDecorationLine: 'underline' },
+  checkbox: {
+    width: 22, height: 22, borderRadius: Radius.sm,
+    borderWidth: 2, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.surfaceHigh,
+  },
+  checkboxChecked: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  checkboxTick:    { color: Colors.textOnBrand, fontSize: Font.size.sm, fontWeight: Font.weight.black },
 
   dobRow:    { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xs },
   dobSelect: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },

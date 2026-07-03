@@ -5,6 +5,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,4 +22,11 @@ public interface WithdrawalRepository extends JpaRepository<Withdrawal, UUID> {
     Optional<Withdrawal> lockByReference(@Param("ref") String ref);
 
     List<Withdrawal> findByUserIdOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+
+    /** Account erasure: RETAIN the payout records (incl. msisdn — required
+     *  financial record under Uganda AML rules), decouple identity. */
+    @Modifying
+    @Query("UPDATE Withdrawal w SET w.userId = NULL, w.tombstoneId = :tombstone " +
+           "WHERE w.userId = :userId")
+    void anonymizeUserWithdrawals(@Param("userId") UUID userId, @Param("tombstone") UUID tombstone);
 }

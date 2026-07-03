@@ -121,6 +121,12 @@ public class User {
     @Column(name = "marketing_consent_at")
     private Instant marketingConsentAt;
 
+    /** When the user ticked "I agree to the Terms of Service and Privacy
+     *  Policy" at registration. Null for accounts that predate the checkbox
+     *  (they accepted via the registration legal notice instead). */
+    @Column(name = "terms_accepted_at")
+    private Instant termsAcceptedAt;
+
     @Column(name = "age_verified", nullable = false)
     @Builder.Default
     private boolean ageVerified = false;

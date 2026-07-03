@@ -101,6 +101,7 @@ public class AuthController {
             .isAdult(age >= 18)   // ads: minors get non-personalised only
             .marketingConsent(marketingConsent)
             .marketingConsentAt(marketingConsent ? now : null)
+            .termsAcceptedAt(Boolean.TRUE.equals(req.getTermsAccepted()) ? now : null)
             .build();
         userRepo.save(user);
 

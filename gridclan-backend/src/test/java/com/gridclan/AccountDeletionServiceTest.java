@@ -30,6 +30,11 @@ class AccountDeletionServiceTest {
     @Mock TournamentRepository        tournamentRepo;
     @Mock LedgerTransactionRepository ledgerRepo;
     @Mock ActiveSessionRepository     sessionRepo;
+    @Mock PlayerWalletRepository      walletRepo;
+    @Mock WalletTransactionRepository walletTxRepo;
+    @Mock WithdrawalRepository        withdrawalRepo;
+    @Mock AdSessionRepository         adSessionRepo;
+    @Mock GemPurchaseRepository       gemPurchaseRepo;
     @Mock NotificationService         notif;
     @Mock AuditLogService             audit;
 
@@ -90,7 +95,39 @@ class AccountDeletionServiceTest {
 
         verify(ledgerRepo).anonymizeUserTransactions(eq(USER_ID), any());
         verify(pointsRepo).zeroOutBalance(eq(USER_ID), any());
+
+        // Financial records are RETAINED but decoupled from the identity
+        verify(walletTxRepo).anonymizeUserTransactions(eq(USER_ID), any());
+        verify(withdrawalRepo).anonymizeUserWithdrawals(eq(USER_ID), any());
+        verify(adSessionRepo).anonymizeUserSessions(eq(USER_ID), any());
+        verify(gemPurchaseRepo).anonymizeUserPurchases(eq(USER_ID), any());
+        verify(walletRepo).anonymizeUserWallets(eq(USER_ID), any());
+
         verify(audit).record(eq(USER_ID), eq("ERASURE_COMPLETE"), any());
+    }
+
+    @Test @DisplayName("executeErasure: remaining wallet balance is forfeited and ledgered first")
+    void executeErasure_forfeitsRemainingBalance() {
+        User user = buildPendingDeletionUser();
+        when(userRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        com.gridclan.entity.PlayerWallet wallet = com.gridclan.entity.PlayerWallet.builder()
+            .userId(USER_ID).currency("UGX")
+            .balance(new java.math.BigDecimal("1500.00"))
+            .build();
+        when(walletRepo.findByUserId(USER_ID)).thenReturn(List.of(wallet));
+
+        service.executeErasure(user);
+
+        // Forfeiture is ledgered (books balance) and the wallet is zeroed
+        ArgumentCaptor<com.gridclan.entity.WalletTransaction> tx =
+            ArgumentCaptor.forClass(com.gridclan.entity.WalletTransaction.class);
+        verify(walletTxRepo).save(tx.capture());
+        assertThat(tx.getValue().getType()).isEqualTo("FORFEITED_ON_DELETION");
+        assertThat(tx.getValue().getAmountDelta()).isEqualByComparingTo("-1500.00");
+        assertThat(tx.getValue().getBalanceAfter()).isEqualByComparingTo("0");
+        assertThat(wallet.getBalance()).isEqualByComparingTo("0");
+        verify(walletRepo).save(wallet);
     }
 
     // ── Cancel within appeal window ──────────────────────────────────────
