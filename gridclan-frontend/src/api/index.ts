@@ -181,6 +181,10 @@ export const profileApi = {
 
   deleteAccount: () =>
     apiClient.post('/user/delete-account'),
+
+  /** Everything we hold about the caller, as JSON (GDPR / Uganda DPA export). */
+  exportData: () =>
+    apiClient.get<Record<string, unknown>>('/user/data-export'),
 };
 
 // ── Feedback (goes only to the admin dashboard) ────────────────────────────

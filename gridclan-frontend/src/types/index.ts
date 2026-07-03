@@ -15,6 +15,8 @@ export interface RegisterRequest {
   countryCode?:       string;
   /** YYYY-MM-DD — required by the backend COPPA age gate; never persisted. */
   dateOfBirth:        string;
+  /** "I agree to the Terms of Service and Privacy Policy" — recorded server-side. */
+  termsAccepted?:     boolean;
 }
 
 export interface LoginRequest {

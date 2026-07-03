@@ -1,7 +1,9 @@
 package com.gridclan.controller;
 
 import com.gridclan.service.AccountDeletionService;
+import com.gridclan.service.DataExportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -15,6 +17,7 @@ import java.util.UUID;
  *
  * /user/delete-account  — Google Play requires in-app deletion; no email-only flow.
  * /user/cancel-deletion — 24h appeal window. Public endpoint (user is already logged out).
+ * /user/data-export     — GDPR / Uganda DPA right of access & portability.
  */
 @RestController
 @RequestMapping("/user")
@@ -22,6 +25,22 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountDeletionService deletionService;
+    private final DataExportService      exportService;
+
+    /**
+     * GET /user/data-export
+     * Everything we hold about the caller as machine-readable JSON
+     * (the path is named in the privacy policy — keep them in sync).
+     */
+    @GetMapping("/data-export")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> exportData(Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                    "attachment; filename=\"gridclan-data-export.json\"")
+            .body(exportService.exportUserData(userId));
+    }
 
     /**
      * POST /user/delete-account

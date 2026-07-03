@@ -28,8 +28,15 @@ public class Withdrawal {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
+    /** Null after account erasure — the row is retained, identity decoupled. */
+    @Column(name = "user_id")
     private UUID userId;
+
+    /** Set on account erasure; anonymous link across the retained audit trail.
+     *  msisdn is kept even then — the payout destination is part of the
+     *  financial record required by Uganda AML record-keeping. */
+    @Column(name = "tombstone_id")
+    private UUID tombstoneId;
 
     /** Mobile-money number the payout is sent to. */
     @Column(nullable = false, length = 24)

@@ -194,7 +194,9 @@ gridclan:
     welcome-bonus: 500        # one-time credit for every new player
     welcome-currency: UGX
     min-withdraw:
-      UGX: 3000               # the withdrawal threshold: balance must reach this
+      UGX: 1000               # redemption threshold (= 5,000 points): kept low so
+                              # the first payout feels reachable, but high enough
+                              # to stay above telco minimums + the Relworx fee
       KES: 200
       TZS: 5000
       RWF: 2000
@@ -214,16 +216,18 @@ gridclan:
       NGN: 2000000
       ZAR: 25000
   # ── Ad rewards (the earning system that funds payouts) ──
-  # Every completed ad credits reward-amount reward-currency to the wallet
-  # (reward-points is the points equivalence: 10 points ≙ UGX 5.00).
+  # Every completed ad credits reward-amount reward-currency to the wallet.
+  # The app displays balances as reward points at 1 point = UGX 0.2, so the
+  # UGX 1.00 default shows as "5 points" per ad. Keep the payout at or below
+  # ~30% of measured revenue per completed ad (tune via ADS_REWARD_AMOUNT).
   # Three networks form a failover chain — each has its ROLE (primary /
   # secondary / tertiary) so one provider outage never breaks the app.
   # A provider with a blank app-key is simply skipped. Keys live ONLY in env.
   ads:
-    reward-points: 10
-    reward-amount: 5.00
+    reward-amount: ${ADS_REWARD_AMOUNT:1.00}
     reward-currency: UGX
-    daily-limit: ${ADS_DAILY_LIMIT:20}
+    daily-limit: ${ADS_DAILY_LIMIT:30}                 # per ACCOUNT / 24h
+    device-daily-limit: ${ADS_DEVICE_DAILY_LIMIT:60}   # per DEVICE / 24h, across accounts (anti-farming; > account cap so shared phones aren't punished)
     session-expiry-minutes: 30
     test-mode: ${ADS_TEST_MODE:false}   # DEV ONLY: placeholder ad plays + credits
     providers:

@@ -4,6 +4,7 @@ import com.gridclan.entity.PlayerWallet;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,4 +24,12 @@ public interface PlayerWalletRepository extends JpaRepository<PlayerWallet, UUID
     @Query("select w from PlayerWallet w where w.userId = :userId and w.currency = :currency")
     Optional<PlayerWallet> lockByUserIdAndCurrency(@Param("userId") UUID userId,
                                                    @Param("currency") String currency);
+
+    /** Account erasure: RETAIN the wallet rows (lifetime totals are part of
+     *  the financial picture), decouple identity. Balances must already be
+     *  zeroed (forfeited + ledgered) before this runs. */
+    @Modifying
+    @Query("UPDATE PlayerWallet w SET w.userId = NULL, w.tombstoneId = :tombstone " +
+           "WHERE w.userId = :userId")
+    void anonymizeUserWallets(@Param("userId") UUID userId, @Param("tombstone") UUID tombstone);
 }

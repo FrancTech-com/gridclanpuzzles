@@ -244,12 +244,14 @@ public class AdRewardService {
         return (int) Math.max(0, ads.getDailyLimit() - used);
     }
 
-    /** Has this DEVICE (across all accounts) already hit the daily cap? */
+    /** Has this DEVICE (across all accounts) hit its own daily cap? Higher
+     *  than the per-account cap, so it only bites multi-account farming —
+     *  never a single player, and not a phone shared by two family members. */
     private boolean deviceExhausted(String deviceId) {
         if (deviceId == null) return false;   // old client — user cap still applies
         long used = sessionRepo.countByDeviceIdAndStatusAndCompletedAtAfter(
             deviceId, "COMPLETED", Instant.now().minus(Duration.ofHours(24)));
-        return used >= ads.getDailyLimit();
+        return used >= ads.getDeviceDailyLimit();
     }
 
     private String normalizeDeviceId(String deviceId) {

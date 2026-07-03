@@ -1,6 +1,7 @@
 package com.gridclan.service;
 
 import com.gridclan.entity.User;
+import com.gridclan.entity.WalletTransaction;
 import com.gridclan.exception.DuplicateRequestException;
 import com.gridclan.exception.UserNotFoundException;
 import com.gridclan.repository.*;
@@ -51,6 +52,11 @@ public class AccountDeletionService {
     private final TournamentRepository        tournamentRepo;
     private final LedgerTransactionRepository ledgerRepo;
     private final ActiveSessionRepository     sessionRepo;
+    private final PlayerWalletRepository      walletRepo;
+    private final WalletTransactionRepository walletTxRepo;
+    private final WithdrawalRepository        withdrawalRepo;
+    private final AdSessionRepository         adSessionRepo;
+    private final GemPurchaseRepository       gemPurchaseRepo;
     private final NotificationService         notif;
     private final AuditLogService             audit;
 
@@ -160,6 +166,31 @@ public class AccountDeletionService {
         pointsRepo.zeroOutBalance(userId, Instant.now());
         gemsRepo.zeroOutBalance(userId, Instant.now());
         gemTxRepo.anonymizeUserTransactions(userId, tombstone);
+
+        // 5b. Financial records (Uganda AML record-keeping): RETAIN every
+        //     money row forever, decouple identity via the tombstone. Any
+        //     remaining prize balance is forfeited — ledgered first so the
+        //     books still balance after the user is gone.
+        walletRepo.findByUserId(userId).forEach(wallet -> {
+            if (wallet.getBalance().signum() > 0) {
+                walletTxRepo.save(WalletTransaction.builder()
+                    .userId(userId)
+                    .currency(wallet.getCurrency())
+                    .type("FORFEITED_ON_DELETION")
+                    .amountDelta(wallet.getBalance().negate())
+                    .balanceBefore(wallet.getBalance())
+                    .balanceAfter(java.math.BigDecimal.ZERO)
+                    .note("Account deleted — remaining balance forfeited")
+                    .build());
+                wallet.setBalance(java.math.BigDecimal.ZERO);
+                walletRepo.save(wallet);
+            }
+        });
+        walletTxRepo.anonymizeUserTransactions(userId, tombstone);
+        withdrawalRepo.anonymizeUserWithdrawals(userId, tombstone);
+        adSessionRepo.anonymizeUserSessions(userId, tombstone);
+        gemPurchaseRepo.anonymizeUserPurchases(userId, tombstone);
+        walletRepo.anonymizeUserWallets(userId, tombstone);
 
         // 6. Wipe all PII fields — user row stays for aggregate stats
         user.setUsername(null);
