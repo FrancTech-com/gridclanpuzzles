@@ -28,6 +28,18 @@ const PREMIUMS = [
 const SIZE = 15;
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
+// Standard Scrabble letter values (mirrors backend Letters.java) — shown in the
+// tile corner like the physical game. Blanks score 0 and show no number.
+const LETTER_VALUE: Record<string, number> = {
+  A: 1, E: 1, I: 1, O: 1, U: 1, L: 1, N: 1, S: 1, T: 1, R: 1,
+  D: 2, G: 2,
+  B: 3, C: 3, M: 3, P: 3,
+  F: 4, H: 4, V: 4, W: 4, Y: 4,
+  K: 5,
+  J: 8, X: 8,
+  Q: 10, Z: 10,
+};
+
 export default function ScrabbleGameScreen() {
   const { t } = useTranslation();
   const Colors = useColors();
@@ -367,7 +379,12 @@ export default function ScrabbleGameScreen() {
                     ]}
                   >
                     {cell
-                      ? <Text style={[styles.tileText, cell.blank && styles.blankText]}>{cell.letter}</Text>
+                      ? <>
+                          <Text style={[styles.tileText, cell.blank && styles.blankText]}>{cell.letter}</Text>
+                          {!cell.blank && (
+                            <Text style={styles.tileValue}>{LETTER_VALUE[cell.letter] ?? 0}</Text>
+                          )}
+                        </>
                       : hintLetter
                         ? <Text style={styles.hintGhost}>{hintLetter}</Text>
                         : r === 7 && c === 7
@@ -396,6 +413,9 @@ export default function ScrabbleGameScreen() {
                   ]}
                 >
                   <Text style={styles.rackTileText}>{tile.char === '_' ? '▢' : tile.char}</Text>
+                  {tile.char !== '_' && (
+                    <Text style={styles.rackTileValue}>{LETTER_VALUE[tile.char] ?? 0}</Text>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -541,6 +561,12 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   // What the last move placed: amber ring, distinct from pending's green.
   cellLastMove: { borderColor: Colors.accentDim, borderWidth: 2 },
   tileText:  { color: TILE_TEXT, fontSize: CELL * 0.56, fontFamily: Font.family.displayBold },
+  // Corner value, like a physical tile. Hidden on blanks (they score 0).
+  tileValue: {
+    position: 'absolute', bottom: 0, right: 1.5,
+    color: TILE_TEXT, fontSize: Math.max(6, Math.round(CELL * 0.27)),
+    fontWeight: Font.weight.bold, lineHeight: Math.max(7, Math.round(CELL * 0.3)),
+  },
   blankText: { color: '#15803d' },
   premText:  { color: Colors.textSecondary, fontSize: CELL * 0.3, fontFamily: Font.family.bodyBold },
   starText:  { color: Colors.accent, fontSize: CELL * 0.66 },
@@ -550,6 +576,10 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   rackTileSel:{ borderColor: Colors.primary, borderWidth: 2, transform: [{ translateY: -4 }] },
   rackTileSwapSel: { borderColor: Colors.error, borderWidth: 2, transform: [{ translateY: -4 }], opacity: 0.9 },
   rackTileText:{ color: TILE_TEXT, fontSize: Font.size.lg, fontFamily: Font.family.displayBold },
+  rackTileValue: {
+    position: 'absolute', bottom: 2, right: 4,
+    color: TILE_TEXT, fontSize: 10, fontWeight: Font.weight.bold,
+  },
 
   dragHint:  { color: Colors.textMuted, fontSize: Font.size.xs, marginTop: Spacing.sm, textAlign: 'center' },
 
