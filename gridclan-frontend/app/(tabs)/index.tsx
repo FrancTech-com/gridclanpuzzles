@@ -248,7 +248,7 @@ export default function HomeScreen() {
             style={styles.playBtn}
           />
 
-          {/* Watch an ad → real money into the wallet (the earning system) */}
+          {/* Watch an ad → reward points into the wallet (the earning system) */}
           {!isGuest && (
             <TouchableOpacity
               style={styles.watchAdBtn}
@@ -258,7 +258,7 @@ export default function HomeScreen() {
               <Text style={styles.watchAdIcon}>🎬</Text>
               <View style={styles.watchAdText}>
                 <Text style={styles.watchAdTitle}>{t('home.watchAd', 'Watch ad for rewards')}</Text>
-                <Text style={styles.watchAdDesc}>{t('home.watchAdDesc', 'Every ad you watch adds money to your wallet.')}</Text>
+                <Text style={styles.watchAdDesc}>{t('home.watchAdDesc', 'Every ad you watch adds points to your wallet.')}</Text>
               </View>
               <Text style={styles.watchAdArrow}>›</Text>
             </TouchableOpacity>

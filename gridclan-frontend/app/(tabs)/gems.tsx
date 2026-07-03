@@ -83,10 +83,10 @@ export default function GemsScreen() {
         <Text style={styles.giftBtnText}>{t('gems.gift')}</Text>
       </TouchableOpacity>
 
-      {/* Prize winnings are a separate real-cash balance (not gems). */}
+      {/* Reward points are a separate redeemable balance (not gems). */}
       <TouchableOpacity style={styles.withdrawBtn} onPress={() => router.push('/wallet/withdraw' as never)}>
-        <Ionicons name="cash-outline" size={20} color={Colors.textPrimary} />
-        <Text style={styles.withdrawBtnText}>{t('gems.withdraw', 'Withdraw winnings')}</Text>
+        <Ionicons name="gift-outline" size={20} color={Colors.textPrimary} />
+        <Text style={styles.withdrawBtnText}>{t('gems.withdraw', 'Redeem reward points')}</Text>
       </TouchableOpacity>
 
       {/* History */}

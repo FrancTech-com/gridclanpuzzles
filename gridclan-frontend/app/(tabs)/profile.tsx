@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, Linking, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
+  Alert, Linking, Modal, Platform, ScrollView, Share, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
@@ -119,6 +119,33 @@ export default function ProfileScreen() {
       destructive:  true,
     });
     if (ok) dispatch(logoutThunk());
+  }
+
+  const [exporting, setExporting] = useState(false);
+
+  /** GDPR / Uganda DPA right of access: download everything we hold as JSON.
+   *  Web gets a file download; native opens the share sheet. */
+  async function handleExportData() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const res = await profileApi.exportData();
+      const json = JSON.stringify(res.data, null, 2);
+      if (Platform.OS === 'web') {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'gridclan-data-export.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        await Share.share({ message: json, title: 'GridClan Puzzles data export' });
+      }
+    } catch {
+      Alert.alert(t('common.error'), t('settings.exportFailed', 'Could not export your data. Please try again.'));
+    }
+    setExporting(false);
   }
 
   function handlePrivacyPolicy() {
@@ -272,6 +299,8 @@ export default function ProfileScreen() {
         onPress={handlePrivacyPolicy} style={styles.actionBtn} />
       <Button title={t('settings.termsOfService', 'Terms of service')} variant="secondary"
         onPress={handleTerms} style={styles.actionBtn} />
+      <Button title={t('settings.exportData', 'Export my data')} variant="secondary"
+        onPress={handleExportData} loading={exporting} style={styles.actionBtn} />
       <View style={styles.settingRow}>
         <View style={styles.settingRowText}>
           <Text style={styles.settingRowTitle}>{t('settings.personalizedAds', 'Personalised ads')}</Text>

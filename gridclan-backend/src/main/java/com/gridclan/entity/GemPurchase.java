@@ -26,8 +26,13 @@ public class GemPurchase {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "user_id", nullable = false)
+    /** Null after account erasure — the row is retained, identity decoupled. */
+    @Column(name = "user_id")
     private UUID userId;
+
+    /** Set on account erasure; anonymous link across the retained audit trail. */
+    @Column(name = "tombstone_id")
+    private UUID tombstoneId;
 
     @Column(name = "pack_id", nullable = false, length = 40)
     private String packId;

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { adsApi } from '@api/index';
 import { getAdDeviceId, getAdsStatus, playThroughChain } from '@services/ads';
 import { ConfirmAgeForm } from '@components/ConfirmAge';
+import { toPoints } from '@utils/rewardPoints';
 import { playSfx } from '@services/sound';
 import { Font, Radius, Shadow, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -132,9 +133,9 @@ export function AdModal({
           {phase === 'earned' && (
             <>
               <Text style={styles.placeholderEmoji}>💰</Text>
-              <Text style={styles.title}>{t('ads.earnedTitle', 'You earned {{amount}}!', {
-                amount: `${earnedCurrency} ${earnedAmount.toLocaleString()}` })}</Text>
-              <Text style={styles.body}>{t('ads.earnedBody', 'It’s in your wallet — withdraw any time once you reach the minimum.')}</Text>
+              <Text style={styles.title}>{t('ads.earnedTitle', 'You earned {{amount}} points!', {
+                amount: toPoints(earnedAmount).toLocaleString() })}</Text>
+              <Text style={styles.body}>{t('ads.earnedBody', 'They’re in your wallet — redeem them any time once you reach the minimum.')}</Text>
               <TouchableOpacity style={styles.btn} onPress={close} activeOpacity={0.85}>
                 <Text style={styles.btnText}>{t('ads.nice', 'Nice!')}</Text>
               </TouchableOpacity>
@@ -145,7 +146,7 @@ export function AdModal({
             <>
               <Text style={styles.placeholderEmoji}>⏭️</Text>
               <Text style={styles.title}>{t('ads.skippedTitle', 'Ad not finished')}</Text>
-              <Text style={styles.body}>{t('ads.skippedBody', 'Watch an ad to the end to earn the reward.')}</Text>
+              <Text style={styles.body}>{t('ads.skippedBody', 'Watch an ad to the end to earn your points.')}</Text>
               <TouchableOpacity style={styles.btn} onPress={close} activeOpacity={0.85}>
                 <Text style={styles.btnText}>{t('common.ok', 'OK')}</Text>
               </TouchableOpacity>

@@ -41,6 +41,7 @@ class AdRewardTest {
         AdsProperties p = new AdsProperties();
         p.setTestMode(testMode);
         p.setDailyLimit(20);
+        p.setDeviceDailyLimit(40);   // device cap = 2× account cap, like prod
         p.setRewardAmount(new BigDecimal("5.00"));
         p.setRewardCurrency("UGX");
         return p;
@@ -180,12 +181,26 @@ class AdRewardTest {
     void start_deviceAtDailyCap_rejectedEvenOnFreshAccount() {
         UUID freshUser = UUID.randomUUID();   // 0 completes on the account…
         when(sessionRepo.countByDeviceIdAndStatusAndCompletedAtAfter(eq("device-1"), eq("COMPLETED"), any()))
-            .thenReturn(20L);                 // …but the DEVICE is exhausted
+            .thenReturn(40L);                 // …but the DEVICE is exhausted
 
         assertThatThrownBy(() -> svc(withProvider()).start(freshUser, null, "device-1"))
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("limit");
         verify(sessionRepo, never()).save(any());
+    }
+
+    @Test
+    void start_sharedPhone_secondAccountStillEarns() {
+        // One family member maxed their ACCOUNT cap (20) on this phone; a
+        // second account on the same device must still be able to earn —
+        // the device cap (40) only bites multi-account farming.
+        UUID secondUser = UUID.randomUUID();  // 0 completes on this account
+        when(sessionRepo.countByDeviceIdAndStatusAndCompletedAtAfter(eq("device-1"), eq("COMPLETED"), any()))
+            .thenReturn(20L);
+
+        Map<String, Object> out = svc(withProvider()).start(secondUser, null, "device-1");
+        assertThat(out.get("rewardAmount")).isEqualTo(new BigDecimal("5.00"));
+        verify(sessionRepo).save(argThat(s -> "device-1".equals(s.getDeviceId())));
     }
 
     @Test
@@ -195,7 +210,7 @@ class AdRewardTest {
         s.setDeviceId("device-1");
         when(sessionRepo.lockById(s.getId())).thenReturn(Optional.of(s));
         when(sessionRepo.countByDeviceIdAndStatusAndCompletedAtAfter(eq("device-1"), eq("COMPLETED"), any()))
-            .thenReturn(20L);
+            .thenReturn(40L);
 
         assertThatThrownBy(() -> svc(withProvider()).complete(user, s.getId(), "admob"))
             .isInstanceOf(ResponseStatusException.class)

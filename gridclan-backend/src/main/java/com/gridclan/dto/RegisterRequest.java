@@ -27,4 +27,13 @@ public class RegisterRequest {
     /** GDPR Art. 6(1)(a) explicit opt-in for marketing email. Defaults to no consent. */
     @Builder.Default
     private Boolean marketingConsent = false;
+
+    /**
+     * "I agree to the Terms of Service and Privacy Policy" checkbox. Recorded
+     * as users.terms_accepted_at when true. Optional for backwards
+     * compatibility with clients that predate the checkbox (they accept via
+     * the registration legal notice instead).
+     */
+    @Builder.Default
+    private Boolean termsAccepted = false;
 }

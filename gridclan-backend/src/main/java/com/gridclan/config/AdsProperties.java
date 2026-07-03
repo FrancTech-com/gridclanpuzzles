@@ -13,7 +13,7 @@ import java.util.List;
  * Ad-reward system config ({@code gridclan.ads}). Watching ads is the earning
  * mechanism that funds player payouts — every completed ad credits
  * {@link #rewardAmount} {@link #rewardCurrency} to the player's wallet
- * ({@link #rewardPoints} points ≙ that amount; the wallet shows money only).
+ * (the UI shows the balance as reward points).
  *
  * THREE ad networks are configured, each with its own ROLE in an ordered
  * failover chain (primary → secondary → tertiary): if one network fails to
@@ -34,15 +34,20 @@ public class AdsProperties {
     /** The failover chain, in priority order (index 0 = primary). */
     private List<Provider> providers = new ArrayList<>();
 
-    /** Points granted per completed ad (display/metric equivalence only). */
-    private long rewardPoints = 10;
-
-    /** Money credited to the wallet per completed ad. */
-    private BigDecimal rewardAmount = new BigDecimal("5.00");
+    /** Money credited to the wallet per completed ad. Displayed to players as
+     *  reward points at 1 point = UGX 0.2 (UGX 1.00 → "5 points"). Keep at or
+     *  below ~30% of measured revenue per completed ad. */
+    private BigDecimal rewardAmount = new BigDecimal("1.00");
     private String rewardCurrency = "UGX";
 
-    /** Max credited ads per player per rolling 24h — caps the payout faucet. */
-    private int dailyLimit = 20;
+    /** Max credited ads per ACCOUNT per rolling 24h — caps the payout faucet. */
+    private int dailyLimit = 30;
+
+    /** Max credited ads per DEVICE per rolling 24h, across all accounts.
+     *  Deliberately HIGHER than the account cap: a single player never feels
+     *  it, and a shared family phone gets allowance for 2 accounts — but a
+     *  ten-account farm on one phone still hits this wall. */
+    private int deviceDailyLimit = 60;
 
     /** Minutes an ISSUED session stays creditable before it expires. */
     private int sessionExpiryMinutes = 30;
