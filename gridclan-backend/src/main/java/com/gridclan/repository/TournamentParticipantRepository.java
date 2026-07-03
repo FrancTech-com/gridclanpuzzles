@@ -18,4 +18,7 @@ public interface TournamentParticipantRepository extends JpaRepository<Tournamen
     long countByTournamentId(UUID tournamentId);
 
     boolean existsByTournamentIdAndUserId(UUID tournamentId, UUID userId);
+
+    /** Tournaments entered — for the achievements screen. */
+    long countByUserId(UUID userId);
 }

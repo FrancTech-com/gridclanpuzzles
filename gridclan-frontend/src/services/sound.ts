@@ -89,10 +89,13 @@ function audioCtx(): any {
 // ---------------------------------------------------------------------------
 // Sound effects
 // ---------------------------------------------------------------------------
-export type Sfx = 'tap' | 'move' | 'hit' | 'win' | 'lose';
+export type Sfx = 'tap' | 'move' | 'hit' | 'win' | 'lose' | 'ring';
 
 // Each effect is a tiny sequence of tones — cheap, no assets, "game-y".
+// 'ring' (incoming voice call) is web-synth only — voice itself is web-only,
+// and on native the missing WAV simply no-ops.
 const TONES: Record<Sfx, { freq: number; dur: number; type: string }[]> = {
+  ring: [{ freq: 740, dur: 0.14, type: 'sine' }, { freq: 880, dur: 0.2, type: 'sine' }],
   tap:  [{ freq: 440, dur: 0.05, type: 'square' }],
   move: [{ freq: 560, dur: 0.07, type: 'triangle' }],
   hit:  [{ freq: 200, dur: 0.13, type: 'sawtooth' }],
