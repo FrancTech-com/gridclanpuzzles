@@ -122,9 +122,11 @@ function TournamentCard({ tournament }: { tournament: Tournament }) {
       </View>
 
       <View style={styles.cardTimes}>
+        {/* endsAt is only a force-complete backstop now — the start moment is
+            the meaningful time for every status. */}
         <Text style={styles.timeText}>
-          {tournament.status === 'UPCOMING' ? t('tournament.starts') : tournament.status === 'ACTIVE' ? t('tournament.ends') : t('tournament.ended')}: {' '}
-          {new Date(tournament.status === 'UPCOMING' ? tournament.startsAt : tournament.endsAt).toLocaleDateString(undefined, {
+          {tournament.status === 'UPCOMING' ? t('tournament.starts') : t('tournament.started', 'Started')}: {' '}
+          {new Date(tournament.startsAt).toLocaleDateString(undefined, {
             day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
           })}
         </Text>

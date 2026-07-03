@@ -26,6 +26,51 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
 let refreshing = false;
 let refreshQueue: Array<(token: string) => void> = [];
 
+// ── Fresh-token helper for non-axios transports (WebSocket/STOMP) ──────────
+// The STOMP CONNECT frame carries a JWT. Access tokens live only 5 minutes,
+// so every (re)connect attempt must fetch a currently-valid one — a token
+// captured once at socket creation goes stale and every reconnect is then
+// rejected. Refreshes are deduped so a reconnect storm can't burn the
+// rotating refresh token.
+let wsRefresh: Promise<string | null> | null = null;
+
+function tokenExpiresSoon(token: string): boolean {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = typeof atob === 'function'
+      ? atob(b64)
+      : (globalThis as any).Buffer?.from(b64, 'base64').toString('utf8');
+    if (!json) return false;
+    const exp = JSON.parse(json)?.exp;
+    return typeof exp === 'number' && exp * 1000 < Date.now() + 30_000;
+  } catch {
+    return false;  // undecodable → use as-is, let the server decide
+  }
+}
+
+export async function getFreshAccessToken(): Promise<string | null> {
+  const token = await getItem('access_token');
+  if (token && !tokenExpiresSoon(token)) return token;
+  if (!wsRefresh) {
+    wsRefresh = (async () => {
+      try {
+        const refreshToken = await getItem('refresh_token');
+        if (!refreshToken) return token;
+        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken },
+          pinnedAdapter ? { adapter: pinnedAdapter } : undefined);
+        await setItem('access_token',  data.accessToken);
+        await setItem('refresh_token', data.refreshToken);
+        return data.accessToken as string;
+      } catch {
+        return token;  // let the CONNECT fail visibly rather than throw here
+      } finally {
+        wsRefresh = null;
+      }
+    })();
+  }
+  return wsRefresh;
+}
+
 apiClient.interceptors.response.use(
   res => res,
   async (error: AxiosError) => {

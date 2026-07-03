@@ -1,6 +1,6 @@
 import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import { getItem } from '@utils/secureStorage';
+import { getFreshAccessToken } from '@api/client';
 import Constants from 'expo-constants';
 
 /**
@@ -72,11 +72,15 @@ class StompConnection {
     if (this.client) return this.connecting ?? Promise.resolve();
     this.connecting = new Promise<void>(resolve => {
       void (async () => {
-        const token = await getItem('access_token');
         this.client = new Client({
           webSocketFactory: () =>
             new SockJS(WS_URL.replace('wss://', 'https://').replace('ws://', 'http://')),
-          connectHeaders:    { Authorization: `Bearer ${token ?? ''}` },
+          // Access tokens live 5 min — a token baked in at creation goes stale
+          // and every reconnect is then rejected. Fetch a valid one per attempt.
+          beforeConnect: async () => {
+            const token = await getFreshAccessToken();
+            this.client!.connectHeaders = { Authorization: `Bearer ${token ?? ''}` };
+          },
           reconnectDelay:    5000,
           heartbeatIncoming: 25_000,
           heartbeatOutgoing: 25_000,

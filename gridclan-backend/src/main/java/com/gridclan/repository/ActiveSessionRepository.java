@@ -25,4 +25,12 @@ public interface ActiveSessionRepository extends JpaRepository<ActiveSession, Ac
     @Query("UPDATE ActiveSession s SET s.status = 'ABANDONED', s.completedAt = :now " +
            "WHERE s.userId = :userId AND s.status = 'ACTIVE'")
     void forfeitActiveSessions(@Param("userId") UUID userId, @Param("now") Instant now);
+
+    /** Solo puzzles finished — for the achievements screen. */
+    long countByUserIdAndGameTypeAndStatus(UUID userId, GameType gameType, SessionStatus status);
+
+    @Query("SELECT COALESCE(MAX(s.serverScore), 0) FROM ActiveSession s " +
+           "WHERE s.userId = :userId AND s.gameType = :gameType AND s.status = :status")
+    int bestScore(@Param("userId") UUID userId, @Param("gameType") GameType gameType,
+                  @Param("status") SessionStatus status);
 }

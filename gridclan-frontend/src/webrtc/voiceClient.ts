@@ -1,5 +1,6 @@
 import { stompConnection } from '@websocket/stompClient';
 import { voiceApi } from '@api/index';
+import { playSfx } from '@services/sound';
 
 /**
  * Friend-to-friend in-game voice over WebRTC.
@@ -32,6 +33,8 @@ export interface VoiceStatus {
   peerName:  string | null;  // who rang me / who I'm talking to
   muted:     boolean;
   supported: boolean;
+  /** Transient user-facing problem (e.g. signalling socket reconnecting). */
+  error:     'signal-down' | null;
 }
 
 type StatusHandler = (s: VoiceStatus) => void;
@@ -82,7 +85,15 @@ class VoiceClient {
   private state:    VoiceState = 'idle';
   private peerName: string | null = null;
   private muted     = false;
+  private error:    'signal-down' | null = null;
   private gen       = 0;   // bumped on every start/stop to cancel stale async work
+
+  // Unanswered rings and stuck handshakes end themselves instead of showing
+  // "Ringing…" / "Connecting…" forever.
+  private static readonly RING_TIMEOUT_MS    = 30_000;
+  private static readonly CONNECT_TIMEOUT_MS = 30_000;
+  private stateTimer:   ReturnType<typeof setTimeout>  | null = null;
+  private ringSfxTimer: ReturnType<typeof setInterval> | null = null;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -110,34 +121,48 @@ class VoiceClient {
   /** Tear down on screen unmount. */
   stop() {
     this.gen++;
+    this.clearTimers();
     this.teardownCall();
     this.unsub?.();
     this.unsub = null;
     this.onStatus = null;
     this.state = 'idle';
     this.peerName = null;
+    this.error = null;
   }
 
   // ── User actions ────────────────────────────────────────────────────────────
 
-  /** Ring my friend. No-op (stays idle) if the signalling socket is down —
-   *  better than showing "Ringing…" for a frame that was never delivered. */
+  /** Ring my friend. If the signalling socket is down (it auto-reconnects with
+   *  a fresh token) tell the user to retry shortly instead of silently no-oping. */
   requestVoice() {
     if (!supported() || this.state !== 'idle') return;
     if (!this.send({ type: 'REQUEST' })) {
       console.warn('Voice ring not sent — signalling socket is down');
+      this.error = 'signal-down';
+      this.emit();
+      setTimeout(() => {
+        if (this.error) { this.error = null; this.emit(); }
+      }, 4000);
       return;
     }
+    this.error = null;
     this.state = 'requesting';
+    this.clearTimers();
+    this.stateTimer = setTimeout(() => {
+      if (this.state === 'requesting') this.hangup();   // nobody picked up
+    }, VoiceClient.RING_TIMEOUT_MS);
     this.emit();
   }
 
   /** Accept an incoming ring → I'm the callee, wait for the offer. */
   async accept() {
     if (this.state !== 'incoming') return;
+    this.clearTimers();
     const ok = await this.ensureMicAndPc();
     if (!ok) { this.hangup(); return; }
     this.state = 'connecting';
+    this.armConnectTimeout();
     this.send({ type: 'ACCEPT' });
     this.emit();
   }
@@ -172,6 +197,12 @@ class VoiceClient {
         if (this.state === 'idle') {
           this.peerName = sig.fromName ?? 'Your friend';
           this.state = 'incoming';
+          this.clearTimers();
+          playSfx('ring');
+          this.ringSfxTimer = setInterval(() => playSfx('ring'), 3000);
+          this.stateTimer = setTimeout(() => {
+            if (this.state === 'incoming') this.reset();   // missed call
+          }, VoiceClient.RING_TIMEOUT_MS);
           this.emit();
         }
         break;
@@ -179,10 +210,12 @@ class VoiceClient {
       case 'ACCEPT':
         // My friend accepted my ring → I'm the caller, send the offer.
         if (this.state === 'requesting') {
+          this.clearTimers();
           const ok = await this.ensureMicAndPc();
           if (!ok) { this.hangup(); break; }
           this.peerName = sig.fromName ?? this.peerName;
           this.state = 'connecting';
+          this.armConnectTimeout();
           this.emit();
           const offer = await this.pc!.createOffer();
           await this.pc!.setLocalDescription(offer);
@@ -248,7 +281,11 @@ class VoiceClient {
     pc.ontrack = ev => this.attachRemote(ev.streams[0]);
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
-      if (st === 'connected' && this.state !== 'connected') { this.state = 'connected'; this.emit(); }
+      if (st === 'connected' && this.state !== 'connected') {
+        this.clearTimers();
+        this.state = 'connected';
+        this.emit();
+      }
       // 'disconnected' is often transient (a network blip WebRTC recovers from
       // by itself) — only tear down on definitive 'failed' / 'closed'.
       else if (st === 'failed' || st === 'closed') {
@@ -297,10 +334,24 @@ class VoiceClient {
 
   /** Local teardown + back to idle, keeping the topic subscription alive. */
   private reset() {
+    this.clearTimers();
     this.teardownCall();
     this.state = 'idle';
     this.peerName = null;
+    this.error = null;
     this.emit();
+  }
+
+  private armConnectTimeout() {
+    this.clearTimers();
+    this.stateTimer = setTimeout(() => {
+      if (this.state === 'connecting') this.hangup();   // handshake never completed
+    }, VoiceClient.CONNECT_TIMEOUT_MS);
+  }
+
+  private clearTimers() {
+    if (this.stateTimer)   { clearTimeout(this.stateTimer);    this.stateTimer   = null; }
+    if (this.ringSfxTimer) { clearInterval(this.ringSfxTimer); this.ringSfxTimer = null; }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -315,6 +366,7 @@ class VoiceClient {
       peerName:  this.peerName,
       muted:     this.muted,
       supported: supported(),
+      error:     this.error,
     });
   }
 }

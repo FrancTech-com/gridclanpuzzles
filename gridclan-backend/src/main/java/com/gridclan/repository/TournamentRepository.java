@@ -21,6 +21,9 @@ public interface TournamentRepository extends JpaRepository<Tournament, UUID> {
     /** Tournaments belonging to a community (newest first). */
     List<Tournament> findByCommunityIdOrderByStartsAtDesc(UUID communityId);
 
+    /** Championships won — for the achievements screen. */
+    long countByWinnerId(UUID winnerId);
+
     @Modifying
     @Query(value = "DELETE FROM tournament_participants WHERE user_id = :userId", nativeQuery = true)
     void removeParticipant(@Param("userId") UUID userId);
