@@ -457,10 +457,50 @@ public class ScrabbleGameService {
 
     // ── Turn clock ────────────────────────────────────────────────────────────
 
-    /** When this game's current turn must be played by (PvP + ACTIVE only). */
+    /** When this game's current turn must be played by (PvP + ACTIVE, not paused). */
     private Instant turnDeadline(ScrabbleGame g) {
-        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer()) return null;
+        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer() || g.getPausedAt() != null) return null;
         return g.getLastMoveAt().plusSeconds(TURN_SECONDS);
+    }
+
+    // ── Pause / resume (any player; freezes the turn clock) ────────────────────
+
+    @Transactional
+    public Map<String, Object> pause(UUID userId, UUID gameId) {
+        ScrabbleGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (g.seatOf(userId) == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
+        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a live multiplayer game can be paused.");
+        if (g.getPausedAt() == null) { g.setPausedAt(Instant.now()); repo.save(g); broadcast(g); }
+        return view(userId, g);
+    }
+
+    /** System-initiated pause/resume (e.g. a tournament pausing all its matches). */
+    @Transactional
+    public void setPaused(UUID gameId, boolean paused) {
+        repo.findById(gameId).ifPresent(g -> {
+            if (!"ACTIVE".equals(g.getStatus())) return;
+            if (paused && g.getPausedAt() == null) g.setPausedAt(Instant.now());
+            else if (!paused && g.getPausedAt() != null) { g.setPausedAt(null); g.setLastMoveAt(Instant.now()); }
+            else return;
+            repo.save(g);
+            broadcast(g);
+        });
+    }
+
+    @Transactional
+    public Map<String, Object> resume(UUID userId, UUID gameId) {
+        ScrabbleGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (g.seatOf(userId) == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
+        if (g.getPausedAt() != null) {
+            g.setPausedAt(null);
+            g.setLastMoveAt(Instant.now());   // fresh turn window for the current player
+            repo.save(g);
+            broadcast(g);
+        }
+        return view(userId, g);
     }
 
     /**
@@ -525,6 +565,7 @@ public class ScrabbleGameService {
         out.put("moveLog",      moveLogView(g, 60));
         Instant deadline = turnDeadline(g);
         out.put("turnDeadline", deadline != null ? deadline.toEpochMilli() : null);
+        out.put("paused",       g.getPausedAt() != null);
         if (g.getLevel() > 0) {              // solo ladder game → let the client offer "Next level"
             out.put("difficulty", g.getDifficulty());
             out.put("level",      g.getLevel());
@@ -723,6 +764,8 @@ public class ScrabbleGameService {
         enforceTurnClock(g);
         if (!"ACTIVE".equals(g.getStatus()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPausedAt() != null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is paused — resume to play.");
         int me = g.seatOf(userId);
         if (me == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
         if (g.isResigned(me))

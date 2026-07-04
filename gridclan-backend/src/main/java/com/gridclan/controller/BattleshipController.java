@@ -89,6 +89,20 @@ public class BattleshipController {
         return ResponseEntity.ok(service.forfeit(userId(auth), id));
     }
 
+    /** POST /battleship/{id}/pause — freeze the turn clock. */
+    @PostMapping("/{id}/pause")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> pause(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.pause(userId(auth), id));
+    }
+
+    /** POST /battleship/{id}/resume — resume play. */
+    @PostMapping("/{id}/resume")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> resume(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.resume(userId(auth), id));
+    }
+
     private static UUID userId(Authentication auth) { return (UUID) auth.getPrincipal(); }
 
     @Getter @Setter

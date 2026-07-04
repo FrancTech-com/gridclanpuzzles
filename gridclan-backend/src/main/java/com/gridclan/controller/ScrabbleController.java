@@ -105,6 +105,20 @@ public class ScrabbleController {
         return ResponseEntity.ok(service.forfeit(userId(auth), id));
     }
 
+    /** POST /scrabble/{id}/pause — freeze the turn clock for everyone. */
+    @PostMapping("/{id}/pause")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> pause(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.pause(userId(auth), id));
+    }
+
+    /** POST /scrabble/{id}/resume — resume play; the current player gets a fresh turn window. */
+    @PostMapping("/{id}/resume")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> resume(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.resume(userId(auth), id));
+    }
+
     private static UUID userId(Authentication auth) { return (UUID) auth.getPrincipal(); }
 
     // ── Request DTOs ─────────────────────────────────────────────────────────

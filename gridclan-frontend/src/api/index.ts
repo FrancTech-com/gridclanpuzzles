@@ -299,6 +299,10 @@ export const tournamentApi = {
   /** Delete a tournament (creator or admin only). */
   remove: (id: string) =>
     apiClient.delete<{ status: string }>(`/tournament/${id}`),
+
+  /** Pause/resume a tournament (creator or admin only). */
+  pause:  (id: string) => apiClient.post<{ status: string }>(`/tournament/${id}/pause`),
+  resume: (id: string) => apiClient.post<{ status: string }>(`/tournament/${id}/resume`),
 };
 
 // ── Grid Scrabble (shared-board, 2-4 players) ───────────────────────────────
@@ -344,6 +348,7 @@ export interface ScrabbleView {
   players:       ScrabbleSeat[];
   moveLog:       ScrabbleLogEntry[];
   turnDeadline:  number | null;   // epoch ms — 5-min PvP turn clock
+  paused?:       boolean;
   difficulty?:   Difficulty;   // present on solo ladder games
   level?:        number;
   outcome?:      'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
@@ -370,6 +375,8 @@ export const scrabbleApi = {
             apiClient.post<ScrabbleView>(`/scrabble/${id}/exchange`, { tiles }),
   hint:   (id: string)   => apiClient.post<ScrabbleHint>(`/scrabble/${id}/hint`),
   forfeit: (id: string)  => apiClient.post<ScrabbleView>(`/scrabble/${id}/forfeit`),
+  pause:   (id: string)  => apiClient.post<ScrabbleView>(`/scrabble/${id}/pause`),
+  resume:  (id: string)  => apiClient.post<ScrabbleView>(`/scrabble/${id}/resume`),
 };
 
 // ── Chess (real-time 2-player; friend + tournament) ─────────────────────────
@@ -392,6 +399,7 @@ export interface ChessView {
   lastMove:     string | null;
   players:      ChessPlayerView[];
   turnDeadline: number | null;   // epoch ms — losing on time is the chess rule
+  paused?:      boolean;
   endReason?:   'CHECKMATE' | 'STALEMATE' | 'DRAW_50' | 'DRAW_MATERIAL' | 'RESIGN' | 'TIMEOUT';
   outcome?:     'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
   winnerName?:  string | null;
@@ -404,6 +412,8 @@ export const chessApi = {
   move:   (id: string, move: string) =>
             apiClient.post<ChessView>(`/chess/${id}/move`, { move }),
   forfeit: (id: string)  => apiClient.post<ChessView>(`/chess/${id}/forfeit`),
+  pause:   (id: string)  => apiClient.post<ChessView>(`/chess/${id}/pause`),
+  resume:  (id: string)  => apiClient.post<ChessView>(`/chess/${id}/resume`),
 };
 
 // ── Monopoly (tournament-only tables of up to 8) ─────────────────────────────
@@ -493,6 +503,7 @@ export interface MonopolyView {
   auction:       MonopolyAuction | null;
   trade:         MonopolyTradeView | null;
   turnDeadline:  number | null;
+  paused?:       boolean;
   outcome?:      'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
   winnerName?:   string | null;
 }
@@ -502,6 +513,8 @@ export const monopolyApi = {
   get:   (id: string) => apiClient.get<MonopolyView>(`/monopoly/${id}`),
   act:   (id: string, action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload; target?: number }) =>
            apiClient.post<MonopolyView>(`/monopoly/${id}/act`, { action, ...opts }),
+  pause:  (id: string) => apiClient.post<MonopolyView>(`/monopoly/${id}/pause`),
+  resume: (id: string) => apiClient.post<MonopolyView>(`/monopoly/${id}/resume`),
 };
 
 // ── Gomoku (real-time five-in-a-row) ────────────────────────────────────────
@@ -516,6 +529,7 @@ export interface GomokuView {
   vsComputer?: boolean;
   spectator?:  boolean;
   turnDeadline?: number | null;   // epoch ms — 5-min PvP turn clock
+  paused?:       boolean;
   hintsRemaining?: number;
   difficulty?: Difficulty;     // present on solo ladder games
   level?:      number;
@@ -535,6 +549,8 @@ export const gomokuApi = {
   hint:   (id: string)   => apiClient.post<HintCell>(`/gomoku/${id}/hint`),
   revive: (id: string)   => apiClient.post<GomokuView>(`/gomoku/${id}/revive`),
   forfeit: (id: string)  => apiClient.post<GomokuView>(`/gomoku/${id}/forfeit`),
+  pause:   (id: string)  => apiClient.post<GomokuView>(`/gomoku/${id}/pause`),
+  resume:  (id: string)  => apiClient.post<GomokuView>(`/gomoku/${id}/resume`),
 };
 
 // ── Battleship (real-time) ──────────────────────────────────────────────────
@@ -549,6 +565,7 @@ export interface BattleshipView {
   vsComputer?:   boolean;
   spectator?:    boolean;
   turnDeadline?: number | null;   // epoch ms — 5-min PvP turn clock
+  paused?:       boolean;
   hintsRemaining?: number;
   lastShot?:     'HIT' | 'MISS' | 'SUNK' | 'WIN';
   difficulty?:   Difficulty;   // present on solo ladder games
@@ -567,6 +584,8 @@ export const battleshipApi = {
   hint:   (id: string)   => apiClient.post<HintCell>(`/battleship/${id}/hint`),
   revive: (id: string)   => apiClient.post<BattleshipView>(`/battleship/${id}/revive`),
   forfeit: (id: string)  => apiClient.post<BattleshipView>(`/battleship/${id}/forfeit`),
+  pause:   (id: string)  => apiClient.post<BattleshipView>(`/battleship/${id}/pause`),
+  resume:  (id: string)  => apiClient.post<BattleshipView>(`/battleship/${id}/resume`),
 };
 
 // ── Challenges (async friend matches) ───────────────────────────────────────

@@ -103,6 +103,36 @@ public class TournamentController {
         return ResponseEntity.ok(Map.of("status", "DELETED"));
     }
 
+    // ── Pause / resume (creator or admin) ─────────────────────────────────
+
+    /** POST /tournament/{id}/pause — freeze the bracket and all its live matches. */
+    @PostMapping("/{id}/pause")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<Map<String, String>> pause(@PathVariable UUID id, Authentication auth) {
+        return togglePause(id, auth, true);
+    }
+
+    /** POST /tournament/{id}/resume — resume the bracket and its matches. */
+    @PostMapping("/{id}/resume")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<Map<String, String>> resume(@PathVariable UUID id, Authentication auth) {
+        return togglePause(id, auth, false);
+    }
+
+    private ResponseEntity<Map<String, String>> togglePause(UUID id, Authentication auth, boolean pause) {
+        UUID userId = (UUID) auth.getPrincipal();
+        Tournament t = tournamentRepo.findById(id).orElse(null);
+        if (t == null) return ResponseEntity.notFound().build();
+        if (!canManage(t, userId, auth))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Only the tournament's creator or an admin can pause it."));
+        if (pause) bracketService.pause(t); else bracketService.resume(t);
+        audit.record(userId, pause ? "TOURNAMENT_PAUSED" : "TOURNAMENT_RESUMED", "id=" + id);
+        return ResponseEntity.ok(Map.of("status", pause ? "PAUSED" : "RESUMED"));
+    }
+
     /** The creator (createdBy) or any admin may manage/delete a tournament. */
     private static boolean canManage(Tournament t, UUID userId, Authentication auth) {
         return userId.equals(t.getCreatedBy()) || isAdmin(auth);
@@ -246,6 +276,7 @@ public class TournamentController {
         m.put("currentRound", t.getCurrentRound());
         m.put("winnerId",     t.getWinnerId() != null ? t.getWinnerId().toString() : null);
         m.put("joinedCount",  participantRepo.countByTournamentId(t.getId()));
+        m.put("paused",       t.getPausedAt() != null);
         return m;
     }
 
