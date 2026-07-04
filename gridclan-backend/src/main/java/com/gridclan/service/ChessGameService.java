@@ -167,8 +167,48 @@ public class ChessGameService {
     // ── Turn clock (loss on time) ─────────────────────────────────────────────
 
     private Instant turnDeadline(ChessGame g) {
-        if (!"ACTIVE".equals(g.getStatus()) || g.getPlayer2Id() == null) return null;
+        if (!"ACTIVE".equals(g.getStatus()) || g.getPlayer2Id() == null || g.getPausedAt() != null) return null;
         return g.getLastMoveAt().plusSeconds(TURN_SECONDS);
+    }
+
+    // ── Pause / resume ─────────────────────────────────────────────────────────
+
+    @Transactional
+    public Map<String, Object> pause(UUID userId, UUID gameId) {
+        ChessGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (seatOf(g, userId) == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
+        if (!"ACTIVE".equals(g.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a live game can be paused.");
+        if (g.getPausedAt() == null) { g.setPausedAt(Instant.now()); repo.save(g); broadcast(g); }
+        return view(userId, g);
+    }
+
+    /** System-initiated pause/resume (e.g. a tournament pausing all its matches). */
+    @Transactional
+    public void setPaused(UUID gameId, boolean paused) {
+        repo.findById(gameId).ifPresent(g -> {
+            if (!"ACTIVE".equals(g.getStatus())) return;
+            if (paused && g.getPausedAt() == null) g.setPausedAt(Instant.now());
+            else if (!paused && g.getPausedAt() != null) { g.setPausedAt(null); g.setLastMoveAt(Instant.now()); }
+            else return;
+            repo.save(g);
+            broadcast(g);
+        });
+    }
+
+    @Transactional
+    public Map<String, Object> resume(UUID userId, UUID gameId) {
+        ChessGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        if (seatOf(g, userId) == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
+        if (g.getPausedAt() != null) {
+            g.setPausedAt(null);
+            g.setLastMoveAt(Instant.now());
+            repo.save(g);
+            broadcast(g);
+        }
+        return view(userId, g);
     }
 
     @Transactional
@@ -213,6 +253,7 @@ public class ChessGameService {
         out.put("currentColor", g.getCurrentPlayer() == 1 ? "WHITE" : "BLACK");
         out.put("hasOpponent", g.getPlayer2Id() != null);
         out.put("spectator",   me == 0);
+        out.put("paused",      g.getPausedAt() != null);
         out.put("inCheck",     "ACTIVE".equals(g.getStatus()) && engine.inCheck());
         out.put("legalMoves",  yourTurn ? engine.legalMoves() : List.of());
         List<String> moves = g.getMoveLog().isEmpty()
@@ -299,6 +340,8 @@ public class ChessGameService {
         enforceTurnClock(g);
         if (!"ACTIVE".equals(g.getStatus()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPausedAt() != null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is paused — resume to play.");
         int me = seatOf(g, userId);
         if (me == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
         if (me != g.getCurrentPlayer())

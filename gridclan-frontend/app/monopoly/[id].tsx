@@ -13,6 +13,7 @@ import { playSfx } from '@services/sound';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { TurnCountdown } from '@components/TurnCountdown';
+import { PauseBar } from '@components/PauseBar';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PostGameAd } from '@components/PostGameAd';
@@ -169,6 +170,14 @@ export default function MonopolyGameScreen() {
     } });
   }
 
+  async function doPauseToggle() {
+    if (!id || busy) return;
+    setBusy(true);
+    const res = await (game?.paused ? monopolyApi.resume(id) : monopolyApi.pause(id)).catch(() => null);
+    setBusy(false);
+    if (res?.data) setGame(res.data);
+  }
+
   async function kick(seat: number) {
     const p = game?.players[seat];
     const ok = await confirm({
@@ -292,6 +301,9 @@ export default function MonopolyGameScreen() {
         )}
 
         {!complete && <TurnCountdown deadline={game.turnDeadline} />}
+        {!complete && !spectator && (
+          <PauseBar paused={!!game.paused} onPause={doPauseToggle} onResume={doPauseToggle} busy={busy} width={boardW} />
+        )}
 
         {/* Board ring */}
         <View style={styles.board}>

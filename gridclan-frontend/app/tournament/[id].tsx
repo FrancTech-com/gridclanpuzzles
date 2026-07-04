@@ -63,6 +63,16 @@ export default function TournamentHubScreen() {
     catch {} finally { setBusy(false); }
   }
 
+  async function handlePauseToggle() {
+    if (!id) return;
+    setBusy(true);
+    try {
+      if (tournament?.paused) await tournamentApi.resume(id);
+      else                    await tournamentApi.pause(id);
+      await refresh();
+    } catch {} finally { setBusy(false); }
+  }
+
   async function handleDelete() {
     if (!id) return;
     const ok = await confirm({
@@ -115,7 +125,16 @@ export default function TournamentHubScreen() {
         </View>
       </View>
 
-      {/* Creator / admin can delete the tournament */}
+      {/* Creator / admin controls */}
+      {tournament.canDelete && tournament.status === 'ACTIVE' && (
+        <Button
+          title={tournament.paused ? t('tournament.resume', '▶ Resume tournament') : t('tournament.pause', '⏸ Pause tournament')}
+          onPress={handlePauseToggle}
+          variant="secondary"
+          disabled={busy}
+          style={styles.deleteBtn}
+        />
+      )}
       {tournament.canDelete && (
         <Button
           title={t('tournament.delete', 'Delete tournament')}
@@ -124,6 +143,9 @@ export default function TournamentHubScreen() {
           disabled={busy}
           style={styles.deleteBtn}
         />
+      )}
+      {tournament.paused && (
+        <Text style={styles.pausedNote}>⏸ {t('tournament.pausedNote', 'This tournament is paused — matches are frozen.')}</Text>
       )}
 
       {/* Action area — driven by the viewer's state */}
@@ -357,4 +379,5 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   liveKind:    { color: Colors.textMuted, fontSize: Font.size.xs, fontWeight: Font.weight.semi },
   liveNames:   { color: Colors.textPrimary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginTop: 2 },
   deleteBtn:   { marginBottom: Spacing.md, alignSelf: 'flex-end' },
+  pausedNote:  { color: Colors.accent, fontSize: Font.size.sm, fontWeight: Font.weight.semi, textAlign: 'center', marginBottom: Spacing.md },
 });
