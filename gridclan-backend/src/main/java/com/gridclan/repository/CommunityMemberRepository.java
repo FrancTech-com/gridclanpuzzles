@@ -32,4 +32,6 @@ Optional<CommunityMember> findByCommunityIdAndUserId(@Param("cid") UUID communit
     @Modifying
     @Query("DELETE FROM CommunityMember m WHERE m.userId = :userId")
     void deleteAllByUserId(@Param("userId") UUID userId);
+
+    void deleteByCommunityId(UUID communityId);
 }

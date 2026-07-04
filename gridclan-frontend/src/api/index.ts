@@ -246,6 +246,10 @@ export const communityApi = {
   leave: (communityId: string) =>
     apiClient.delete(`/community/${communityId}/leave`),
 
+  /** Delete a community (owner or admin only). */
+  remove: (communityId: string) =>
+    apiClient.delete<{ status: string }>(`/community/${communityId}`),
+
   members: (communityId: string) =>
     apiClient.get<CommunityMemberInfo[]>(`/community/${communityId}/members`),
 
@@ -291,6 +295,10 @@ export const tournamentApi = {
       rounds: Record<string, any[]>;
       consolationRounds?: Record<string, any[]>;
     }>(`/tournament/${id}/bracket`),
+
+  /** Delete a tournament (creator or admin only). */
+  remove: (id: string) =>
+    apiClient.delete<{ status: string }>(`/tournament/${id}`),
 };
 
 // ── Grid Scrabble (shared-board, 2-4 players) ───────────────────────────────

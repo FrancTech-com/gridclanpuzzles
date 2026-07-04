@@ -12,6 +12,7 @@ import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { TurnCountdown } from '@components/TurnCountdown';
+import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PostGameAd } from '@components/PostGameAd';
 import { GameChat } from '@components/GameChat';
@@ -143,6 +144,10 @@ export default function MonopolyGameScreen() {
   const header = {
     headerShown: true, title: t('monopoly.title', 'Grid Tycoon'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
+    headerRight: () =>
+      game && game.status === 'ACTIVE' && !game.spectator && id
+        ? <VoiceControl kind="monopoly" gameId={id} />
+        : null,
   };
 
   if (loading || !board) return <LoadingSpinner />;
