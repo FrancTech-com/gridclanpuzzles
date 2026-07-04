@@ -311,8 +311,8 @@ export interface Community {
 }
 
 // ── Tournament ─────────────────────────────────────────────────────────────
-// Tournaments run on the three real-time 2-player games (not solo Word Search).
-export type TournamentGame = 'SCRABBLE' | 'GOMOKU' | 'BATTLESHIP';
+// Tournaments run on the competitive games (not solo Word Search).
+export type TournamentGame = 'SCRABBLE' | 'GOMOKU' | 'BATTLESHIP' | 'CHESS' | 'MONOPOLY';
 
 export interface Tournament {
   id:           string;
@@ -358,20 +358,37 @@ export type TournamentState =
   | 'NOT_JOINED' | 'WAITING_START' | 'CANCELLED'
   | 'PLAYING' | 'WAITING_NEXT' | 'ELIMINATED' | 'CHAMPION' | 'DONE';
 
+// A live (watchable) match in a tournament.
+export interface TournamentLiveMatch {
+  matchId:  string;
+  round:    number;
+  bracket:  'MAIN' | 'CONSOLATION';
+  kind:     'H2H' | 'GROUP' | 'FINAL' | 'THIRD_PLACE';
+  gameType: TournamentGame;
+  gameId:   string;
+  players:  (string | null)[];
+}
+
 export interface TournamentMe {
   tournamentId:     string;
   tournamentStatus: Tournament['status'];
   gameType:         TournamentGame;
+  format?:          'KNOCKOUT' | 'GROUPS' | 'TABLES';
   currentRound:     number;
   joined:           boolean;
   state:            TournamentState;
   eliminatedRound?: number;
+  championName?:    string | null;
+  liveMatches?:     TournamentLiveMatch[];
   currentMatch?: {
     matchId:      string;
     round:        number;
+    bracket?:     'MAIN' | 'CONSOLATION';
+    kind?:        'H2H' | 'GROUP' | 'FINAL' | 'THIRD_PLACE';
     gameType:     TournamentGame;
     gameId:       string | null;
-    opponentName: string | null;
+    opponentName?: string | null;
+    opponents?:   (string | null)[];
   };
 }
 

@@ -14,5 +14,9 @@ public interface TournamentMatchRepository extends JpaRepository<TournamentMatch
 
     List<TournamentMatch> findByTournamentIdAndRound(UUID tournamentId, int round);
 
+    List<TournamentMatch> findByTournamentIdAndBracketAndRound(UUID tournamentId, String bracket, int round);
+
+    List<TournamentMatch> findByTournamentIdAndBracketOrderByRoundAscSlotAsc(UUID tournamentId, String bracket);
+
     List<TournamentMatch> findByTournamentIdAndStatus(UUID tournamentId, String status);
 }

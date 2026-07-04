@@ -10,7 +10,16 @@ import { Font, Radius, Spacing, TournamentGameMeta } from '@theme/index';
 import { useColors, useTheme } from '@theme/theme';
 import type { Community, TournamentGame } from '@gridtypes/index';
 
-const GAME_ORDER: TournamentGame[] = ['SCRABBLE', 'GOMOKU', 'BATTLESHIP'];
+const GAME_ORDER: TournamentGame[] = ['SCRABBLE', 'GOMOKU', 'BATTLESHIP', 'CHESS', 'MONOPOLY'];
+
+// A one-line description of how each game's bracket runs, shown under the picker.
+const FORMAT_NOTE: Record<TournamentGame, string> = {
+  SCRABBLE:   'Groups of four share one board; the top two advance. First-round losers get a second chance in the losers bracket.',
+  GOMOKU:     'Classic knockout — win your match and advance.',
+  BATTLESHIP: 'Classic knockout — win your match and advance.',
+  CHESS:      'Classic knockout — win your match and advance.',
+  MONOPOLY:   'Tables of up to 8 players; each table winner advances to the next round.',
+};
 
 // The creator picks WHEN the tournament starts (players join while it's
 // UPCOMING; the scheduler seeds the bracket at start time). Quick presets keep
@@ -122,6 +131,7 @@ export default function CreateTournamentScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          <Text style={styles.formatNote}>{t(`tournament.format_${gameType}`, FORMAT_NOTE[gameType])}</Text>
 
           {/* Start time */}
           <Text style={styles.label}>{t('tournament.startTime', 'Starts')}</Text>
@@ -270,6 +280,7 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
   chipText:   { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.medium },
 
+  formatNote:   { color: Colors.textMuted, fontSize: Font.size.xs, lineHeight: 17, marginTop: Spacing.sm },
   customRow:    { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, alignItems: 'flex-start' },
   customField:  { flex: 1 },
   timeError:    { color: Colors.error, fontSize: Font.size.sm, marginTop: Spacing.sm },

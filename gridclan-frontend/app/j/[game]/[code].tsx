@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
-import { battleshipApi, communityApi, gomokuApi, scrabbleApi } from '@api/index';
+import { battleshipApi, chessApi, communityApi, gomokuApi, scrabbleApi } from '@api/index';
 import { Button, LoadingSpinner } from '@components/ui/index';
 import { Font, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
@@ -25,6 +25,7 @@ const JOINERS = {
   scrabble:   (code: string) => scrabbleApi.join(code),
   gomoku:     (code: string) => gomokuApi.join(code),
   battleship: (code: string) => battleshipApi.join(code),
+  chess:      (code: string) => chessApi.join(code),
 } as const;
 type JoinGame = keyof typeof JOINERS;
 
