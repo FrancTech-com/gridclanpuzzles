@@ -4,13 +4,14 @@ import {
 } from 'react-native';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { scrabbleApi, type ScrabblePlacement, type ScrabbleView, type ScrabbleHint } from '@api/index';
+import { scrabbleApi, type ScrabblePlacement, type ScrabbleView, type ScrabbleHint, type ScrabbleLogEntry } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
 import { LEVELS_PER_DIFFICULTY } from '@gridtypes/index';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
+import { TurnCountdown } from '@components/TurnCountdown';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PostGameAd } from '@components/PostGameAd';
@@ -72,7 +73,7 @@ export default function ScrabbleGameScreen() {
   const [swapMode, setSwapMode] = useState(false);
   const [swapSel, setSwapSel] = useState<number[]>([]);
   useEffect(() => {
-    if (game?.status === 'COMPLETE' && game.outcome && !announced.current) {
+    if (game?.status === 'COMPLETE' && game.outcome && game.outcome !== 'SPECTATOR' && !announced.current) {
       announced.current = true;
       setShowResult(true);
     }
@@ -259,7 +260,8 @@ export default function ScrabbleGameScreen() {
     headerShown: true, title: t('scrabble.title', 'Grid Scrabble'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
     headerRight: () =>
-      game && game.status === 'ACTIVE' && !game.vsComputer && id
+      game && game.status === 'ACTIVE' && !game.vsComputer && !game.spectator
+        && (game.maxPlayers ?? 2) <= 2 && id
         ? <VoiceControl kind="scrabble" gameId={id} />
         : null,
   };
@@ -304,6 +306,9 @@ export default function ScrabbleGameScreen() {
   const canNextLevel = complete && game.outcome === 'WON' && !!game.vsComputer
     && !!game.difficulty && (game.level ?? 0) > 0 && (game.level ?? 0) < LEVELS_PER_DIFFICULTY;
   const waiting = game.status === 'WAITING_FOR_OPPONENT';
+  const spectator  = !!game.spectator;
+  const multiSeat  = (game.maxPlayers ?? 2) > 2;
+  const lastWord   = [...(game.moveLog ?? [])].reverse().find(e => e.type === 'WORD');
 
   // Suggested-cell lookup for the ghosted hint letters.
   const hintMap = new Map<string, string>();
@@ -313,19 +318,72 @@ export default function ScrabbleGameScreen() {
     <View style={styles.container}>
       <Stack.Screen options={header} />
       <ScrollView contentContainerStyle={styles.content}>
-        {/* Scoreboard */}
-        <View style={styles.scoreRow}>
-          <Score label={t('scrabble.you', 'You')} value={game.yourScore} hi={game.outcome === 'WON'} styles={styles} Colors={Colors} />
-          <View style={styles.statusMid}>
-            <Text style={styles.statusText}>
-              {complete ? (game.outcome === 'WON' ? t('scrabble.youWon', 'You won!') : game.outcome === 'LOST' ? t('scrabble.youLost', 'You lost') : t('scrabble.tie', 'Tie'))
-                : waiting ? t('scrabble.waitingOpponent', 'Waiting for a friend to join')
-                : game.yourTurn ? `▶ ${t('scrabble.yourTurn', 'Your turn')}` : t('scrabble.theirTurn', 'Their turn')}
-            </Text>
-            <Text style={styles.bagText}>{t('scrabble.tilesLeft', 'Bag')}: {game.tilesInBag}</Text>
+        {/* Scoreboard — classic two seats, or the full table for 3-4 player boards */}
+        {multiSeat || spectator ? (
+          <View style={styles.seatBoard}>
+            {(game.players ?? []).filter(p => p.name).map(p => (
+              <View key={p.seat} style={[styles.seatCell, p.current && styles.seatCellTurn]}>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.seatName,
+                    p.seat === game.yourSeat && { color: Colors.primary },
+                    p.resigned && styles.seatResigned,
+                  ]}
+                >
+                  {p.current ? '▶ ' : ''}{p.seat === game.yourSeat ? t('scrabble.you', 'You') : p.name}
+                </Text>
+                <Text style={styles.seatScore}>{p.score}</Text>
+                <Text style={styles.seatTiles}>{'▮'.repeat(Math.min(7, p.tiles))}</Text>
+              </View>
+            ))}
           </View>
-          <Score label={t('scrabble.friend', 'Friend')} value={game.opponentScore} hi={game.outcome === 'LOST'} styles={styles} Colors={Colors} />
-        </View>
+        ) : (
+          <View style={styles.scoreRow}>
+            <Score label={t('scrabble.you', 'You')} value={game.yourScore} hi={game.outcome === 'WON'} styles={styles} Colors={Colors} />
+            <View style={styles.statusMid}>
+              <Text style={styles.statusText}>
+                {complete ? (game.outcome === 'WON' ? t('scrabble.youWon', 'You won!') : game.outcome === 'LOST' ? t('scrabble.youLost', 'You lost') : t('scrabble.tie', 'Tie'))
+                  : waiting ? t('scrabble.waitingOpponent', 'Waiting for a friend to join')
+                  : game.yourTurn ? `▶ ${t('scrabble.yourTurn', 'Your turn')}` : t('scrabble.theirTurn', 'Their turn')}
+              </Text>
+              <Text style={styles.bagText}>{t('scrabble.tilesLeft', 'Bag')}: {game.tilesInBag}</Text>
+            </View>
+            <Score label={t('scrabble.friend', 'Friend')} value={game.opponentScore} hi={game.outcome === 'LOST'} styles={styles} Colors={Colors} />
+          </View>
+        )}
+
+        {(multiSeat || spectator) && (
+          <Text style={styles.bagText}>
+            {complete
+              ? (spectator
+                  ? t('scrabble.gameOverWinner', { name: game.winnerName ?? '—', defaultValue: 'Game over — {{name}} won' })
+                  : game.outcome === 'WON' ? t('scrabble.youWon', 'You won!')
+                  : game.outcome === 'LOST' ? t('scrabble.wonBy', { name: game.winnerName ?? '—', defaultValue: '{{name}} won' })
+                  : t('scrabble.tie', 'Tie'))
+              : waiting
+                ? t('scrabble.waitingPlayers', { seated: game.seatedCount, total: game.maxPlayers, defaultValue: 'Waiting for players ({{seated}}/{{total}})' })
+                : game.yourTurn ? `▶ ${t('scrabble.yourTurn', 'Your turn')}` : ''}
+            {'  ·  '}{t('scrabble.tilesLeft', 'Bag')}: {game.tilesInBag}
+          </Text>
+        )}
+
+        {spectator && !complete && (
+          <Text style={styles.watchBanner}>👁 {t('scrabble.watching', "You're watching this game live")}</Text>
+        )}
+
+        {/* 5-minute turn clock (PvP only — the server auto-passes at zero) */}
+        {game.status === 'ACTIVE' && !game.vsComputer && (
+          <TurnCountdown deadline={game.turnDeadline} />
+        )}
+
+        {lastWord && !waiting && (
+          <Text style={styles.lastWordBanner}>
+            {lastWord.player ? `${lastWord.player}: ` : ''}
+            {(lastWord.words ?? []).join(', ')} +{lastWord.score}
+            {lastWord.bingo ? ` 🎉 ${t('scrabble.bingo', 'BINGO +50')}` : ''}
+          </Text>
+        )}
 
         {game.vsComputer && !complete && (
           <View style={styles.soloBar}>
@@ -398,7 +456,7 @@ export default function ScrabbleGameScreen() {
         </View>
 
         {/* Rack */}
-        {!complete && (
+        {!complete && !spectator && (
           <>
             <View style={styles.rack}>
               {availableRack.map((tile, i) => (
@@ -451,11 +509,21 @@ export default function ScrabbleGameScreen() {
           </>
         )}
 
-        {!waiting && !game.vsComputer && id && (
+        {/* Word history — every move, for players and spectators alike */}
+        {(game.moveLog?.length ?? 0) > 0 && (
+          <Card style={styles.logCard}>
+            <Text style={styles.logTitle}>📜 {t('scrabble.moveLog', 'Words played')}</Text>
+            {game.moveLog.slice(-10).reverse().map((e, i) => (
+              <Text key={`${e.at}-${i}`} style={styles.logLine}>{formatLogEntry(e, t)}</Text>
+            ))}
+          </Card>
+        )}
+
+        {!waiting && !game.vsComputer && !spectator && id && (
           <View style={styles.chatWrap}><GameChat kind="scrabble" gameId={id} /></View>
         )}
 
-        {!complete && !waiting && !game.vsComputer && (
+        {!complete && !waiting && !game.vsComputer && !spectator && (
           <Button title={t('game.forfeit', 'Forfeit')} onPress={doForfeit} variant="ghost" disabled={busy} style={{ marginTop: Spacing.md }} />
         )}
       </ScrollView>
@@ -479,7 +547,7 @@ export default function ScrabbleGameScreen() {
 
       <GameResultOverlay
         visible={showResult}
-        outcome={complete ? (game.outcome ?? 'TIE') : null}
+        outcome={complete && game.outcome !== 'SPECTATOR' ? (game.outcome ?? 'TIE') : null}
         onNext={canNextLevel ? startNextLevel : null}
         nextBusy={nextBusy}
         onClose={() => setShowResult(false)}
@@ -498,6 +566,20 @@ function Score({ label, value, hi, styles, Colors }: { label: string; value: num
       <Text style={[styles.scoreValue, hi && { color: Colors.accent }]}>{value}</Text>
     </View>
   );
+}
+
+function formatLogEntry(e: ScrabbleLogEntry, t: (k: string, d?: any) => string): string {
+  const who = e.player ?? `P${e.seat}`;
+  switch (e.type) {
+    case 'WORD':
+      return `${who}: ${(e.words ?? []).join(', ')} +${e.score}${e.bingo ? ' 🎉' : ''}`;
+    case 'PASS':    return t('scrabble.logPass',    { who, defaultValue: '{{who}} passed' });
+    case 'SWAP':    return t('scrabble.logSwap',    { who, count: e.count ?? 0, defaultValue: '{{who}} swapped {{count}} tiles' });
+    case 'TIMEOUT': return t('scrabble.logTimeout', { who, defaultValue: '{{who}} ran out of time' });
+    case 'RESIGN':  return t('scrabble.logResign',  { who, defaultValue: '{{who}} resigned' });
+    case 'GAME_END': return t('scrabble.logEnd',    'Game over');
+    default: return who;
+  }
 }
 
 function premLabel(p: string) {
@@ -529,6 +611,19 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   muted:     { color: Colors.textMuted, fontSize: Font.size.sm, textAlign: 'center' },
 
   scoreRow:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: BOARD_W, marginBottom: Spacing.md },
+  // 3-4 player table: one cell per seat, the current player's cell glows.
+  seatBoard: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, width: BOARD_W, marginBottom: Spacing.sm },
+  seatCell:  { flexGrow: 1, flexBasis: '23%', backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, alignItems: 'center' },
+  seatCellTurn: { borderColor: Colors.accent, borderWidth: 2 },
+  seatName:  { color: Colors.textSecondary, fontSize: Font.size.xs, fontWeight: Font.weight.semi, maxWidth: 90 },
+  seatResigned: { textDecorationLine: 'line-through', color: Colors.textMuted },
+  seatScore: { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.black },
+  seatTiles: { color: Colors.textMuted, fontSize: 8, letterSpacing: 1 },
+  watchBanner: { color: Colors.accent, fontSize: Font.size.sm, fontWeight: Font.weight.semi, textAlign: 'center', marginBottom: Spacing.xs },
+  lastWordBanner: { color: Colors.textSecondary, fontSize: Font.size.sm, textAlign: 'center', marginBottom: Spacing.sm },
+  logCard:   { width: BOARD_W, marginTop: Spacing.lg, padding: Spacing.md },
+  logTitle:  { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold, marginBottom: Spacing.xs },
+  logLine:   { color: Colors.textSecondary, fontSize: Font.size.sm, lineHeight: 20 },
   score:     { alignItems: 'center', minWidth: 56 },
   scoreLabel:{ color: Colors.textMuted, fontSize: Font.size.xs },
   scoreValue:{ color: Colors.textPrimary, fontSize: Font.size.xl, fontWeight: Font.weight.black },

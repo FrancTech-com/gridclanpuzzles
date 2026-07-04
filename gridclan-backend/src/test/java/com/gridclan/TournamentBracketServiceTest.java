@@ -5,7 +5,9 @@ import com.gridclan.entity.TournamentMatch;
 import com.gridclan.entity.TournamentParticipant;
 import com.gridclan.repository.*;
 import com.gridclan.service.BattleshipGameService;
+import com.gridclan.service.ChessGameService;
 import com.gridclan.service.GomokuGameService;
+import com.gridclan.service.MonopolyGameService;
 import com.gridclan.service.ScrabbleGameService;
 import com.gridclan.service.TournamentBracketService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,8 @@ class TournamentBracketServiceTest {
     GomokuGameService     gomoku;
     ScrabbleGameService   scrabble;
     BattleshipGameService battleship;
+    ChessGameService      chess;
+    MonopolyGameService   monopoly;
     TournamentBracketService bracket;
 
     @BeforeEach
@@ -46,6 +50,8 @@ class TournamentBracketServiceTest {
         gomoku     = mock(GomokuGameService.class);
         scrabble   = mock(ScrabbleGameService.class);
         battleship = mock(BattleshipGameService.class);
+        chess      = mock(ChessGameService.class);
+        monopoly   = mock(MonopolyGameService.class);
 
         // Each created match gets a fresh game id; games are immediately "complete"
         // and player1 always wins (deterministic regardless of seeding shuffle).
@@ -59,8 +65,21 @@ class TournamentBracketServiceTest {
                 .findFirst().orElse(null);
         });
 
+        // Scrabble group games finish instantly, ranked in seating order — so the
+        // top two seats of every group advance, deterministically.
+        when(scrabble.createGroupMatch(any())).thenAnswer(i -> UUID.randomUUID());
+        when(scrabble.isMatchComplete(any())).thenReturn(true);
+        when(scrabble.matchRanking(any())).thenAnswer(inv -> {
+            UUID gid = inv.getArgument(0);
+            return matchRepo.findAll().stream()
+                .filter(m -> gid.equals(m.getGameId()))
+                .map(TournamentMatch::allPlayers)
+                .findFirst().orElse(List.of());
+        });
+
         bracket = new TournamentBracketService(
-            tournamentRepo, matchRepo, participantRepo, userRepo, scrabble, gomoku, battleship);
+            tournamentRepo, matchRepo, participantRepo, userRepo,
+            scrabble, gomoku, battleship, chess, monopoly);
     }
 
     private Tournament newTournament() {
@@ -116,6 +135,45 @@ class TournamentBracketServiceTest {
         assertThat(t.getWinnerId()).isNotNull();
         assertThat(participantRepo.findByTournamentId(t.getId()).stream()
             .filter(p -> "ELIMINATED".equals(p.getStatus())).count()).isEqualTo(2);
+    }
+
+    @Test
+    void scrabbleGroupsOfFourPromoteTwoWithConsolationAndPodium() {
+        Tournament t = tournamentRepo.save(Tournament.builder()
+            .name("Word Cup").gameType("SCRABBLE").status("UPCOMING")
+            .startsAt(Instant.now()).endsAt(Instant.now().plusSeconds(3600))
+            .build());
+        join(t, 8);
+
+        bracket.start(t);
+        // 8 players → two 4-player group boards in round 1.
+        List<TournamentMatch> r1 = matchRepo.findByTournamentIdAndBracketAndRound(t.getId(), "MAIN", 1);
+        assertThat(r1).hasSize(2);
+        assertThat(r1).allMatch(m -> "GROUP".equals(m.getKind()) && m.allPlayers().size() == 4);
+
+        runToCompletion(t);
+
+        assertThat(t.getStatus()).isEqualTo("COMPLETED");
+        assertThat(t.getWinnerId()).isNotNull();
+
+        // Main draw: 2 groups → 1 semifinal group → FINAL + THIRD_PLACE.
+        List<TournamentMatch> main = matchRepo.findByTournamentIdAndBracketOrderByRoundAscSlotAsc(t.getId(), "MAIN");
+        assertThat(main.stream().filter(m -> "FINAL".equals(m.getKind())).count()).isEqualTo(1);
+        assertThat(main.stream().filter(m -> "THIRD_PLACE".equals(m.getKind())).count()).isEqualTo(1);
+        assertThat(matchRepo.findByTournamentIdAndBracketAndRound(t.getId(), "MAIN", 2))
+            .hasSize(1).allMatch(m -> m.allPlayers().size() == 4);
+
+        // The four first-round eliminees played their own consolation draw.
+        List<TournamentMatch> consolation =
+            matchRepo.findByTournamentIdAndBracketOrderByRoundAscSlotAsc(t.getId(), "CONSOLATION");
+        assertThat(consolation).isNotEmpty();
+        assertThat(consolation.get(0).allPlayers()).hasSize(4);
+        assertThat(consolation.stream().filter(m -> "FINAL".equals(m.getKind())).count()).isEqualTo(1);
+
+        // Everyone but the champion ends up eliminated.
+        long eliminated = participantRepo.findByTournamentId(t.getId()).stream()
+            .filter(p -> "ELIMINATED".equals(p.getStatus())).count();
+        assertThat(eliminated).isEqualTo(7);
     }
 
     @Test

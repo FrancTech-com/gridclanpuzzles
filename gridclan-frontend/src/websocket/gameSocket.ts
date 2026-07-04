@@ -7,7 +7,7 @@ import { stompConnection } from './stompClient';
  * rack/board-filtered view through the normal authenticated GET endpoint.
  */
 
-export type GameKind   = 'scrabble' | 'battleship' | 'gomoku';
+export type GameKind   = 'scrabble' | 'battleship' | 'gomoku' | 'chess' | 'monopoly';
 export type GameUpdate  = {
   gameId:        string;
   status:        string;

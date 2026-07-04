@@ -30,11 +30,12 @@ public class ScrabbleController {
 
     private final ScrabbleGameService service;
 
-    /** POST /scrabble — start a game; you draw the first rack and get an invite code. */
+    /** POST /scrabble — start a game (2-4 seats); you draw the first rack and get an invite code. */
     @PostMapping
     @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<Map<String, Object>> create(Authentication auth) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
+    public ResponseEntity<Map<String, Object>> create(
+            @RequestParam(defaultValue = "2") int players, Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth), players));
     }
 
     /** POST /scrabble/solo — start a game against the computer (you move first).

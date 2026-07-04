@@ -17,8 +17,9 @@ public interface ScrabbleGameRepository extends JpaRepository<ScrabbleGame, UUID
     boolean existsByInviteCode(String inviteCode);
     List<ScrabbleGame> findByStatus(String status);
 
-    /** The user's in-progress games (either seat), most-recently-active first. */
-    @Query("SELECT g FROM ScrabbleGame g WHERE (g.player1Id = :uid OR g.player2Id = :uid) "
+    /** The user's in-progress games (any seat), most-recently-active first. */
+    @Query("SELECT g FROM ScrabbleGame g WHERE (g.player1Id = :uid OR g.player2Id = :uid "
+         + "OR g.player3Id = :uid OR g.player4Id = :uid) "
          + "AND g.status IN :statuses ORDER BY g.lastMoveAt DESC")
     List<ScrabbleGame> findResumable(@Param("uid") UUID uid, @Param("statuses") Collection<String> statuses);
 }

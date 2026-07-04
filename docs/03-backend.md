@@ -21,6 +21,8 @@ com.gridclan/
 ├── config/                    ← Security/WebSocket/Redis/ReadReplica/PasswordEncoder
 ├── job/                       ← scheduled jobs
 ├── gridscrabble/              ← Scrabble rules engine (TileBag, Premiums, …)
+├── chess/                     ← Chess rules engine (ChessEngine, FEN + UCI)
+├── monopoly/                  ← Monopoly rules engine (MonopolyBoard/Engine/State)
 ├── anticheat/                 ← anti-cheat helpers
 └── exception/                 ← GlobalExceptionHandler etc.
 ```
@@ -29,17 +31,19 @@ com.gridclan/
 
 `Auth`, `Account`, `Admin`, `UserProfile`, `PlayerPoints`, `Gem`,
 `GlobalLeaderboard`, `Community`, `Chat`, `Tournament`, `GameSession`,
-`Scrabble`, `Gomoku`, `Battleship`, `Challenge`, `PasswordReset`, `Ops`, plus
-`GlobalExceptionHandler`. Controllers stay thin — validation + delegation; the
-rules live in services.
+`Scrabble`, `Gomoku`, `Battleship`, `Chess`, `Monopoly`, `Challenge`,
+`PasswordReset`, `Ops`, plus `GlobalExceptionHandler`. Controllers stay thin —
+validation + delegation; the rules live in services.
 
 ## Key services
 
 | Service | Responsibility |
 |---------|----------------|
-| `ScrabbleGameService` | Shared-board Scrabble: turns, scoring, board state, broadcast ping |
-| `GomokuGameService` | Five-in-a-row rules, win detection, broadcast |
-| `BattleshipGameService` | Fleet placement, firing, hit/sink/win, broadcast |
+| `ScrabbleGameService` | Shared-board Scrabble for 2–4 players: turns, standard scoring (premiums, +50 bingo, end-game rack adjustment), move log, 5-min turn clock, broadcast ping |
+| `ChessGameService` | Chess games (friend + tournament); validates every move via `ChessEngine`; 5-min clock = loss on time |
+| `MonopolyGameService` | Monopoly tables of 2–8 (tournament only); wraps `MonopolyEngine`, JSON state, 5-min auto-played turn |
+| `GomokuGameService` | Five-in-a-row rules, win detection, broadcast, 5-min turn clock |
+| `BattleshipGameService` | Fleet placement, firing, hit/sink/win, broadcast, 5-min turn clock |
 | `ChallengeService` | Async same-puzzle challenges; score comparison + outcome |
 | `GameSessionService` | Solo/casual sessions (Word Search etc.) |
 | `ScoreEngine` | Scoring rules |
@@ -50,7 +54,7 @@ rules live in services.
 | `GemService` | Append-only gem ledger, gifting, ad-reward |
 | `BalanceCache` | Derived/cached balances |
 | `LeaderboardService` | Global + per-game leaderboards |
-| `TournamentService` / `TournamentBracketService` | Brackets: join → pair → match → advance → champion |
+| `TournamentService` / `TournamentBracketService` | Three formats — knockout (Chess/Connect/Battleships), groups + losers bracket (Scrabble), tables (Monopoly): join → seed → match → advance → champion; exposes live matches for spectating |
 | `UserService` / `UserActivityService` / `UserSuspensionService` | Accounts, presence, moderation |
 | `AccountDeletionService` | Account deletion |
 | `NotificationService` / `PushNotificationService` | Notifications |
@@ -60,16 +64,44 @@ rules live in services.
 
 ## The Scrabble engine (`gridscrabble/`)
 
-Real Scrabble rules on a 15×15 premium board, shared-board turn-based two-player.
-The premium layout (triple/double word/letter) is mirrored on the client for
-display only — the server is authoritative for scoring. `TileBag` manages the
-draw; blanks are supported (`'_'` in a rack, lowercase on the board).
+Real Scrabble rules on a 15×15 premium board, shared-board turn-based for **2–4
+players**. The premium layout (triple/double word/letter) is mirrored on the
+client for display only — the server is authoritative for scoring, which follows
+the **standard rules**: letter/word premiums apply only to newly-covered squares,
+a **+50 bingo** bonus for using all seven tiles, and an **end-of-game rack
+adjustment** (everyone loses the value of their unplayed tiles; the player who
+goes out gains the sum of the others'). The dictionary is the standard **SOWPODS**
+word list (`words.txt`, ≈268k words, so plays like `QI`/`ZA` are valid).
+`TileBag` manages the draw; blanks are supported (`'_'` in a rack, lowercase on
+the board). Every move is recorded in a JSON `move_log` for the in-game history
+and spectators.
+
+## The Chess engine (`chess/`)
+
+`ChessEngine` is a self-contained, server-authoritative rules engine. State is a
+**FEN** string; moves are **UCI** coordinate strings (`e2e4`, promotions `e7e8q`).
+It enforces full legality — check detection, castling (through/out of check),
+en passant, promotion — and reports game-over: checkmate, stalemate, the
+fifty-move rule and insufficient material. `ChessGameService` validates every
+client move against `legalMoves()` before applying it.
+
+## The Monopoly engine (`monopoly/`)
+
+`MonopolyBoard` holds the standard 40-square board (names, prices, rents);
+`MonopolyEngine` runs the rules for **2–8 players** (dice + doubles → jail,
+GO salary, buying, rent with group-doubling / houses / hotels / railroads /
+utilities, even building, mortgages, the Chance & Community Chest decks, jail,
+auto-liquidation and bankruptcy). Games are round-bounded for tournaments (the
+richest net worth wins at the cap). State is a JSON `MonopolyState` blob;
+`MonopolyGameService` persists it and exposes seat-filtered views. Trading and
+auctions are intentionally out of scope for this version.
 
 ## Scheduled jobs
 
 | Job | What it does |
 |-----|--------------|
 | `TournamentSchedulerJob` | Advances tournaments `UPCOMING → ACTIVE → COMPLETED` |
+| `TurnTimerJob` | Sweeps every ACTIVE PvP game every 30s and enforces the 5-minute turn clock (auto-pass / loss on time) |
 | `CommunityDistributionJob` | Community payouts/maintenance |
 | `ArchiveJob` | Archives old data |
 | `IpPurgeJob` | Purges stored IPs per retention policy |

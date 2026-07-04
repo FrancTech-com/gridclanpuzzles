@@ -36,6 +36,8 @@ public class GomokuGameService {
     private static final char[] CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
     private static final int    CODE_LENGTH   = 6;
     private static final SecureRandom RANDOM   = new SecureRandom();
+    /** PvP turn clock: 5 minutes per move, then the turn auto-passes. */
+    public static final long    TURN_SECONDS = 300;
 
     /** Fixed sentinel id for the computer opponent in solo games. */
     public static final UUID COMPUTER_ID = new UUID(0L, 0L);
@@ -321,10 +323,48 @@ public class GomokuGameService {
         return out;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Map<String, Object> get(UUID userId, UUID gameId) {
-        return view(userId, repo.findById(gameId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found.")));
+        GomokuGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        enforceTurnClock(g);
+        return view(userId, g);
+    }
+
+    // ── Turn clock ────────────────────────────────────────────────────────────
+
+    /** When this game's current turn must be played by (PvP + ACTIVE only). */
+    private Instant turnDeadline(GomokuGame g) {
+        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer() || g.getPlayer2Id() == null) return null;
+        return g.getLastMoveAt().plusSeconds(TURN_SECONDS);
+    }
+
+    /** If the current player's 5 minutes are up, hand the turn to the other player. */
+    @Transactional
+    public boolean enforceTurnClock(GomokuGame g) {
+        boolean changed = false;
+        int guard = 0;
+        Instant deadline;
+        while ((deadline = turnDeadline(g)) != null && Instant.now().isAfter(deadline) && guard++ < 16) {
+            g.setCurrentPlayer((short) (g.getCurrentPlayer() == 1 ? 2 : 1));
+            g.setLastMoveAt(deadline);   // the next window starts where this one lapsed
+            changed = true;
+        }
+        if (changed) {
+            repo.save(g);
+            broadcast(g);
+        }
+        return changed;
+    }
+
+    /** Sweep every ACTIVE PvP game whose turn clock has lapsed (TurnTimerJob). */
+    @Transactional
+    public int sweepTurnClocks() {
+        int n = 0;
+        for (GomokuGame g : repo.findByStatus("ACTIVE")) {
+            if (!g.isVsComputer() && enforceTurnClock(g)) n++;
+        }
+        return n;
     }
 
     // ── View ─────────────────────────────────────────────────────────────────
@@ -341,6 +381,9 @@ public class GomokuGameService {
         out.put("hasOpponent", g.getPlayer2Id() != null);
         out.put("vsComputer",  g.isVsComputer());
         out.put("hintsRemaining", g.getHintsRemaining());
+        out.put("spectator",   me == 0);
+        Instant deadline = turnDeadline(g);
+        out.put("turnDeadline", deadline != null ? deadline.toEpochMilli() : null);
         if (g.getLevel() > 0) {              // solo ladder game → let the client offer "Next level"
             out.put("difficulty", g.getDifficulty());
             out.put("level",      g.getLevel());
