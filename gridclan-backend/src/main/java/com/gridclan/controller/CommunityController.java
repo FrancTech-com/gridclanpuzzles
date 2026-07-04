@@ -96,12 +96,42 @@ public class CommunityController {
                 m.put("weeklyPoolPts", c.getWeeklyPoolPts());
                 m.put("isActive",      c.isActive());
                 m.put("isMember",      myCommunityIds.contains(c.getId()));
+                m.put("isOwner",       userId.equals(c.getOwnerId()));
+                m.put("canDelete",     userId.equals(c.getOwnerId()) || isAdmin(auth));
                 m.put("createdAt",     c.getCreatedAt().toString());
                 return m;
             })
             .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    // ── Delete community (owner or ADMIN) ─────────────────────────────────
+
+    /** DELETE /community/{id} — the owner or an admin removes the community
+     *  along with its members and chat history. */
+    @DeleteMapping("/{communityId}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<Map<String, String>> deleteCommunity(
+            @PathVariable UUID communityId, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        Community c = communityRepo.findById(communityId).orElse(null);
+        if (c == null) return ResponseEntity.notFound().build();
+        if (!userId.equals(c.getOwnerId()) && !isAdmin(auth))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Only the community's owner or an admin can delete it."));
+
+        messageRepo.deleteByCommunityId(communityId);
+        memberRepo.deleteByCommunityId(communityId);
+        communityRepo.delete(c);
+        audit.record(userId, "COMMUNITY_DELETED", "id=" + communityId + " name=" + c.getName());
+        return ResponseEntity.ok(Map.of("status", "DELETED"));
+    }
+
+    private static boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+            .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 
     // ── Create community ──────────────────────────────────────────────────

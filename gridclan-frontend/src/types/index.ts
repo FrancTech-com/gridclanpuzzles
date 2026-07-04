@@ -307,6 +307,8 @@ export interface Community {
   weeklyPoolPts: number;
   isActive:     boolean;
   isMember:     boolean;
+  isOwner?:     boolean;
+  canDelete?:   boolean;
   createdAt:    string;
 }
 
@@ -331,6 +333,7 @@ export interface Tournament {
   winnerId?:    string | null;
   joinedCount?: number;
   joined?:      boolean;        // is the caller entered (only on GET /{id})
+  canDelete?:   boolean;        // caller is the creator or an admin (only on GET /{id})
 }
 
 // ── Achievements / lifetime record (GET /user/stats) ───────────────────────
