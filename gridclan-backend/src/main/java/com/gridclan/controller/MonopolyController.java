@@ -56,21 +56,46 @@ public class MonopolyController {
         return ResponseEntity.ok(service.get(userId(auth), id));
     }
 
-    /** POST /monopoly/{id}/act — take an action on your turn. */
+    /** POST /monopoly/{id}/act — take an action on your turn (or bid/respond off-turn). */
     @PostMapping("/{id}/act")
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Map<String, Object>> act(
             @PathVariable UUID id, @Validated @RequestBody ActRequest req, Authentication auth) {
-        return ResponseEntity.ok(service.act(userId(auth), id, req.getAction(), req.getSquare()));
+        MonopolyGameService.TradePayload trade = req.getTrade() == null ? null
+            : new MonopolyGameService.TradePayload(
+                req.getTrade().getTo(),
+                req.getTrade().getOfferCash(),
+                req.getTrade().getRequestCash(),
+                req.getTrade().getOfferProps(),
+                req.getTrade().getRequestProps(),
+                req.getTrade().getOfferJailCards(),
+                req.getTrade().getRequestJailCards());
+        return ResponseEntity.ok(
+            service.act(userId(auth), id, req.getAction(), req.getSquare(), req.getAmount(), trade));
     }
 
     private static UUID userId(Authentication auth) { return (UUID) auth.getPrincipal(); }
 
     @Getter @Setter
     static class ActRequest {
-        /** ROLL | BUY | SKIP_BUY | BUILD | SELL_HOUSE | MORTGAGE | UNMORTGAGE | PAY_JAIL | USE_JAIL_CARD | END_TURN */
+        /** ROLL | BUY | SKIP_BUY | BUILD | SELL_HOUSE | MORTGAGE | UNMORTGAGE | PAY_JAIL |
+         *  USE_JAIL_CARD | END_TURN | AUCTION_BID | AUCTION_PASS | PROPOSE_TRADE |
+         *  ACCEPT_TRADE | DECLINE_TRADE */
         @NotNull
         private String action;
-        private Integer square;
+        private Integer square;   // BUILD / SELL_HOUSE / MORTGAGE / UNMORTGAGE
+        private Integer amount;   // AUCTION_BID
+        private TradeDto trade;   // PROPOSE_TRADE
+    }
+
+    @Getter @Setter
+    static class TradeDto {
+        private Integer to;
+        private Integer offerCash;
+        private Integer requestCash;
+        private List<Integer> offerProps;
+        private List<Integer> requestProps;
+        private Integer offerJailCards;
+        private Integer requestJailCards;
     }
 }

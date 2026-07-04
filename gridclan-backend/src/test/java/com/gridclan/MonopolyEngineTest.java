@@ -25,7 +25,7 @@ class MonopolyEngineTest {
     void boardIsTheStandardFortySquares() {
         assertThat(MonopolyBoard.SQUARES).hasSize(40);
         assertThat(MonopolyBoard.at(0).type()).isEqualTo("GO");
-        assertThat(MonopolyBoard.at(39).name()).isEqualTo("Boardwalk");
+        assertThat(MonopolyBoard.at(39).name()).isEqualTo("New York");   // most expensive city
         assertThat(MonopolyBoard.at(39).rent()[5]).isEqualTo(2000);
         assertThat(MonopolyBoard.group("RAIL")).hasSize(4);
         assertThat(MonopolyBoard.group("UTIL")).hasSize(2);
@@ -55,7 +55,7 @@ class MonopolyEngineTest {
     @Test
     void rentFlowsFromVisitorToOwnerAndDoublesOnFullGroup() {
         MonopolyState s = game(2);
-        // Give seat 1 both dark blues; drop seat 0 on Boardwalk (39).
+        // Give seat 1 both dark blues; drop seat 0 on New York (39).
         OwnedProp park = new OwnedProp(); park.owner = 1;
         OwnedProp walk = new OwnedProp(); walk.owner = 1;
         s.props.put("37", park);
@@ -68,7 +68,7 @@ class MonopolyEngineTest {
         // use the engine's own path: position 34 + 5 = 39.
         MonopolyEngine.rollForTest(s, 0, 2, 3);
         assertThat(s.pos.get(0)).isEqualTo(39);
-        int rent = 50 * 2;   // Boardwalk base 50, doubled for the full group
+        int rent = 50 * 2;   // New York (dark-blue) base 50, doubled for the full group
         assertThat(s.cash.get(0)).isEqualTo(before0 - rent);
         assertThat(s.cash.get(1)).isEqualTo(before1 + rent);
     }
@@ -87,7 +87,7 @@ class MonopolyEngineTest {
         s.props.put("39", walk);
         MonopolyEngine.build(s, 0, 37);
         assertThat(park.houses).isEqualTo(1);
-        // Even-build: a second house on Park Place before Boardwalk has one is barred.
+        // Even-build: a second house on Paris before New York has one is barred.
         assertThatThrownBy(() -> MonopolyEngine.build(s, 0, 37))
             .hasMessageContaining("evenly");
         MonopolyEngine.build(s, 0, 39);
@@ -102,7 +102,7 @@ class MonopolyEngineTest {
         s.props.put("39", walk);
         s.cash.set(0, 10);                          // can't cover hotel rent (2000)
         s.pos.set(0, 34);
-        MonopolyEngine.rollForTest(s, 0, 2, 3);     // lands on Boardwalk
+        MonopolyEngine.rollForTest(s, 0, 2, 3);     // lands on New York
 
         assertThat(s.bankrupt.get(0)).isTrue();
         assertThat(s.over).isTrue();                // 2 players → game over
@@ -124,5 +124,112 @@ class MonopolyEngineTest {
         s.cash.set(2, 5000);
         assertThat(MonopolyEngine.ranking(s)).containsExactly(2, 0, 1);
         assertThat(List.of(s.players.get(2))).isNotEmpty();
+    }
+
+    // ── Auctions ───────────────────────────────────────────────────────────
+
+    @Test
+    void decliningToBuyStartsAnAuctionTheHighestBidderWins() {
+        MonopolyState s = game(3);
+        // Seat 0 lands on an unowned city (New York, 39) and declines.
+        s.pos.set(0, 34);
+        MonopolyEngine.rollForTest(s, 0, 2, 3);           // → 39, phase BUY
+        assertThat(s.phase).isEqualTo("BUY");
+        MonopolyEngine.skipBuy(s, 0);                     // decline → auction
+        assertThat(s.phase).isEqualTo("AUCTION");
+        assertThat(s.auctionTurn).isZero();               // lander bids first
+
+        MonopolyEngine.auctionBid(s, 0, 100);             // seat 0 bids
+        MonopolyEngine.auctionBid(s, 1, 150);             // seat 1 outbids
+        MonopolyEngine.auctionPass(s, 2);                 // seat 2 out
+        int cash1 = s.cash.get(1);
+        MonopolyEngine.auctionPass(s, 0);                 // seat 0 out → seat 1 wins
+
+        assertThat(s.phase).isEqualTo("MANAGE");
+        assertThat(s.props.get("39").owner).isEqualTo(1);
+        assertThat(s.cash.get(1)).isEqualTo(cash1 - 150);
+    }
+
+    @Test
+    void auctionWithNoBidsLeavesThePropertyUnsold() {
+        MonopolyState s = game(2);
+        s.pos.set(0, 34);
+        MonopolyEngine.rollForTest(s, 0, 2, 3);           // → 39
+        MonopolyEngine.skipBuy(s, 0);                     // auction
+        MonopolyEngine.auctionPass(s, 0);
+        MonopolyEngine.auctionPass(s, 1);                 // everyone passes
+        assertThat(s.phase).isEqualTo("MANAGE");
+        assertThat(s.props).doesNotContainKey("39");      // stays with the bank
+    }
+
+    @Test
+    void bidMustBeatTheHighBidAndFitYourCash() {
+        MonopolyState s = game(2);
+        s.pos.set(0, 34);
+        MonopolyEngine.rollForTest(s, 0, 2, 3);
+        MonopolyEngine.skipBuy(s, 0);
+        MonopolyEngine.auctionBid(s, 0, 50);
+        assertThatThrownBy(() -> MonopolyEngine.auctionBid(s, 1, 50)).hasMessageContaining("beat");
+        s.cash.set(1, 40);
+        assertThatThrownBy(() -> MonopolyEngine.auctionBid(s, 1, 60)).hasMessageContaining("afford");
+    }
+
+    // ── Trading ────────────────────────────────────────────────────────────
+
+    @Test
+    void tradeSwapsPropertiesAndCashOnAccept() {
+        MonopolyState s = game(2);
+        s.phase = "MANAGE";
+        OwnedProp mine = new OwnedProp(); mine.owner = 0; s.props.put("39", mine);   // seat 0 owns New York
+        OwnedProp yours = new OwnedProp(); yours.owner = 1; s.props.put("37", yours); // seat 1 owns Paris
+
+        MonopolyState.Trade t = new MonopolyState.Trade();
+        t.to = 1;
+        t.offerProps = new java.util.ArrayList<>(List.of(39));   // give New York
+        t.requestProps = new java.util.ArrayList<>(List.of(37)); // want Paris
+        t.offerCash = 100;                                        // + $100 to sweeten
+        MonopolyEngine.proposeTrade(s, 0, t);
+        assertThat(s.pendingTrade).isNotNull();
+
+        int c0 = s.cash.get(0), c1 = s.cash.get(1);
+        MonopolyEngine.acceptTrade(s, 1);
+
+        assertThat(s.pendingTrade).isNull();
+        assertThat(s.props.get("39").owner).isEqualTo(1);   // New York now seat 1's
+        assertThat(s.props.get("37").owner).isEqualTo(0);   // Paris now seat 0's
+        assertThat(s.cash.get(0)).isEqualTo(c0 - 100);
+        assertThat(s.cash.get(1)).isEqualTo(c1 + 100);
+    }
+
+    @Test
+    void cannotTradeAPropertyWithBuildingsInItsGroup() {
+        MonopolyState s = game(2);
+        s.phase = "MANAGE";
+        // Seat 0 owns both dark blues with a house on one → neither is tradable.
+        OwnedProp paris = new OwnedProp(); paris.owner = 0; paris.houses = 1; s.props.put("37", paris);
+        OwnedProp ny = new OwnedProp(); ny.owner = 0; s.props.put("39", ny);
+
+        MonopolyState.Trade t = new MonopolyState.Trade();
+        t.to = 1;
+        t.offerProps = new java.util.ArrayList<>(List.of(39));
+        t.requestCash = 50;
+        assertThatThrownBy(() -> MonopolyEngine.proposeTrade(s, 0, t))
+            .hasMessageContaining("buildings");
+    }
+
+    @Test
+    void onlyTheRecipientCanAcceptAndEitherPartyCanCancel() {
+        MonopolyState s = game(3);
+        s.phase = "MANAGE";
+        OwnedProp mine = new OwnedProp(); mine.owner = 0; s.props.put("39", mine);
+        MonopolyState.Trade t = new MonopolyState.Trade();
+        t.to = 1;
+        t.offerProps = new java.util.ArrayList<>(List.of(39));
+        t.requestCash = 200;
+        MonopolyEngine.proposeTrade(s, 0, t);
+
+        assertThatThrownBy(() -> MonopolyEngine.acceptTrade(s, 2)).hasMessageContaining("addressed");
+        MonopolyEngine.declineTrade(s, 0);                  // proposer cancels
+        assertThat(s.pendingTrade).isNull();
     }
 }
