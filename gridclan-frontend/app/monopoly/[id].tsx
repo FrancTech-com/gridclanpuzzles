@@ -6,6 +6,7 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import { useTranslation } from 'react-i18next';
 import {
   monopolyApi, type MonopolyAction, type MonopolySquare, type MonopolyView,
+  type MonopolyTradePayload,
 } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
@@ -33,7 +34,7 @@ const GROUP_COLORS: Record<string, string> = {
 };
 
 const TYPE_ICON: Record<string, string> = {
-  GO: '🏁', CHANCE: '❓', CHEST: '📦', TAX: '💸', JAIL: '🚔', GO_TO_JAIL: '👮', FREE: '🅿️', RAIL: '🚂', UTIL: '💡',
+  GO: '🏁', CHANCE: '❓', CHEST: '📦', TAX: '💸', JAIL: '🚔', GO_TO_JAIL: '👮', FREE: '🅿️', RAIL: '✈️', UTIL: '💡',
 };
 
 /** Standard ring: 0 = GO bottom-right, anticlockwise → (row, col) in an 11×11 grid. */
@@ -61,6 +62,16 @@ export default function MonopolyGameScreen() {
   const [detail, setDetail] = useState<number | null>(null);   // square index
   const [showResult, setShowResult] = useState(false);
   const announced = useRef(false);
+
+  // Auction bid entry (defaults to the minimum legal bid).
+  const [bid, setBid] = useState<number | null>(null);
+  // Trade builder state.
+  const [tradeOpen, setTradeOpen] = useState(false);
+  const [tradeTarget, setTradeTarget] = useState<number | null>(null);
+  const [giveProps, setGiveProps] = useState<number[]>([]);
+  const [getProps, setGetProps] = useState<number[]>([]);
+  const [giveCash, setGiveCash] = useState(0);
+  const [getCash, setGetCash] = useState(0);
 
   useEffect(() => {
     monopolyApi.board().then(res => setBoard(res.data)).catch(() => null);
@@ -98,10 +109,24 @@ export default function MonopolyGameScreen() {
     return map;
   }, [game?.properties]);
 
-  async function act(action: MonopolyAction, square?: number) {
+  function openTrade() {
+    setTradeTarget(null); setGiveProps([]); setGetProps([]); setGiveCash(0); setGetCash(0);
+    setTradeOpen(true);
+    playSfx('tap');
+  }
+  function submitTrade() {
+    if (tradeTarget == null) return;
+    act('PROPOSE_TRADE', { trade: {
+      to: tradeTarget,
+      offerProps: giveProps, requestProps: getProps,
+      offerCash: giveCash || 0, requestCash: getCash || 0,
+    } });
+  }
+
+  async function act(action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload }) {
     if (!id || busy) return;
     setBusy(true);
-    const res = await monopolyApi.act(id, action, square).catch((e: any) => {
+    const res = await monopolyApi.act(id, action, opts).catch((e: any) => {
       Alert.alert(t('monopoly.cantDo', 'Not allowed'), e?.response?.data?.message ?? '');
       return null;
     });
@@ -109,9 +134,9 @@ export default function MonopolyGameScreen() {
     if (res?.data) {
       setGame(res.data);
       playSfx(action === 'ROLL' ? 'move' : 'tap');
-      if (action !== 'BUILD' && action !== 'SELL_HOUSE' && action !== 'MORTGAGE' && action !== 'UNMORTGAGE') {
-        setDetail(null);
-      }
+      const keepDetail = action === 'BUILD' || action === 'SELL_HOUSE' || action === 'MORTGAGE' || action === 'UNMORTGAGE';
+      if (!keepDetail) setDetail(null);
+      if (action === 'PROPOSE_TRADE') setTradeOpen(false);
     }
   }
 
@@ -149,6 +174,22 @@ export default function MonopolyGameScreen() {
     ? board.filter(s => s.group === detailSq.group && s.type === 'PROP')
         .every(s => props.get(s.index)?.owner === game.yourSeat)
     : false;
+
+  // A property is tradable if it (and its whole colour group) is unbuilt.
+  const groupBuilt = (sq: MonopolySquare) => sq.group != null &&
+    board.some(o => o.group === sq.group && (props.get(o.index)?.houses ?? 0) > 0);
+  const tradablesOf = (seat: number) => board.filter(sq =>
+    (sq.type === 'PROP' || sq.type === 'RAIL' || sq.type === 'UTIL')
+    && props.get(sq.index)?.owner === seat
+    && (props.get(sq.index)?.houses ?? 0) === 0
+    && !(props.get(sq.index)?.mortgaged && false)   // mortgaged still tradable
+    && !groupBuilt(sq));
+
+  const auction = game.auction;
+  const trade = game.trade;
+  const activeCount = game.players.filter(p => !p.bankrupt).length;
+  const targetTradables = tradeTarget != null ? tradablesOf(tradeTarget) : [];
+  const otherPlayers = game.players.filter(p => !p.bankrupt && p.seat !== game.yourSeat);
 
   return (
     <View style={styles.container}>
@@ -257,6 +298,9 @@ export default function MonopolyGameScreen() {
                     <Button title={t('monopoly.skipBuy', 'Pass')} onPress={() => act('SKIP_BUY')} variant="secondary" size="sm" style={styles.actBtn} disabled={busy} />
                   </>
                 )}
+                {game.phase === 'MANAGE' && !trade && activeCount > 1 && (
+                  <Button title={t('monopoly.proposeTrade', '🤝 Trade')} onPress={openTrade} size="sm" variant="ghost" style={styles.actBtn} disabled={busy} />
+                )}
                 {game.phase === 'MANAGE' && !game.extraRoll && (
                   <Button title={t('monopoly.endTurn', 'End turn')} onPress={() => act('END_TURN')} loading={busy} variant="secondary" style={styles.actBtn} />
                 )}
@@ -265,7 +309,10 @@ export default function MonopolyGameScreen() {
                 )}
               </View>
             )}
-            {!complete && !game.yourTurn && (
+            {!complete && game.phase === 'AUCTION' && (
+              <Text style={styles.jailText}>🔨 {t('monopoly.auctionOn', 'Auction in progress')}</Text>
+            )}
+            {!complete && !game.yourTurn && game.phase !== 'AUCTION' && (
               <Text style={styles.hintText}>{t('monopoly.waitingTurn', { name: current?.name ?? '…', defaultValue: 'Waiting for {{name}}…' })}</Text>
             )}
             {complete && (
@@ -273,6 +320,59 @@ export default function MonopolyGameScreen() {
             )}
           </View>
         </View>
+
+        {/* Live auction — every player can bid in turn */}
+        {!complete && auction && !spectator && (
+          <Card style={styles.auctionCard}>
+            <Text style={styles.auctionTitle}>🔨 {t('monopoly.auctionFor', { name: auction.squareName, defaultValue: 'Auction: {{name}}' })}</Text>
+            <Text style={styles.auctionBid}>
+              {auction.highBidder >= 0
+                ? t('monopoly.highBid', { amount: auction.highBid, name: auction.highBidderName ?? '—', defaultValue: 'High bid ${{amount}} — {{name}}' })
+                : t('monopoly.noBids', 'No bids yet')}
+            </Text>
+            {auction.yourBid ? (
+              <>
+                <View style={styles.bidRow}>
+                  <Button title="–50" size="sm" variant="ghost" onPress={() => setBid(b => Math.max(auction.minBid, (b ?? auction.minBid) - 50))} style={styles.bidStep} disabled={busy} />
+                  <Text style={styles.bidAmount}>${bid ?? auction.minBid}</Text>
+                  <Button title="+50" size="sm" variant="ghost" onPress={() => setBid(b => Math.min(me?.cash ?? 0, (b ?? auction.minBid) + 50))} style={styles.bidStep} disabled={busy} />
+                </View>
+                <View style={styles.bidRow}>
+                  <Button
+                    title={t('monopoly.bid', 'Bid ${{amount}}', { amount: Math.max(auction.minBid, bid ?? auction.minBid) })}
+                    onPress={() => { act('AUCTION_BID', { amount: Math.max(auction.minBid, bid ?? auction.minBid) }); setBid(null); }}
+                    loading={busy} style={styles.actBtn}
+                    disabled={(bid ?? auction.minBid) > (me?.cash ?? 0)}
+                  />
+                  <Button title={t('monopoly.auctionPass', 'Pass')} onPress={() => { act('AUCTION_PASS'); setBid(null); }} variant="secondary" size="sm" style={styles.actBtn} disabled={busy} />
+                </View>
+              </>
+            ) : (
+              <Text style={styles.auctionWait}>{t('monopoly.auctionWait', { name: auction.turnName ?? '…', defaultValue: 'Waiting for {{name}} to bid…' })}</Text>
+            )}
+          </Card>
+        )}
+
+        {/* Incoming trade offer — you can accept or decline */}
+        {!complete && trade?.incoming && !spectator && (
+          <Card style={styles.tradeBanner}>
+            <Text style={styles.tradeTitle}>🤝 {t('monopoly.tradeFrom', { name: trade.fromName, defaultValue: '{{name}} offers a trade' })}</Text>
+            <TradeSummary trade={trade} board={board} youAre="to" styles={styles} t={t} />
+            <View style={styles.bidRow}>
+              <Button title={t('monopoly.accept', 'Accept')} onPress={() => act('ACCEPT_TRADE')} loading={busy} style={styles.actBtn} />
+              <Button title={t('monopoly.decline', 'Decline')} onPress={() => act('DECLINE_TRADE')} variant="secondary" style={styles.actBtn} disabled={busy} />
+            </View>
+          </Card>
+        )}
+
+        {/* Outgoing trade — waiting on the other player */}
+        {!complete && trade?.outgoing && !spectator && (
+          <Card style={styles.tradeBanner}>
+            <Text style={styles.tradeTitle}>🤝 {t('monopoly.tradeSent', { name: trade.toName, defaultValue: 'Offer sent to {{name}}' })}</Text>
+            <TradeSummary trade={trade} board={board} youAre="from" styles={styles} t={t} />
+            <Button title={t('monopoly.cancelTrade', 'Cancel offer')} onPress={() => act('DECLINE_TRADE')} variant="secondary" size="sm" style={{ marginTop: Spacing.xs }} disabled={busy} />
+          </Card>
+        )}
 
         {/* Event log */}
         <Card style={styles.logCard}>
@@ -314,20 +414,70 @@ export default function MonopolyGameScreen() {
             {game.yourTurn && !spectator && detailProp?.owner === game.yourSeat && game.phase !== 'BUY' && (
               <View style={styles.detailActions}>
                 {detailSq.type === 'PROP' && !detailProp.mortgaged && detailProp.houses < 5 && myGroupComplete && (
-                  <Button title={t('monopoly.build', 'Build (+${{cost}})', { cost: detailSq.houseCost })} onPress={() => act('BUILD', detailSq.index)} size="sm" style={styles.actBtn} disabled={busy} />
+                  <Button title={t('monopoly.build', 'Build (+${{cost}})', { cost: detailSq.houseCost })} onPress={() => act('BUILD', { square: detailSq.index })} size="sm" style={styles.actBtn} disabled={busy} />
                 )}
                 {detailSq.type === 'PROP' && detailProp.houses > 0 && (
-                  <Button title={t('monopoly.sellHouse', 'Sell house')} onPress={() => act('SELL_HOUSE', detailSq.index)} size="sm" variant="secondary" style={styles.actBtn} disabled={busy} />
+                  <Button title={t('monopoly.sellHouse', 'Sell house')} onPress={() => act('SELL_HOUSE', { square: detailSq.index })} size="sm" variant="secondary" style={styles.actBtn} disabled={busy} />
                 )}
                 {!detailProp.mortgaged && detailProp.houses === 0 && (
-                  <Button title={t('monopoly.mortgage', 'Mortgage (+${{v}})', { v: Math.floor(detailSq.price / 2) })} onPress={() => act('MORTGAGE', detailSq.index)} size="sm" variant="secondary" style={styles.actBtn} disabled={busy} />
+                  <Button title={t('monopoly.mortgage', 'Mortgage (+${{v}})', { v: Math.floor(detailSq.price / 2) })} onPress={() => act('MORTGAGE', { square: detailSq.index })} size="sm" variant="secondary" style={styles.actBtn} disabled={busy} />
                 )}
                 {detailProp.mortgaged && (
-                  <Button title={t('monopoly.unmortgage', 'Unmortgage (-${{v}})', { v: Math.floor(detailSq.price / 2) + Math.floor(detailSq.price / 20) })} onPress={() => act('UNMORTGAGE', detailSq.index)} size="sm" variant="secondary" style={styles.actBtn} disabled={busy} />
+                  <Button title={t('monopoly.unmortgage', 'Unmortgage (-${{v}})', { v: Math.floor(detailSq.price / 2) + Math.floor(detailSq.price / 20) })} onPress={() => act('UNMORTGAGE', { square: detailSq.index })} size="sm" variant="secondary" style={styles.actBtn} disabled={busy} />
                 )}
               </View>
             )}
             <Button title={t('common.close', 'Close')} onPress={() => setDetail(null)} variant="ghost" style={{ marginTop: Spacing.sm }} />
+          </Card>
+        </View>
+      )}
+
+      {/* Trade builder */}
+      {tradeOpen && !spectator && (
+        <View style={styles.detailOverlay}>
+          <Card style={styles.tradeCard}>
+            <ScrollView>
+              <Text style={styles.detailTitle}>🤝 {t('monopoly.newTrade', 'Propose a trade')}</Text>
+
+              <Text style={styles.tradeLabel}>{t('monopoly.tradeWith', 'Trade with')}</Text>
+              <View style={styles.chipRow}>
+                {otherPlayers.map(p => (
+                  <TouchableOpacity
+                    key={p.seat}
+                    style={[styles.pChip, tradeTarget === p.seat && styles.pChipSel]}
+                    onPress={() => { setTradeTarget(p.seat); setGetProps([]); }}
+                  >
+                    <View style={[styles.tokenDot, { backgroundColor: SEAT_COLORS[p.seat] }]} />
+                    <Text style={[styles.pChipText, tradeTarget === p.seat && { color: Colors.primary }]} numberOfLines={1}>{p.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {tradeTarget != null && (
+                <>
+                  <Text style={styles.tradeLabel}>{t('monopoly.youGive', 'You give')}</Text>
+                  <PropPicker squares={tradablesOf(game.yourSeat)} selected={giveProps}
+                    onToggle={sq => setGiveProps(g => g.includes(sq) ? g.filter(x => x !== sq) : [...g, sq])}
+                    board={board} styles={styles} />
+                  <CashStepper label={t('monopoly.plusCash', '+ your cash')} value={giveCash} max={me?.cash ?? 0}
+                    onChange={setGiveCash} styles={styles} />
+
+                  <Text style={styles.tradeLabel}>{t('monopoly.youGet', 'You get')}</Text>
+                  <PropPicker squares={targetTradables} selected={getProps}
+                    onToggle={sq => setGetProps(g => g.includes(sq) ? g.filter(x => x !== sq) : [...g, sq])}
+                    board={board} styles={styles} />
+                  <CashStepper label={t('monopoly.theirCash', '+ their cash')} value={getCash}
+                    max={game.players[tradeTarget]?.cash ?? 0} onChange={setGetCash} styles={styles} />
+                </>
+              )}
+
+              <View style={styles.bidRow}>
+                <Button title={t('monopoly.sendOffer', 'Send offer')} onPress={submitTrade} loading={busy}
+                  disabled={tradeTarget == null || (giveProps.length === 0 && getProps.length === 0 && !giveCash && !getCash)}
+                  style={styles.actBtn} />
+                <Button title={t('common.cancel', 'Cancel')} onPress={() => setTradeOpen(false)} variant="secondary" style={styles.actBtn} disabled={busy} />
+              </View>
+            </ScrollView>
           </Card>
         </View>
       )}
@@ -340,6 +490,66 @@ export default function MonopolyGameScreen() {
         onClose={() => setShowResult(false)}
       />
       <PostGameAd over={complete && !spectator} />
+    </View>
+  );
+}
+
+// Read-only summary of a pending trade, from the viewer's perspective.
+function TradeSummary({ trade, board, youAre, styles, t }: {
+  trade: import('@api/index').MonopolyTradeView;
+  board: MonopolySquare[];
+  youAre: 'from' | 'to';
+  styles: any;
+  t: (k: string, d?: any) => string;
+}) {
+  // From the recipient's view, "you get" is what `from` offers.
+  const youGetProps = youAre === 'to' ? trade.offerProps : trade.requestProps;
+  const youGiveProps = youAre === 'to' ? trade.requestProps : trade.offerProps;
+  const youGetCash = youAre === 'to' ? trade.offerCash : trade.requestCash;
+  const youGiveCash = youAre === 'to' ? trade.requestCash : trade.offerCash;
+  const names = (sqs?: number[]) => (sqs ?? []).map(s => board[s]?.name).filter(Boolean).join(', ') || '—';
+  return (
+    <View style={{ marginVertical: Spacing.xs }}>
+      <Text style={styles.tradeLine}>⬅ {t('monopoly.youGet', 'You get')}: {names(youGetProps)}{youGetCash ? ` + $${youGetCash}` : ''}</Text>
+      <Text style={styles.tradeLine}>➡ {t('monopoly.youGive', 'You give')}: {names(youGiveProps)}{youGiveCash ? ` + $${youGiveCash}` : ''}</Text>
+    </View>
+  );
+}
+
+// Toggle list of properties for the trade builder.
+function PropPicker({ squares, selected, onToggle, board, styles }: {
+  squares: MonopolySquare[];
+  selected: number[];
+  onToggle: (sq: number) => void;
+  board: MonopolySquare[];
+  styles: any;
+}) {
+  if (squares.length === 0) return <Text style={styles.tradeEmpty}>—</Text>;
+  return (
+    <View style={styles.chipRow}>
+      {squares.map(sq => (
+        <TouchableOpacity
+          key={sq.index}
+          style={[styles.propChip, selected.includes(sq.index) && styles.propChipSel]}
+          onPress={() => onToggle(sq.index)}
+        >
+          <Text style={[styles.propChipText, selected.includes(sq.index) && { color: '#04120a' }]} numberOfLines={1}>{sq.name}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+// $0-max cash stepper for the trade builder.
+function CashStepper({ label, value, max, onChange, styles }: {
+  label: string; value: number; max: number; onChange: (v: number) => void; styles: any;
+}) {
+  return (
+    <View style={styles.cashRow}>
+      <Text style={styles.cashLabel}>{label}</Text>
+      <TouchableOpacity style={styles.cashBtn} onPress={() => onChange(Math.max(0, value - 50))}><Text style={styles.cashBtnText}>–</Text></TouchableOpacity>
+      <Text style={styles.cashValue}>${value}</Text>
+      <TouchableOpacity style={styles.cashBtn} onPress={() => onChange(Math.min(max, value + 50))}><Text style={styles.cashBtnText}>+</Text></TouchableOpacity>
     </View>
   );
 }
@@ -392,4 +602,35 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   detailOwner: { color: Colors.accent, fontSize: Font.size.sm, marginTop: 2 },
   detailLine:  { color: Colors.textSecondary, fontSize: Font.size.sm, marginTop: Spacing.xs },
   detailActions: { marginTop: Spacing.sm },
+
+  // Auction
+  auctionCard:  { width: BOARD_W, marginTop: Spacing.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.accent },
+  auctionTitle: { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
+  auctionBid:   { color: Colors.accent, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginTop: 2 },
+  auctionWait:  { color: Colors.textMuted, fontSize: Font.size.sm, marginTop: Spacing.xs, textAlign: 'center' },
+  bidRow:       { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
+  bidStep:      { minWidth: 54 },
+  bidAmount:    { flex: 1, textAlign: 'center', color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.black },
+
+  // Trade banners
+  tradeBanner: { width: BOARD_W, marginTop: Spacing.md, padding: Spacing.md, borderWidth: 1, borderColor: Colors.primary },
+  tradeTitle:  { color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
+  tradeLine:   { color: Colors.textSecondary, fontSize: Font.size.sm, lineHeight: 20 },
+
+  // Trade builder
+  tradeCard:  { padding: Spacing.md, width: '100%', maxWidth: 400, maxHeight: '86%' },
+  tradeLabel: { color: Colors.textSecondary, fontSize: Font.size.xs, fontWeight: Font.weight.semi, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: Spacing.md, marginBottom: Spacing.xs },
+  tradeEmpty: { color: Colors.textMuted, fontSize: Font.size.sm },
+  chipRow:    { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  pChip:      { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceHigh },
+  pChipSel:   { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
+  pChipText:  { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, maxWidth: 110 },
+  propChip:   { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: Radius.sm, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceHigh },
+  propChipSel:{ borderColor: Colors.primary, backgroundColor: Colors.primary },
+  propChipText:{ color: Colors.textSecondary, fontSize: Font.size.xs, fontWeight: Font.weight.semi, maxWidth: 120 },
+  cashRow:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs },
+  cashLabel:  { flex: 1, color: Colors.textSecondary, fontSize: Font.size.sm },
+  cashBtn:    { width: 34, height: 34, borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  cashBtnText:{ color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
+  cashValue:  { minWidth: 60, textAlign: 'center', color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
 });

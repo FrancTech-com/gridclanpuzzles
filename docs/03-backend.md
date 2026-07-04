@@ -87,14 +87,20 @@ client move against `legalMoves()` before applying it.
 
 ## The Monopoly engine (`monopoly/`)
 
-`MonopolyBoard` holds the standard 40-square board (names, prices, rents);
+`MonopolyBoard` holds the 40-square board themed to **big world cities**
+(same prices / colour groups / rent tables as the classic board — like the
+official World Edition; the four railroads are major airports).
 `MonopolyEngine` runs the rules for **2–8 players** (dice + doubles → jail,
 GO salary, buying, rent with group-doubling / houses / hotels / railroads /
 utilities, even building, mortgages, the Chance & Community Chest decks, jail,
-auto-liquidation and bankruptcy). Games are round-bounded for tournaments (the
-richest net worth wins at the cap). State is a JSON `MonopolyState` blob;
-`MonopolyGameService` persists it and exposes seat-filtered views. Trading and
-auctions are intentionally out of scope for this version.
+auto-liquidation and bankruptcy). It also supports **property auctions** — a
+declined or unaffordable property goes under the hammer and every non-bankrupt
+player bids in turn — and **player-to-player trading** of cash, properties and
+Get-Out-of-Jail cards (the recipient accepts/declines, allowed off-turn; a
+property is tradable only if its whole colour group is unbuilt). Games are
+round-bounded for tournaments (the richest net worth wins at the cap). State is
+a JSON `MonopolyState` blob; `MonopolyGameService` persists it and exposes
+seat-filtered views (auction + pending-trade state included).
 
 ## Scheduled jobs
 
