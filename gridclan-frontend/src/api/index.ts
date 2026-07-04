@@ -425,6 +425,9 @@ export interface MonopolySeatView {
   inJail:    boolean;
   jailCards: number;
   bankrupt:  boolean;
+  left:      boolean;     // removed by a disable/kick (vs normal bankruptcy)
+  timeouts:  number;      // consecutive missed turns
+  kickable:  boolean;     // this player has stalled and you may disable them
   netWorth:  number;
   current:   boolean;
 }
@@ -435,7 +438,8 @@ export type MonopolyAction =
   | 'ROLL' | 'BUY' | 'SKIP_BUY' | 'BUILD' | 'SELL_HOUSE'
   | 'MORTGAGE' | 'UNMORTGAGE' | 'PAY_JAIL' | 'USE_JAIL_CARD' | 'END_TURN'
   | 'AUCTION_BID' | 'AUCTION_PASS'
-  | 'PROPOSE_TRADE' | 'ACCEPT_TRADE' | 'DECLINE_TRADE';
+  | 'PROPOSE_TRADE' | 'COUNTER_TRADE' | 'ACCEPT_TRADE' | 'DECLINE_TRADE'
+  | 'KICK';
 
 // A live property auction (when someone declines to buy at list price).
 export interface MonopolyAuction {
@@ -496,7 +500,7 @@ export interface MonopolyView {
 export const monopolyApi = {
   board: () => apiClient.get<MonopolySquare[]>('/monopoly/board'),
   get:   (id: string) => apiClient.get<MonopolyView>(`/monopoly/${id}`),
-  act:   (id: string, action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload }) =>
+  act:   (id: string, action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload; target?: number }) =>
            apiClient.post<MonopolyView>(`/monopoly/${id}/act`, { action, ...opts }),
 };
 

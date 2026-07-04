@@ -232,4 +232,73 @@ class MonopolyEngineTest {
         MonopolyEngine.declineTrade(s, 0);                  // proposer cancels
         assertThat(s.pendingTrade).isNull();
     }
+
+    @Test
+    void recipientCanCounterAndTheProposerThenAccepts() {
+        MonopolyState s = game(2);
+        s.phase = "MANAGE";
+        OwnedProp ny = new OwnedProp(); ny.owner = 0; s.props.put("39", ny);   // seat 0 owns New York
+
+        MonopolyState.Trade offer = new MonopolyState.Trade();
+        offer.to = 1;
+        offer.offerProps = new java.util.ArrayList<>(List.of(39));
+        offer.requestCash = 300;                            // seat 0 wants $300 for New York
+        MonopolyEngine.proposeTrade(s, 0, offer);
+
+        // Seat 1 counters: same property but only $150 (off-turn — it's seat 0's turn).
+        MonopolyState.Trade counter = new MonopolyState.Trade();
+        counter.to = 0;
+        counter.requestProps = new java.util.ArrayList<>(List.of(39));   // seat 1 wants New York
+        counter.offerCash = 150;                            // seat 1 offers $150
+        MonopolyEngine.counterTrade(s, 1, counter);
+        assertThat(s.pendingTrade.from).isEqualTo(1);
+        assertThat(s.pendingTrade.to).isEqualTo(0);
+
+        int c0 = s.cash.get(0), c1 = s.cash.get(1);
+        MonopolyEngine.acceptTrade(s, 0);                   // proposer accepts the counter
+        assertThat(s.props.get("39").owner).isEqualTo(1);   // New York is seat 1's
+        assertThat(s.cash.get(0)).isEqualTo(c0 + 150);
+        assertThat(s.cash.get(1)).isEqualTo(c1 - 150);
+        assertThat(s.pendingTrade).isNull();
+    }
+
+    // ── Disable inactive player ──────────────────────────────────────────────
+
+    @Test
+    void disablingAStalledPlayerDistributesTheirEstate() {
+        MonopolyState s = game(3);
+        OwnedProp a = new OwnedProp(); a.owner = 2; s.props.put("39", a);   // seat 2 owns New York
+        OwnedProp b = new OwnedProp(); b.owner = 2; s.props.put("37", b);   // and Paris
+        s.cash.set(2, 600);
+        s.timeouts.set(2, 2);                                // seat 2 missed 2 turns
+
+        int c0 = s.cash.get(0), c1 = s.cash.get(1);
+        MonopolyEngine.kickPlayer(s, 0, 2);
+
+        assertThat(s.bankrupt.get(2)).isTrue();
+        assertThat(s.left.get(2)).isTrue();
+        assertThat(s.cash.get(2)).isZero();
+        // $600 split evenly between the two remaining players.
+        assertThat(s.cash.get(0)).isEqualTo(c0 + 300);
+        assertThat(s.cash.get(1)).isEqualTo(c1 + 300);
+        // Their two properties handed out (round-robin) to the two heirs.
+        assertThat(s.props.get("39").owner).isNotEqualTo(2);
+        assertThat(s.props.get("37").owner).isNotEqualTo(2);
+    }
+
+    @Test
+    void cannotDisableAPlayerWhoHasNotStalled() {
+        MonopolyState s = game(3);
+        s.timeouts.set(2, 1);                                // only 1 missed turn
+        assertThatThrownBy(() -> MonopolyEngine.kickPlayer(s, 0, 2))
+            .hasMessageContaining("missed enough");
+    }
+
+    @Test
+    void forcedTurnsAccumulateTheMissedTurnStreak() {
+        MonopolyState s = game(2);
+        MonopolyEngine.forceTurn(s);   // seat 0 times out → back to seat 0 (2p alternates)
+        // After one forced turn seat 0 has 1 miss recorded.
+        assertThat(s.timeouts.get(0)).isEqualTo(1);
+    }
 }
