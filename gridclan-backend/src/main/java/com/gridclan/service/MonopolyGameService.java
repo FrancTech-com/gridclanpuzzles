@@ -54,6 +54,7 @@ public class MonopolyGameService {
     public UUID createTableMatch(List<UUID> players) {
         List<String> ids = players.stream().map(UUID::toString).toList();
         MonopolyState state = MonopolyEngine.init(ids, RANDOM.nextLong());
+        hydrateNames(state);   // so the event log reads player names, not "P1"
         MonopolyGame g = MonopolyGame.builder()
             .status("ACTIVE")
             .playersCsv(String.join(",", ids))
@@ -426,15 +427,25 @@ public class MonopolyGameService {
         }
     }
 
-    private static MonopolyState read(String json) {
+    private MonopolyState read(String json) {
         try {
             MonopolyState s = JSON.readValue(json, MonopolyState.class);
             // Backfill fields added after some tables were already in flight.
             while (s.timeouts.size() < s.players.size()) s.timeouts.add(0);
             while (s.left.size()     < s.players.size()) s.left.add(false);
+            hydrateNames(s);   // ensure the engine can log real names, not "P1"
             return s;
         } catch (Exception e) {
             throw new IllegalStateException("Could not read the table state", e);
+        }
+    }
+
+    /** Resolve each seat's display name once (cached into the state + persisted). */
+    private void hydrateNames(MonopolyState s) {
+        if (s.names == null) s.names = new java.util.ArrayList<>();
+        while (s.names.size() < s.players.size()) s.names.add(null);
+        for (int i = 0; i < s.players.size(); i++) {
+            if (s.names.get(i) == null) s.names.set(i, displayName(UUID.fromString(s.players.get(i))));
         }
     }
 }
