@@ -590,6 +590,26 @@
     "build": "Build (+${{cost}})",
     "sellHouse": "Sell house",
     "mortgage": "Mortgage (+${{v}})",
-    "unmortgage": "Unmortgage (-${{v}})"
+    "unmortgage": "Unmortgage (-${{v}})",
+    "auctionOn": "Auction in progress",
+    "auctionFor": "Auction: {{name}}",
+    "highBid": "High bid ${{amount}} — {{name}}",
+    "noBids": "No bids yet",
+    "bid": "Bid ${{amount}}",
+    "auctionPass": "Pass",
+    "auctionWait": "Waiting for {{name}} to bid…",
+    "proposeTrade": "🤝 Trade",
+    "tradeFrom": "{{name}} offers a trade",
+    "tradeSent": "Offer sent to {{name}}",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancelTrade": "Cancel offer",
+    "newTrade": "Propose a trade",
+    "tradeWith": "Trade with",
+    "youGive": "You give",
+    "youGet": "You get",
+    "plusCash": "+ your cash",
+    "theirCash": "+ their cash",
+    "sendOffer": "Send offer"
   }
 }
