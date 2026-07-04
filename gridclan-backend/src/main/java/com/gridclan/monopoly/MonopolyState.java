@@ -20,6 +20,10 @@ public class MonopolyState {
     public List<Boolean> inJail     = new ArrayList<>();
     public List<Integer> jailTurns  = new ArrayList<>();
     public List<Integer> jailCards  = new ArrayList<>();   // Get Out of Jail Free held
+    /** Consecutive missed (timed-out) turns per seat; reset when the player acts. */
+    public List<Integer> timeouts   = new ArrayList<>();
+    /** True for a seat removed by a disable/kick (vs a normal bankruptcy). */
+    public List<Boolean> left       = new ArrayList<>();
     /** Seats in the order they went bankrupt (first = earliest out). */
     public List<Integer> bankruptOrder = new ArrayList<>();
 
