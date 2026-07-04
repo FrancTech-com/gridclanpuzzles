@@ -14,7 +14,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * selling houses, mortgages, income/luxury tax, the classic Chance and
  * Community Chest decks (incl. Get Out of Jail Free), jail (pay / card /
  * roll doubles, forced fine on the 3rd try), automatic debt liquidation and
- * bankruptcy. Not in this version: player-to-player trading and auctions.
+ * bankruptcy, property auctions (a declined/unaffordable property goes under
+ * the hammer) and player-to-player trading (cash + properties + jail cards).
  *
  * Games are bounded for tournaments: after {@link #MAX_ROUNDS} rounds the
  * richest player (net worth) wins.
@@ -153,14 +154,172 @@ public final class MonopolyEngine {
         afterAction(s);
     }
 
+    /** Decline to buy at list price → the property goes to auction (standard rule). */
     public static void skipBuy(MonopolyState s, int seat) {
         requireTurn(s, seat);
         if (!s.phase.equals("BUY"))
             throw new IllegalStateException("Nothing to decide right now.");
-        log(s, name(s, seat) + " passes on " + MonopolyBoard.at(s.pendingSquare).name() + ".");
+        int square = s.pendingSquare;
+        log(s, name(s, seat) + " declines " + MonopolyBoard.at(square).name() + " — up for auction!");
         s.pendingSquare = -1;
+        startAuction(s, square);
+    }
+
+    // ── Auction ──────────────────────────────────────────────────────────────
+
+    private static void startAuction(MonopolyState s, int square) {
+        s.auctionSquare = square;
+        s.auctionHighBid = 0;
+        s.auctionHighBidder = -1;
+        s.auctionIn = new ArrayList<>();
+        for (int i = 0; i < s.players.size(); i++) s.auctionIn.add(!s.bankrupt.get(i));
+        s.phase = "AUCTION";
+        // The player who landed bids first, then it rotates.
+        s.auctionTurn = s.current;
+        if (!s.auctionIn.get(s.auctionTurn)) advanceAuctionTurn(s);
+        log(s, MonopolyBoard.at(square).name() + " is up for auction — bids open.");
+        checkAuctionEnd(s);   // resolves immediately if fewer than 2 can bid
+    }
+
+    /** Bid strictly above the current high bid (and within your cash). */
+    public static void auctionBid(MonopolyState s, int seat, int amount) {
+        if (!s.phase.equals("AUCTION")) throw new IllegalStateException("No auction is running.");
+        if (seat != s.auctionTurn)      throw new IllegalStateException("It's not your turn to bid.");
+        if (!s.auctionIn.get(seat))     throw new IllegalStateException("You've dropped out of this auction.");
+        if (amount <= s.auctionHighBid) throw new IllegalStateException("Your bid must beat $" + s.auctionHighBid + ".");
+        if (amount > s.cash.get(seat))  throw new IllegalStateException("You can't afford that bid.");
+        s.auctionHighBid = amount;
+        s.auctionHighBidder = seat;
+        log(s, name(s, seat) + " bids $" + amount + " for " + MonopolyBoard.at(s.auctionSquare).name() + ".");
+        advanceAuctionTurn(s);
+        checkAuctionEnd(s);
+    }
+
+    /** Drop out of the current auction. */
+    public static void auctionPass(MonopolyState s, int seat) {
+        if (!s.phase.equals("AUCTION")) throw new IllegalStateException("No auction is running.");
+        if (seat != s.auctionTurn)      throw new IllegalStateException("It's not your turn to bid.");
+        if (!s.auctionIn.get(seat))     throw new IllegalStateException("You've already dropped out.");
+        s.auctionIn.set(seat, false);
+        log(s, name(s, seat) + " drops out of the auction.");
+        advanceAuctionTurn(s);
+        checkAuctionEnd(s);
+    }
+
+    private static void advanceAuctionTurn(MonopolyState s) {
+        int seat = s.auctionTurn;
+        for (int i = 0; i < s.players.size(); i++) {
+            seat = (seat + 1) % s.players.size();
+            if (s.auctionIn.get(seat)) { s.auctionTurn = seat; return; }
+        }
+        // nobody left in — checkAuctionEnd handles resolution
+    }
+
+    private static void checkAuctionEnd(MonopolyState s) {
+        int in = 0, lone = -1;
+        for (int i = 0; i < s.players.size(); i++) if (s.auctionIn.get(i)) { in++; lone = i; }
+
+        // Keep bidding while >1 remain, or while the lone remaining player still
+        // hasn't made the top bid (they get their chance to bid or pass).
+        if (in > 1) return;
+        if (in == 1 && s.auctionHighBidder != lone) return;
+
+        int square = s.auctionSquare;
+        if (s.auctionHighBidder >= 0) {
+            int w = s.auctionHighBidder;
+            s.cash.set(w, s.cash.get(w) - s.auctionHighBid);
+            OwnedProp p = new OwnedProp();
+            p.owner = w;
+            s.props.put(String.valueOf(square), p);
+            log(s, name(s, w) + " wins " + MonopolyBoard.at(square).name()
+                + " at auction for $" + s.auctionHighBid + ".");
+        } else {
+            log(s, MonopolyBoard.at(square).name() + " drew no bids — it stays with the bank.");
+        }
+        s.auctionSquare = -1;
+        s.auctionHighBid = 0;
+        s.auctionHighBidder = -1;
+        s.auctionTurn = -1;
+        s.auctionIn = new ArrayList<>();
         s.phase = "MANAGE";
         afterAction(s);
+    }
+
+    // ── Trade ────────────────────────────────────────────────────────────────
+
+    /** The current player offers a trade to another player, who accepts/declines. */
+    public static void proposeTrade(MonopolyState s, int from, MonopolyState.Trade t) {
+        requireTurn(s, from);
+        requireManage(s);
+        if (s.pendingTrade != null) throw new IllegalStateException("A trade offer is already pending.");
+        int to = t.to;
+        if (to == from) throw new IllegalStateException("You can't trade with yourself.");
+        if (to < 0 || to >= s.players.size() || s.bankrupt.get(to))
+            throw new IllegalStateException("Pick a player who's still in the game.");
+        if (t.offerCash < 0 || t.requestCash < 0) throw new IllegalStateException("Cash can't be negative.");
+        if (t.offerJailCards < 0 || t.requestJailCards < 0) throw new IllegalStateException("Bad jail-card count.");
+        if (t.offerProps.isEmpty() && t.requestProps.isEmpty()
+                && t.offerCash == 0 && t.requestCash == 0
+                && t.offerJailCards == 0 && t.requestJailCards == 0)
+            throw new IllegalStateException("An empty trade isn't a trade.");
+        for (int sq : t.offerProps)   requireTradable(s, sq, from);
+        for (int sq : t.requestProps) requireTradable(s, sq, to);
+        if (t.offerCash > s.cash.get(from)) throw new IllegalStateException("You don't have that much cash.");
+        if (t.offerJailCards > s.jailCards.get(from))
+            throw new IllegalStateException("You don't hold that many jail cards.");
+        t.from = from;
+        s.pendingTrade = t;
+        log(s, name(s, from) + " offers " + name(s, to) + " a trade.");
+    }
+
+    /** The recipient accepts — assets swap. Re-validated in case state shifted. */
+    public static void acceptTrade(MonopolyState s, int seat) {
+        MonopolyState.Trade t = s.pendingTrade;
+        if (t == null) throw new IllegalStateException("There's no trade to accept.");
+        if (seat != t.to) throw new IllegalStateException("This offer isn't addressed to you.");
+        for (int sq : t.offerProps)   requireTradable(s, sq, t.from);
+        for (int sq : t.requestProps) requireTradable(s, sq, t.to);
+        if (t.offerCash > s.cash.get(t.from)) throw new IllegalStateException("The proposer can no longer cover the cash.");
+        if (t.requestCash > s.cash.get(t.to)) throw new IllegalStateException("You can't cover your cash side of this trade.");
+        if (t.offerJailCards > s.jailCards.get(t.from) || t.requestJailCards > s.jailCards.get(t.to))
+            throw new IllegalStateException("A jail card in this trade is no longer available.");
+
+        s.cash.set(t.from, s.cash.get(t.from) - t.offerCash + t.requestCash);
+        s.cash.set(t.to,   s.cash.get(t.to)   - t.requestCash + t.offerCash);
+        for (int sq : t.offerProps)   s.props.get(String.valueOf(sq)).owner = t.to;
+        for (int sq : t.requestProps) s.props.get(String.valueOf(sq)).owner = t.from;
+        s.jailCards.set(t.from, s.jailCards.get(t.from) - t.offerJailCards + t.requestJailCards);
+        s.jailCards.set(t.to,   s.jailCards.get(t.to)   - t.requestJailCards + t.offerJailCards);
+        log(s, name(s, t.to) + " accepts the trade with " + name(s, t.from) + ".");
+        s.pendingTrade = null;
+    }
+
+    /** Either party clears the pending offer (recipient declines / proposer cancels). */
+    public static void declineTrade(MonopolyState s, int seat) {
+        MonopolyState.Trade t = s.pendingTrade;
+        if (t == null) throw new IllegalStateException("There's no trade to decline.");
+        if (seat != t.to && seat != t.from) throw new IllegalStateException("This trade isn't yours to cancel.");
+        log(s, name(s, seat) + (seat == t.from ? " withdraws the trade offer." : " declines the trade."));
+        s.pendingTrade = null;
+    }
+
+    /** A property can be traded only if it (and its whole colour group) is unbuilt. */
+    private static void requireTradable(MonopolyState s, int square, int owner) {
+        if (square < 0 || square >= MonopolyBoard.SIZE) throw new IllegalArgumentException("Bad square.");
+        MonopolyBoard.Square sq = MonopolyBoard.at(square);
+        if (!sq.ownable()) throw new IllegalStateException(sq.name() + " can't be traded.");
+        OwnedProp p = s.props.get(String.valueOf(square));
+        if (p == null || p.owner != owner)
+            throw new IllegalStateException("Each traded property must belong to its side of the deal.");
+        if (p.houses > 0)
+            throw new IllegalStateException("Sell the buildings on " + sq.name() + " before trading it.");
+        if (sq.type().equals("PROP")) {
+            for (MonopolyBoard.Square other : MonopolyBoard.group(sq.group())) {
+                OwnedProp op = s.props.get(String.valueOf(other.index()));
+                if (op != null && op.houses > 0)
+                    throw new IllegalStateException("Sell the buildings in the " + sq.group() + " group first.");
+            }
+        }
     }
 
     public static void build(MonopolyState s, int seat, int squareIdx) {
@@ -230,7 +389,12 @@ public final class MonopolyEngine {
 
     public static void endTurn(MonopolyState s, int seat) {
         requireTurn(s, seat);
-        if (s.phase.equals("BUY")) skipBuy(s, seat);
+        if (s.phase.equals("BUY"))
+            throw new IllegalStateException("Decide whether to buy or auction first.");
+        if (s.phase.equals("AUCTION"))
+            throw new IllegalStateException("Finish the auction first.");
+        if (s.pendingTrade != null)
+            throw new IllegalStateException("Resolve the pending trade first.");
         if (s.extraRoll)
             throw new IllegalStateException("You rolled doubles — roll again first.");
         if (s.phase.equals("ROLL"))
@@ -245,10 +409,12 @@ public final class MonopolyEngine {
     public static void forceTurn(MonopolyState s) {
         int seat = s.current;
         int guard = 0;
-        while (!s.over && s.current == seat && guard++ < 8) {
+        while (!s.over && s.current == seat && guard++ < 40) {
+            if (s.pendingTrade != null) { declineTrade(s, s.pendingTrade.from); continue; }
             switch (s.phase) {
-                case "ROLL" -> roll(s, seat);
-                case "BUY"  -> skipBuy(s, seat);
+                case "ROLL"    -> roll(s, seat);
+                case "BUY"     -> skipBuy(s, seat);              // → auction
+                case "AUCTION" -> auctionPass(s, s.auctionTurn); // force whoever's bidding to pass
                 default -> {
                     if (s.extraRoll) roll(s, seat);
                     else endTurnInternal(s);
@@ -286,10 +452,10 @@ public final class MonopolyEngine {
             case "PROP", "RAIL", "UTIL" -> {
                 OwnedProp p = s.props.get(String.valueOf(sq.index()));
                 if (p == null) {
-                    if (s.cash.get(seat) >= sq.price()) {
-                        s.phase = "BUY";
-                        s.pendingSquare = sq.index();
-                    }
+                    // Unowned: offer buy-or-auction. Even a player who can't afford
+                    // the list price may decline it straight to auction.
+                    s.phase = "BUY";
+                    s.pendingSquare = sq.index();
                 } else if (p.owner != seat && !p.mortgaged && !s.bankrupt.get(p.owner)) {
                     int rent;
                     if (sq.type().equals("UTIL") && utilityFactor > 1) {
@@ -369,8 +535,8 @@ public final class MonopolyEngine {
         s.chanceIdx = (s.chanceIdx + 1) % 16;
         switch (card) {
             case 0  -> { log(s, chance("Advance to GO — collect $200.")); moveToGo(s, seat); }
-            case 1  -> { log(s, chance("Advance to Illinois Avenue.")); moveTo(s, seat, 24, true); }
-            case 2  -> { log(s, chance("Advance to St. Charles Place.")); moveTo(s, seat, 11, true); }
+            case 1  -> { log(s, chance("Advance to Dubai.")); moveTo(s, seat, 24, true); }
+            case 2  -> { log(s, chance("Advance to Cape Town.")); moveTo(s, seat, 11, true); }
             case 3  -> { log(s, chance("Advance to the nearest Utility — pay 10× the dice."));
                          moveNearest(s, seat, "UTIL", 10); }
             case 4, 5 -> { log(s, chance("Advance to the nearest Railroad — pay double rent."));
@@ -384,8 +550,8 @@ public final class MonopolyEngine {
             case 10 -> { log(s, chance("General repairs: $25 per house, $100 per hotel."));
                          repairs(s, seat, 25, 100); }
             case 11 -> { log(s, chance("Speeding fine — pay $15.")); pay(s, seat, -1, 15); }
-            case 12 -> { log(s, chance("Take a trip to Reading Railroad.")); moveTo(s, seat, 5, true); }
-            case 13 -> { log(s, chance("Take a walk on the Boardwalk.")); moveTo(s, seat, 39, false); }
+            case 12 -> { log(s, chance("Fly out of Beijing Airport.")); moveTo(s, seat, 5, true); }
+            case 13 -> { log(s, chance("Take a stroll through New York.")); moveTo(s, seat, 39, false); }
             case 14 -> { log(s, chance("Chairman of the Board — pay each player $50."));
                          payEach(s, seat, 50); }
             case 15 -> { log(s, chance("Your building loan matures — collect $150.")); credit(s, seat, 150); }
@@ -616,7 +782,9 @@ public final class MonopolyEngine {
 
     private static void requireManage(MonopolyState s) {
         if (s.phase.equals("BUY"))
-            throw new IllegalStateException("Decide on the purchase first.");
+            throw new IllegalStateException("Decide whether to buy or auction first.");
+        if (s.phase.equals("AUCTION"))
+            throw new IllegalStateException("Finish the auction first.");
     }
 
     private static Square square(int idx, String type) {

@@ -425,7 +425,42 @@ export interface MonopolyPropView { square: number; owner: number; houses: numbe
 
 export type MonopolyAction =
   | 'ROLL' | 'BUY' | 'SKIP_BUY' | 'BUILD' | 'SELL_HOUSE'
-  | 'MORTGAGE' | 'UNMORTGAGE' | 'PAY_JAIL' | 'USE_JAIL_CARD' | 'END_TURN';
+  | 'MORTGAGE' | 'UNMORTGAGE' | 'PAY_JAIL' | 'USE_JAIL_CARD' | 'END_TURN'
+  | 'AUCTION_BID' | 'AUCTION_PASS'
+  | 'PROPOSE_TRADE' | 'ACCEPT_TRADE' | 'DECLINE_TRADE';
+
+// A live property auction (when someone declines to buy at list price).
+export interface MonopolyAuction {
+  square:         number;
+  squareName:     string;
+  highBid:        number;
+  highBidder:     number;        // seat, -1 = no bid yet
+  highBidderName: string | null;
+  turn:           number;        // seat to bid next
+  turnName:       string | null;
+  in:             boolean[];     // still bidding, per seat
+  yourBid:        boolean;       // it's your turn to bid
+  minBid:         number;        // highBid + 1
+}
+
+// The trade payload the client sends and the server echoes back (with names).
+export interface MonopolyTradePayload {
+  to:               number;
+  offerCash?:       number;
+  requestCash?:     number;
+  offerProps?:      number[];
+  requestProps?:    number[];
+  offerJailCards?:  number;
+  requestJailCards?: number;
+}
+
+export interface MonopolyTradeView extends MonopolyTradePayload {
+  from:      number;
+  fromName:  string;
+  toName:    string;
+  incoming:  boolean;   // you're the recipient (accept / decline)
+  outgoing:  boolean;   // you proposed it (cancel)
+}
 
 export interface MonopolyView {
   gameId:        string;
@@ -434,7 +469,7 @@ export interface MonopolyView {
   spectator:     boolean;
   yourTurn:      boolean;
   current:       number;
-  phase:         'ROLL' | 'BUY' | 'MANAGE';
+  phase:         'ROLL' | 'BUY' | 'AUCTION' | 'MANAGE';
   extraRoll:     boolean;
   lastRoll:      number[];
   pendingSquare: number;
@@ -443,6 +478,8 @@ export interface MonopolyView {
   players:       MonopolySeatView[];
   properties:    MonopolyPropView[];
   log:           string[];
+  auction:       MonopolyAuction | null;
+  trade:         MonopolyTradeView | null;
   turnDeadline:  number | null;
   outcome?:      'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
   winnerName?:   string | null;
@@ -451,8 +488,8 @@ export interface MonopolyView {
 export const monopolyApi = {
   board: () => apiClient.get<MonopolySquare[]>('/monopoly/board'),
   get:   (id: string) => apiClient.get<MonopolyView>(`/monopoly/${id}`),
-  act:   (id: string, action: MonopolyAction, square?: number) =>
-           apiClient.post<MonopolyView>(`/monopoly/${id}/act`, { action, square }),
+  act:   (id: string, action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload }) =>
+           apiClient.post<MonopolyView>(`/monopoly/${id}/act`, { action, ...opts }),
 };
 
 // ── Gomoku (real-time five-in-a-row) ────────────────────────────────────────

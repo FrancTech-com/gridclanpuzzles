@@ -27,12 +27,33 @@ public class MonopolyState {
     public Map<String, OwnedProp> props = new LinkedHashMap<>();
 
     public int current = 0;                  // whose turn (seat)
-    /** ROLL (must roll) | BUY (decide on pendingSquare) | MANAGE (build/trade, then end turn). */
+    /** ROLL (must roll) | BUY (decide on pendingSquare) | AUCTION | MANAGE (build/trade, then end turn). */
     public String phase = "ROLL";
     public boolean extraRoll = false;        // rolled doubles — must roll again before ending
     public int doublesCount = 0;
     public int[] lastRoll = new int[]{0, 0};
     public int pendingSquare = -1;
+
+    // ── Auction (a declined / unaffordable property goes under the hammer) ──
+    public int auctionSquare = -1;           // property being auctioned (-1 = none)
+    public List<Boolean> auctionIn = new ArrayList<>();   // still bidding, per seat
+    public int auctionHighBid = 0;
+    public int auctionHighBidder = -1;       // seat, -1 = no bid yet
+    public int auctionTurn = -1;             // seat to bid next
+
+    // ── Trade (one pending offer at a time) ──
+    public Trade pendingTrade = null;
+
+    public static class Trade {
+        public int from;                     // proposer (seat)
+        public int to;                       // recipient (seat)
+        public int offerCash = 0;            // cash from → to
+        public int requestCash = 0;          // cash to → from
+        public List<Integer> offerProps = new ArrayList<>();     // squares from gives
+        public List<Integer> requestProps = new ArrayList<>();   // squares from wants
+        public int offerJailCards = 0;
+        public int requestJailCards = 0;
+    }
 
     public List<Integer> chanceDeck = new ArrayList<>();
     public int chanceIdx = 0;

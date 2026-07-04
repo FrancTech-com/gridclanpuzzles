@@ -98,7 +98,8 @@ public class MonopolyGameService {
     // ── Actions ──────────────────────────────────────────────────────────────
 
     @Transactional
-    public Map<String, Object> act(UUID userId, UUID gameId, String action, Integer square) {
+    public Map<String, Object> act(UUID userId, UUID gameId, String action,
+                                   Integer square, Integer amount, TradePayload trade) {
         MonopolyGame g = repo.findById(gameId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         enforceTurnClock(g);
@@ -121,6 +122,11 @@ public class MonopolyGameService {
                 case "PAY_JAIL"      -> MonopolyEngine.payJailFine(s, seat);
                 case "USE_JAIL_CARD" -> MonopolyEngine.useJailCard(s, seat);
                 case "END_TURN"      -> MonopolyEngine.endTurn(s, seat);
+                case "AUCTION_BID"   -> MonopolyEngine.auctionBid(s, seat, needAmount(amount));
+                case "AUCTION_PASS"  -> MonopolyEngine.auctionPass(s, seat);
+                case "PROPOSE_TRADE" -> MonopolyEngine.proposeTrade(s, seat, toTrade(trade));
+                case "ACCEPT_TRADE"  -> MonopolyEngine.acceptTrade(s, seat);
+                case "DECLINE_TRADE" -> MonopolyEngine.declineTrade(s, seat);
                 default -> throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unknown action.");
             }
         } catch (IllegalStateException | IllegalArgumentException e) {
@@ -130,6 +136,25 @@ public class MonopolyGameService {
         g.setLastMoveAt(Instant.now());
         persist(g, s);
         return view(userId, g, s);
+    }
+
+    /** Trade payload shape shared with the controller. */
+    public record TradePayload(Integer to, Integer offerCash, Integer requestCash,
+                               List<Integer> offerProps, List<Integer> requestProps,
+                               Integer offerJailCards, Integer requestJailCards) {}
+
+    private static MonopolyState.Trade toTrade(TradePayload p) {
+        if (p == null || p.to() == null)
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Pick a player to trade with.");
+        MonopolyState.Trade t = new MonopolyState.Trade();
+        t.to               = p.to();
+        t.offerCash        = p.offerCash() != null ? p.offerCash() : 0;
+        t.requestCash      = p.requestCash() != null ? p.requestCash() : 0;
+        t.offerProps       = p.offerProps() != null ? new ArrayList<>(p.offerProps()) : new ArrayList<>();
+        t.requestProps     = p.requestProps() != null ? new ArrayList<>(p.requestProps()) : new ArrayList<>();
+        t.offerJailCards   = p.offerJailCards() != null ? p.offerJailCards() : 0;
+        t.requestJailCards = p.requestJailCards() != null ? p.requestJailCards() : 0;
+        return t;
     }
 
     @Transactional
@@ -249,6 +274,8 @@ public class MonopolyGameService {
         out.put("players",       players);
         out.put("properties",    props);
         out.put("log",           s.log.size() > 40 ? s.log.subList(s.log.size() - 40, s.log.size()) : s.log);
+        out.put("auction",       "AUCTION".equals(s.phase) ? auctionView(s, me) : null);
+        out.put("trade",         s.pendingTrade != null ? tradeView(s, me) : null);
         Instant deadline = turnDeadline(g);
         out.put("turnDeadline",  deadline != null ? deadline.toEpochMilli() : null);
         if ("COMPLETE".equals(g.getStatus())) {
@@ -260,6 +287,43 @@ public class MonopolyGameService {
         return out;
     }
 
+    /** Live auction state, with names resolved and a flag for the viewer. */
+    private Map<String, Object> auctionView(MonopolyState s, int me) {
+        Map<String, Object> a = new LinkedHashMap<>();
+        a.put("square",         s.auctionSquare);
+        a.put("squareName",     MonopolyBoard.at(s.auctionSquare).name());
+        a.put("highBid",        s.auctionHighBid);
+        a.put("highBidder",     s.auctionHighBidder);
+        a.put("highBidderName", s.auctionHighBidder >= 0
+            ? displayName(UUID.fromString(s.players.get(s.auctionHighBidder))) : null);
+        a.put("turn",           s.auctionTurn);
+        a.put("turnName",       s.auctionTurn >= 0
+            ? displayName(UUID.fromString(s.players.get(s.auctionTurn))) : null);
+        a.put("in",             new ArrayList<>(s.auctionIn));
+        a.put("yourBid",        me >= 0 && me == s.auctionTurn && me < s.auctionIn.size() && s.auctionIn.get(me));
+        a.put("minBid",         s.auctionHighBid + 1);
+        return a;
+    }
+
+    /** Pending trade offer, with names + flags telling the viewer their role. */
+    private Map<String, Object> tradeView(MonopolyState s, int me) {
+        MonopolyState.Trade t = s.pendingTrade;
+        Map<String, Object> tv = new LinkedHashMap<>();
+        tv.put("from",             t.from);
+        tv.put("fromName",         displayName(UUID.fromString(s.players.get(t.from))));
+        tv.put("to",               t.to);
+        tv.put("toName",           displayName(UUID.fromString(s.players.get(t.to))));
+        tv.put("offerCash",        t.offerCash);
+        tv.put("requestCash",      t.requestCash);
+        tv.put("offerProps",       new ArrayList<>(t.offerProps));
+        tv.put("requestProps",     new ArrayList<>(t.requestProps));
+        tv.put("offerJailCards",   t.offerJailCards);
+        tv.put("requestJailCards", t.requestJailCards);
+        tv.put("incoming",         me == t.to);     // you can accept / decline
+        tv.put("outgoing",         me == t.from);   // you can cancel
+        return tv;
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static int need(Integer square) {
@@ -268,6 +332,12 @@ public class MonopolyGameService {
         if (square < 0 || square >= MonopolyBoard.SIZE)
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Bad square.");
         return square;
+    }
+
+    private static int needAmount(Integer amount) {
+        if (amount == null || amount < 1)
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Enter a bid amount.");
+        return amount;
     }
 
     private static int seatOf(MonopolyState s, UUID userId) {
