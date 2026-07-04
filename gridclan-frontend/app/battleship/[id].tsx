@@ -11,6 +11,7 @@ import { LEVELS_PER_DIFFICULTY } from '@gridtypes/index';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
+import { TurnCountdown } from '@components/TurnCountdown';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PromptCard } from '@components/PromptCard';
@@ -253,6 +254,11 @@ export default function BattleshipGameScreen() {
       <Stack.Screen options={header} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.statusText}>{statusText}</Text>
+
+        {/* 5-minute turn clock (PvP only — at zero the server passes the turn) */}
+        {game.status === 'ACTIVE' && !game.vsComputer && (
+          <TurnCountdown deadline={game.turnDeadline} />
+        )}
 
         {waiting && (
           <Card style={styles.shareCard}>
