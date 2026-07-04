@@ -22,7 +22,7 @@ const WEB_BASE_URL: string = (
   'https://gridclanpuzzle.win'
 ).replace(/\/+$/, '');
 
-export type RealtimeGame = 'scrabble' | 'gomoku' | 'battleship';
+export type RealtimeGame = 'scrabble' | 'gomoku' | 'battleship' | 'chess';
 
 /** Tappable link that drops a friend straight into a real-time game by code. */
 export function gameInviteLink(game: RealtimeGame, code: string): string {

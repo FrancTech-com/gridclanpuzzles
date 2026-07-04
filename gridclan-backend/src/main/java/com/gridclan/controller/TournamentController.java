@@ -118,11 +118,11 @@ public class TournamentController {
             Authentication auth) {
         UUID userId = (UUID) auth.getPrincipal();
 
-        // Tournaments run on the three 2-player games only (no solo Word Search).
+        // Tournaments run on the competitive games only (no solo Word Search).
         String gameType = req.getGameType() == null ? "" : req.getGameType().trim().toUpperCase();
         if (!TournamentBracketService.GAME_KEYS.contains(gameType))
             return ResponseEntity.badRequest().body(Map.of(
-                "error", "gameType must be one of SCRABBLE, GOMOKU, BATTLESHIP"));
+                "error", "gameType must be one of SCRABBLE, GOMOKU, BATTLESHIP, CHESS, MONOPOLY"));
 
         // The creator picks when the tournament starts (small skew allowance so
         // "starts now" from a slow client isn't rejected). endsAt is no longer

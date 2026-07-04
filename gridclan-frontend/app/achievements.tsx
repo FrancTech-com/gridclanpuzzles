@@ -11,7 +11,7 @@ import { Font, Radius, Spacing, TournamentGameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { PlayerStats, TournamentGame, WinLossRecord } from '@gridtypes/index';
 
-const GAME_ORDER: TournamentGame[] = ['SCRABBLE', 'GOMOKU', 'BATTLESHIP'];
+const GAME_ORDER: TournamentGame[] = ['SCRABBLE', 'GOMOKU', 'BATTLESHIP', 'CHESS', 'MONOPOLY'];
 
 /**
  * Achievements — the player's lifetime record across every game and mode:

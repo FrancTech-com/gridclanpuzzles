@@ -38,7 +38,7 @@ public class PlayerStatsController {
     private final TournamentRepository            tournamentRepo;
     private final TournamentParticipantRepository participantRepo;
 
-    private static final List<String> GAMES = List.of("SCRABBLE", "GOMOKU", "BATTLESHIP");
+    private static final List<String> GAMES = List.of("SCRABBLE", "GOMOKU", "BATTLESHIP", "CHESS", "MONOPOLY");
     private static final List<String> MODES = List.of("solo", "friend", "tournament");
 
     @GetMapping("/stats")

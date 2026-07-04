@@ -222,10 +222,12 @@ export const GameMeta = {
   },
 } as const;
 
-// The three real-time 2-player games tournaments run on. `route` is the
-// expo-router folder for the live game screen ( /{route}/{gameId} ).
+// The competitive games tournaments run on. `route` is the expo-router
+// folder for the live game screen ( /{route}/{gameId} ).
 export const TournamentGameMeta = {
   SCRABBLE:   { label: 'Grid Scrabble',    icon: '🔤', route: 'scrabble',   color: Colors.green },
   GOMOKU:     { label: 'Grid Connect',     icon: '⚫', route: 'gomoku',     color: Colors.blue },
   BATTLESHIP: { label: 'Grid Battleships', icon: '🚢', route: 'battleship', color: Colors.red },
+  CHESS:      { label: 'Grid Chess',       icon: '♞',  route: 'chess',      color: Colors.yellow },
+  MONOPOLY:   { label: 'Grid Tycoon',      icon: '🎩', route: 'monopoly',   color: Colors.blue },
 } as const;
