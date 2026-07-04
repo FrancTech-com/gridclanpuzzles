@@ -897,7 +897,9 @@ public final class MonopolyEngine {
     }
 
     private static String name(MonopolyState s, int seat) {
-        return "P" + (seat + 1);   // the service substitutes display names in views
+        if (s.names != null && seat >= 0 && seat < s.names.size() && s.names.get(seat) != null)
+            return s.names.get(seat);
+        return "P" + (seat + 1);   // fallback until the service hydrates display names
     }
 
     private static void log(MonopolyState s, String line) {
