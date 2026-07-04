@@ -31,18 +31,36 @@ The operating company is **ETHELES**. Player support is
 
 ## Game catalog
 
+GridClan Puzzles is a **board game platform** — a growing catalogue of the
+classic tabletop games. Turn-based PvP games run a **5-minute move clock**
+(`TurnTimerJob`); when it lapses the turn auto-passes (in Chess, a loss on time).
+
 | Game | Mode | Real-time? | Route prefix |
 |------|------|-----------|--------------|
 | **Word Search** | Solo | n/a | `app/game/…` |
-| **Grid Scrabble** | 2-player shared board | yes (WS ping + 4s poll) | `app/scrabble/…` |
+| **Grid Scrabble** | Shared board, **2–4 players** | yes (WS ping + 4s poll) | `app/scrabble/…` |
+| **Grid Chess** | 2-player, full rules | yes | `app/chess/…` |
 | **Grid Connect** (Gomoku, 5-in-a-row) | 2-player | yes | `app/gomoku/…` |
 | **Grid Battleships** | 2-player, hidden fleets | yes | `app/battleship/…` |
+| **Grid Tycoon** (Monopoly) | **6–8 players, tournament only** | yes | `app/monopoly/…` |
 | **Friend Challenge** | 2-player async (same puzzle, compare scores) | no | `app/challenge/…` |
-| **Tournaments** | Single-elimination brackets over the 3 PvP games | yes | `app/tournament/…` |
+| **Tournaments** | Bracket play over the PvP games (see below) | yes | `app/tournament/…` |
 
 Solo games award native points to a **global per-game leaderboard**
-(`player_game_points`, migration V18). Tournaments are single-elimination
-brackets driven by a scheduler (`UPCOMING → ACTIVE → COMPLETED`, migration V19).
+(`player_game_points`, migration V18). Tournaments are driven by a scheduler
+(`UPCOMING → ACTIVE → COMPLETED`, migration V19) in one of three formats
+(`TournamentBracketService`):
+
+- **Knockout** (Chess, Connect, Battleships) — classic single elimination.
+- **Groups** (Scrabble) — players split into groups of four on one shared board;
+  the top two scores advance. First-round eliminees drop into a **consolation
+  (losers) bracket** run the same way, and the last group resolves into a
+  head-to-head **final** plus a **third-place** match (migration V39).
+- **Tables** (Monopoly) — tables of up to eight; each table's winner advances.
+
+Eliminated players (and anyone else) can open any live match and **watch it in
+real time**. Migrations: Scrabble multiplayer + move log **V36**, Chess **V37**,
+Monopoly **V38**, tournament group/consolation matches **V39**.
 
 ## Two ways players invite friends
 

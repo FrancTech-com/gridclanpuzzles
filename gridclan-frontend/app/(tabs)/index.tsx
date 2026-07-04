@@ -308,6 +308,32 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.scrabbleArrow}>›</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.scrabbleCard}
+              activeOpacity={0.85}
+              onPress={() => router.push(isGuest ? '/(auth)/register' : '/chess/new')}
+            >
+              <Text style={styles.scrabbleIcon}>♞</Text>
+              <View style={styles.scrabbleText}>
+                <Text style={styles.scrabbleTitle}>{t('chess.homeTitle', 'Grid Chess')}</Text>
+                <Text style={styles.scrabbleDesc}>{t('chess.homeDesc', 'Play the classic game of kings, live, move for move.')}</Text>
+              </View>
+              <Text style={styles.scrabbleArrow}>›</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.scrabbleCard}
+              activeOpacity={0.85}
+              onPress={() => router.push('/(tabs)/tournament')}
+            >
+              <Text style={styles.scrabbleIcon}>🎩</Text>
+              <View style={styles.scrabbleText}>
+                <Text style={styles.scrabbleTitle}>{t('monopoly.homeTitle', 'Grid Tycoon')}</Text>
+                <Text style={styles.scrabbleDesc}>{t('monopoly.homeDesc', 'Buy, build and bankrupt rivals — 6-8 players, tournaments only.')}</Text>
+              </View>
+              <Text style={styles.scrabbleArrow}>›</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Top-players leaderboard — fills out the right column. */}

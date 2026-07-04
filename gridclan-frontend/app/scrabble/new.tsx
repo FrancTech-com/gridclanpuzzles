@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { scrabbleApi } from '@api/index';
 import { Button, Card, Input } from '@components/ui/index';
-import { Font, Spacing } from '@theme/index';
+import { Font, Radius, Spacing } from '@theme/index';
 import { useColors } from '@theme/theme';
 
 /**
@@ -19,11 +19,12 @@ export default function NewScrabbleScreen() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [code, setCode] = useState('');
+  const [seats, setSeats] = useState(2);
 
   async function handleCreate() {
     if (creating) return;
     setCreating(true);
-    const res = await scrabbleApi.create().catch(() => null);
+    const res = await scrabbleApi.create(seats).catch(() => null);
     setCreating(false);
     if (res?.data?.gameId) router.replace(`/scrabble/${res.data.gameId}`);
     else Alert.alert(t('scrabble.createFailed', 'Could not start a game. Please try again.'));
@@ -55,8 +56,21 @@ export default function NewScrabbleScreen() {
 
         <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('scrabble.startTitle', 'Start a game')}</Text>
-          <Text style={styles.cardBody}>{t('scrabble.startBody', 'We’ll deal your tiles and give you a code to share with a friend.')}</Text>
-          <Button title={t('scrabble.createCta', 'Start & invite a friend')} onPress={handleCreate} loading={creating} size="lg" style={styles.btn} />
+          <Text style={styles.cardBody}>{t('scrabble.startBody', 'We’ll deal your tiles and give you a code to share. Play head-to-head, or seat up to four players on one board — just like the real game.')}</Text>
+          <View style={styles.seatRow}>
+            {[2, 3, 4].map(n => (
+              <TouchableOpacity
+                key={n}
+                style={[styles.seatChip, seats === n && styles.seatChipSel]}
+                onPress={() => setSeats(n)}
+              >
+                <Text style={[styles.seatChipText, seats === n && styles.seatChipTextSel]}>
+                  {t('scrabble.seatCount', { count: n, defaultValue: '{{count}} players' })}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Button title={t('scrabble.createCta', 'Start & invite friends')} onPress={handleCreate} loading={creating} size="lg" style={styles.btn} />
         </Card>
 
         <Card style={styles.card}>
@@ -83,4 +97,9 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   cardTitle: { color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
   cardBody:  { color: Colors.textMuted, fontSize: Font.size.sm, lineHeight: 20, marginTop: Spacing.xs, marginBottom: Spacing.sm },
   btn:       { marginTop: Spacing.sm },
+  seatRow:   { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xs },
+  seatChip:  { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surfaceHigh, alignItems: 'center' },
+  seatChipSel: { borderColor: Colors.primary, backgroundColor: Colors.primary + '22' },
+  seatChipText: { color: Colors.textSecondary, fontSize: Font.size.sm, fontWeight: Font.weight.semi },
+  seatChipTextSel: { color: Colors.primary },
 });
