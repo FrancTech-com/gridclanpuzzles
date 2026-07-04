@@ -141,6 +141,27 @@ export default function ScrabbleGameScreen() {
     return out;
   }, [game, pending]);
 
+  // Local display order for the rack — a Shuffle button rearranges the tiles
+  // without touching game state (placement still keys off each tile's rack idx).
+  const [rackOrder, setRackOrder] = useState<number[]>([]);
+  useEffect(() => { setRackOrder([]); }, [game?.yourRack]);   // reset when tiles change
+  const displayedRack = useMemo(() => {
+    if (rackOrder.length === 0) return availableRack;
+    const pos = new Map(rackOrder.map((idx, i) => [idx, i]));
+    return [...availableRack].sort((a, b) => (pos.get(a.idx) ?? 0) - (pos.get(b.idx) ?? 0));
+  }, [availableRack, rackOrder]);
+
+  function shuffleRack() {
+    if (!game) return;
+    const idxs = game.yourRack.split('').map((_, i) => i);
+    for (let i = idxs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idxs[i], idxs[j]] = [idxs[j], idxs[i]];
+    }
+    setRackOrder(idxs);
+    playSfx('tap');
+  }
+
   function cellAt(r: number, c: number): { letter: string; blank: boolean; pending: boolean } | null {
     const p = pending.find(x => x.row === r && x.col === c);
     if (p) return { letter: p.letter, blank: p.blank, pending: true };
@@ -458,7 +479,7 @@ export default function ScrabbleGameScreen() {
         {!complete && !spectator && (
           <>
             <View style={styles.rack}>
-              {availableRack.map((tile, i) => (
+              {displayedRack.map((tile, i) => (
                 <TouchableOpacity
                   key={`${tile.idx}-${i}`}
                   activeOpacity={0.7}
@@ -475,6 +496,11 @@ export default function ScrabbleGameScreen() {
                   )}
                 </TouchableOpacity>
               ))}
+              {!swapMode && displayedRack.length > 1 && (
+                <TouchableOpacity activeOpacity={0.7} onPress={shuffleRack} style={styles.shuffleTile}>
+                  <Text style={styles.shuffleIcon}>🔀</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <Text style={styles.dragHint}>
               {swapMode
@@ -667,6 +693,8 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
 
   rack:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, justifyContent: 'center', marginTop: Spacing.lg },
   rackTile:  { width: 44, height: 48, borderRadius: Radius.sm, backgroundColor: TILE_BG, borderWidth: 1, borderColor: TILE_BORDER, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : null) },
+  shuffleTile: { width: 44, height: 48, borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center', ...(Platform.OS === 'web' ? { cursor: 'pointer' } as any : null) },
+  shuffleIcon: { fontSize: Font.size.lg },
   rackTileSel:{ borderColor: Colors.primary, borderWidth: 2, transform: [{ translateY: -4 }] },
   rackTileSwapSel: { borderColor: Colors.error, borderWidth: 2, transform: [{ translateY: -4 }], opacity: 0.9 },
   rackTileText:{ color: TILE_TEXT, fontSize: Font.size.lg, fontFamily: Font.family.displayBold },

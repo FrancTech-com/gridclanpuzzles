@@ -38,6 +38,7 @@ public final class MonopolyEngine {
         for (int i = 0; i < playerIds.size(); i++) {
             s.pos.add(0); s.cash.add(START_CASH); s.bankrupt.add(false);
             s.inJail.add(false); s.jailTurns.add(0); s.jailCards.add(0);
+            s.timeouts.add(0); s.left.add(false);
         }
         Random rnd = new Random(seed);
         for (int i = 0; i < 16; i++) { s.chanceDeck.add(i); s.chestDeck.add(i); }
@@ -62,6 +63,7 @@ public final class MonopolyEngine {
         requireTurn(s, seat);
         if (!s.phase.equals("ROLL") && !(s.phase.equals("MANAGE") && s.extraRoll))
             throw new IllegalStateException("You can't roll now.");
+        s.timeouts.set(seat, 0);   // the player acted → clear their missed-turn streak
         s.lastRoll = new int[]{d1, d2};
         boolean doubles = d1 == d2;
         s.extraRoll = false;
@@ -252,9 +254,32 @@ public final class MonopolyEngine {
         requireTurn(s, from);
         requireManage(s);
         if (s.pendingTrade != null) throw new IllegalStateException("A trade offer is already pending.");
+        stageTrade(s, from, t);
+        log(s, name(s, from) + " offers " + name(s, t.to) + " a trade.");
+    }
+
+    /**
+     * The recipient counters instead of accepting: the pending offer is replaced
+     * by a fresh one from them back to the original proposer, with the sides
+     * flipped so the client's "you give / you get" reads naturally. Allowed
+     * off-turn (like accept/decline), so the two can haggle back and forth until
+     * one accepts or declines.
+     */
+    public static void counterTrade(MonopolyState s, int seat, MonopolyState.Trade t) {
+        MonopolyState.Trade pending = s.pendingTrade;
+        if (pending == null) throw new IllegalStateException("There's no offer to counter.");
+        if (seat != pending.to) throw new IllegalStateException("Only the player who received the offer can counter it.");
+        if (t.to != pending.from) throw new IllegalStateException("A counter must go back to the player who offered.");
+        s.pendingTrade = null;               // replace the old offer
+        stageTrade(s, seat, t);
+        log(s, name(s, seat) + " counters " + name(s, t.to) + "'s offer.");
+    }
+
+    /** Validate a trade from {@code from} and set it as the pending offer. */
+    private static void stageTrade(MonopolyState s, int from, MonopolyState.Trade t) {
         int to = t.to;
         if (to == from) throw new IllegalStateException("You can't trade with yourself.");
-        if (to < 0 || to >= s.players.size() || s.bankrupt.get(to))
+        if (to < 0 || to >= s.players.size() || s.bankrupt.get(to) || s.bankrupt.get(from))
             throw new IllegalStateException("Pick a player who's still in the game.");
         if (t.offerCash < 0 || t.requestCash < 0) throw new IllegalStateException("Cash can't be negative.");
         if (t.offerJailCards < 0 || t.requestJailCards < 0) throw new IllegalStateException("Bad jail-card count.");
@@ -269,7 +294,6 @@ public final class MonopolyEngine {
             throw new IllegalStateException("You don't hold that many jail cards.");
         t.from = from;
         s.pendingTrade = t;
-        log(s, name(s, from) + " offers " + name(s, to) + " a trade.");
     }
 
     /** The recipient accepts — assets swap. Re-validated in case state shifted. */
@@ -408,6 +432,7 @@ public final class MonopolyEngine {
      */
     public static void forceTurn(MonopolyState s) {
         int seat = s.current;
+        int missed = s.timeouts.get(seat) + 1;   // a forced turn is a missed turn
         int guard = 0;
         while (!s.over && s.current == seat && guard++ < 40) {
             if (s.pendingTrade != null) { declineTrade(s, s.pendingTrade.from); continue; }
@@ -421,7 +446,75 @@ public final class MonopolyEngine {
                 }
             }
         }
-        log(s, name(s, seat) + " ran out of time — turn passed.");
+        // roll() clears the streak on a voluntary act; a forced turn must record the miss.
+        s.timeouts.set(seat, missed);
+        log(s, name(s, seat) + " ran out of time — turn passed. (" + missed + " missed)");
+    }
+
+    // ── Disable an inactive player (2+ missed turns) ─────────────────────────
+
+    /** Consecutive missed turns before a player may be disabled by the table. */
+    public static final int KICK_AFTER_TIMEOUTS = 2;
+
+    /**
+     * Disable a player who has stalled the table (missed {@link #KICK_AFTER_TIMEOUTS}+
+     * turns in a row). Called by another active player at the table. Their cash is
+     * split evenly among the remaining players and their properties handed out
+     * round-robin (buildings cleared back to the bank), so the game keeps moving.
+     */
+    public static void kickPlayer(MonopolyState s, int by, int target) {
+        if (s.over) throw new IllegalStateException("The game is over.");
+        if (by < 0 || by >= s.players.size() || s.bankrupt.get(by))
+            throw new IllegalStateException("Only an active player can disable someone.");
+        if (target < 0 || target >= s.players.size())
+            throw new IllegalArgumentException("No such player.");
+        if (target == by) throw new IllegalStateException("You can't disable yourself.");
+        if (s.bankrupt.get(target)) throw new IllegalStateException("That player is already out.");
+        if (s.timeouts.get(target) < KICK_AFTER_TIMEOUTS)
+            throw new IllegalStateException("That player hasn't missed enough turns yet.");
+
+        // Remaining players (everyone still in except the target) get the estate.
+        List<Integer> heirs = new ArrayList<>();
+        for (int i = 0; i < s.players.size(); i++)
+            if (i != target && !s.bankrupt.get(i)) heirs.add(i);
+
+        // Clean up the target's involvement in any pending trade / auction.
+        if (s.pendingTrade != null
+                && (s.pendingTrade.from == target || s.pendingTrade.to == target)) {
+            s.pendingTrade = null;
+        }
+        if (s.phase.equals("AUCTION") && target < s.auctionIn.size() && s.auctionIn.get(target)) {
+            s.auctionIn.set(target, false);
+            if (s.auctionTurn == target) advanceAuctionTurn(s);
+        }
+
+        if (!heirs.isEmpty()) {
+            int share = s.cash.get(target) / heirs.size();
+            if (share > 0) for (int h : heirs) s.cash.set(h, s.cash.get(h) + share);
+            // Hand out properties round-robin, buildings cleared.
+            int i = 0;
+            for (Map.Entry<String, OwnedProp> e : s.props.entrySet()) {
+                OwnedProp p = e.getValue();
+                if (p.owner != target) continue;
+                p.owner = heirs.get(i % heirs.size());
+                p.houses = 0;
+                i++;
+            }
+            // Jail cards go to the first heir.
+            s.jailCards.set(heirs.get(0), s.jailCards.get(heirs.get(0)) + s.jailCards.get(target));
+        }
+
+        s.cash.set(target, 0);
+        s.jailCards.set(target, 0);
+        s.bankrupt.set(target, true);
+        s.left.set(target, true);
+        s.inJail.set(target, false);
+        s.bankruptOrder.add(target);
+        log(s, name(s, target) + " was disabled for inactivity — estate distributed to the table.");
+
+        if (s.phase.equals("AUCTION")) checkAuctionEnd(s);
+        if (!s.over && s.current == target) endTurnInternal(s);
+        checkGameOver(s);
     }
 
     // ── Movement + squares ───────────────────────────────────────────────────
