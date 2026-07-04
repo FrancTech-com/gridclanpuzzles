@@ -260,8 +260,7 @@ export default function ScrabbleGameScreen() {
     headerShown: true, title: t('scrabble.title', 'Grid Scrabble'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
     headerRight: () =>
-      game && game.status === 'ACTIVE' && !game.vsComputer && !game.spectator
-        && (game.maxPlayers ?? 2) <= 2 && id
+      game && game.status === 'ACTIVE' && !game.vsComputer && !game.spectator && id
         ? <VoiceControl kind="scrabble" gameId={id} />
         : null,
   };

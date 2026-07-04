@@ -23,7 +23,8 @@
     "yes": "Yes",
     "no": "No",
     "back": "Back",
-    "error": "Error"
+    "error": "Error",
+    "delete": "Delete"
   },
   "auth": {
     "login": "Log in",
@@ -244,7 +245,10 @@
     "format_GOMOKU": "Classic knockout — win your match and advance.",
     "format_BATTLESHIP": "Classic knockout — win your match and advance.",
     "format_CHESS": "Classic knockout — win your match and advance.",
-    "format_MONOPOLY": "Tables of up to 8 players; each table winner advances to the next round."
+    "format_MONOPOLY": "Tables of up to 8 players; each table winner advances to the next round.",
+    "delete": "Delete tournament",
+    "deleteTitle": "Delete this tournament?",
+    "deleteMessage": "This removes the tournament, its bracket and all entries. This cannot be undone."
   },
   "community": {
     "new": "New",
@@ -261,7 +265,10 @@
     "openChat": "Open chat",
     "chatTitle": "Community Chat",
     "messagePlaceholder": "Message…",
-    "join": "Join"
+    "join": "Join",
+    "delete": "Delete community",
+    "deleteTitle": "Delete this community?",
+    "deleteMessage": "This permanently removes “{{name}}”, its members and chat history. This cannot be undone."
   },
   "profile": {
     "signOutConfirm": "Sign out?",
@@ -611,5 +618,16 @@
     "plusCash": "+ your cash",
     "theirCash": "+ their cash",
     "sendOffer": "Send offer"
+  },
+  "voice": {
+    "joining": "Joining voice…",
+    "micDenied": "Allow microphone access to join",
+    "reconnecting": "Reconnecting… try again in a moment",
+    "aloneInRoom": "Waiting for others to join…",
+    "nInRoom": "{{count}} others in voice",
+    "mute": "🎙 Mute",
+    "muted": "🔇 Muted",
+    "leave": "Leave",
+    "cancel": "Cancel"
   }
 }

@@ -9,6 +9,7 @@ import { useSelector } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { communityApi } from '@api/index';
 import { communityInviteLink, shareInvite } from '@utils/invite';
+import { confirm } from '@utils/confirm';
 import { chatClient } from '@websocket/chatClient';
 import { RootState } from '@store/index';
 import { Button, Card, EmptyState, Input, LoadingSpinner } from '@components/ui/index';
@@ -61,6 +62,21 @@ export default function CommunityScreen() {
       await load();
     } catch {}
     setJoiningId(null);
+  }
+
+  async function handleDelete(c: Community) {
+    const ok = await confirm({
+      title:        t('community.deleteTitle', 'Delete this community?'),
+      message:      t('community.deleteMessage', 'This permanently removes “{{name}}”, its members and chat history. This cannot be undone.', { name: c.name }),
+      confirmLabel: t('common.delete', 'Delete'),
+      cancelLabel:  t('common.cancel', 'Cancel'),
+      destructive:  true,
+    });
+    if (!ok) return;
+    try {
+      await communityApi.remove(c.id);
+      await load();
+    } catch {}
   }
 
   // Share a tappable link that joins this community directly (see /j route).
@@ -148,6 +164,11 @@ export default function CommunityScreen() {
                 size="sm"
               />
             )}
+            {c.canDelete && (
+              <TouchableOpacity onPress={() => handleDelete(c)} style={styles.deleteLink}>
+                <Text style={styles.deleteLinkText}>🗑 {t('community.delete', 'Delete community')}</Text>
+              </TouchableOpacity>
+            )}
           </Card>
         ))}
         </View>
@@ -180,4 +201,6 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   memberRowMain:   { flex: 1 },
   inviteBtn:       { backgroundColor: Colors.surfaceHigh, borderRadius: Radius.md, padding: Spacing.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md },
   copiedText:      { color: Colors.primary, fontSize: Font.size.xs, marginTop: Spacing.xs, textAlign: 'center' },
+  deleteLink:      { marginTop: Spacing.sm, alignSelf: 'center' },
+  deleteLinkText:  { color: Colors.error, fontSize: Font.size.xs, fontWeight: Font.weight.semi },
 });

@@ -21,4 +21,6 @@ public interface TournamentParticipantRepository extends JpaRepository<Tournamen
 
     /** Tournaments entered — for the achievements screen. */
     long countByUserId(UUID userId);
+
+    void deleteByTournamentId(UUID tournamentId);
 }

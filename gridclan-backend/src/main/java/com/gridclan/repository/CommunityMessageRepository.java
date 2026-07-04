@@ -11,4 +11,6 @@ import java.util.UUID;
 public interface CommunityMessageRepository extends JpaRepository<CommunityMessage, UUID> {
     /** Most-recent messages first; the controller reverses to oldest→newest for display. */
     List<CommunityMessage> findTop200ByCommunityIdOrderBySentAtDesc(UUID communityId);
+
+    void deleteByCommunityId(UUID communityId);
 }

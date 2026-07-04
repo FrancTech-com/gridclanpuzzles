@@ -35,6 +35,7 @@ public class TournamentController {
 
     private final TournamentRepository            tournamentRepo;
     private final TournamentParticipantRepository participantRepo;
+    private final com.gridclan.repository.TournamentMatchRepository matchRepo;
     private final TournamentBracketService        bracketService;
     private final AuditLogService                  audit;
     private final LeaderboardService               leaderboardService;
@@ -72,10 +73,44 @@ public class TournamentController {
         return tournamentRepo.findById(id)
             .map(t -> {
                 Map<String, Object> m = toSummary(t);
-                m.put("joined", participantRepo.existsByTournamentIdAndUserId(id, userId));
+                m.put("joined",    participantRepo.existsByTournamentIdAndUserId(id, userId));
+                m.put("canDelete", canManage(t, userId, auth));
                 return ResponseEntity.ok(m);
             })
             .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ── Delete (creator or ADMIN) ──────────────────────────────────────────
+
+    /** DELETE /tournament/{id} — the creator or an admin removes it, along with
+     *  its bracket matches and participant entries. Backing game rows are left
+     *  as-is (harmless orphans once the matches referencing them are gone). */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<Map<String, String>> deleteTournament(@PathVariable UUID id, Authentication auth) {
+        UUID userId = (UUID) auth.getPrincipal();
+        Tournament t = tournamentRepo.findById(id).orElse(null);
+        if (t == null) return ResponseEntity.notFound().build();
+        if (!canManage(t, userId, auth))
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Only the tournament's creator or an admin can delete it."));
+
+        matchRepo.deleteByTournamentId(id);
+        participantRepo.deleteByTournamentId(id);
+        tournamentRepo.delete(t);
+        audit.record(userId, "TOURNAMENT_DELETED", "id=" + id + " name=" + t.getName());
+        return ResponseEntity.ok(Map.of("status", "DELETED"));
+    }
+
+    /** The creator (createdBy) or any admin may manage/delete a tournament. */
+    private static boolean canManage(Tournament t, UUID userId, Authentication auth) {
+        return userId.equals(t.getCreatedBy()) || isAdmin(auth);
+    }
+
+    private static boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+            .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
     }
 
     // ── Join (while UPCOMING) ──────────────────────────────────────────────
