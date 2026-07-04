@@ -7,22 +7,25 @@ import { playSfx } from '@services/sound';
  * channel) that works for any table size, 2 to 8 players.
  *
  * You tap "Join voice" to enter the room: you acquire your mic and open one
- * RTCPeerConnection to every other player already in the room, and to anyone
- * who joins after you. You hear — and are heard by — everyone in the room, and
- * nobody else. You're only live once you tap Join (mic consent preserved).
+ * RTCPeerConnection to every other player in the room. You hear — and are heard
+ * by — everyone in the room, and nobody else. You're only live once you tap Join
+ * (mic consent preserved).
+ *
+ * Reliability (this is what makes a mesh actually work at 6-8 people):
+ *   • PERFECT NEGOTIATION — each pair has a deterministic polite/impolite side,
+ *     so simultaneous offers (glare) never wedge a connection.
+ *   • ICE RESTART on failure instead of dropping the peer — a transient TURN/NAT
+ *     blip recovers instead of permanently fragmenting the mesh.
+ *   • PERIODIC RE-ANNOUNCE — a lightweight JOIN heartbeat rediscovers anyone we
+ *     missed (e.g. a peer stuck on the mic-permission prompt when we joined).
  *
  * Signalling rides the shared STOMP connection:
  *   Subscribe: /topic/{kind}/{gameId}/voice
  *   Publish:   /app/{kind}/{gameId}/voice
- * Audio itself is peer-to-peer and never touches our server.
- *
- *   JOIN   → broadcast on entry; a directed JOIN back announces an existing
- *            member to the newcomer. To avoid glare, the LOWER userId offers.
- *   OFFER / ANSWER / ICE → directed to one peer (toUserId set).
- *   LEAVE  → broadcast; peers close my connection.
+ *   JOIN (broadcast, or directed to announce back), OFFER/ANSWER/ICE (directed
+ *   via toUserId), LEAVE (broadcast). Audio never touches our server.
  *
  * Web-only for now (native returns supported=false until react-native-webrtc).
- * A full mesh is cheap for a handful of players; ~8 is the practical ceiling.
  */
 
 export type VoiceState = 'idle' | 'connecting' | 'connected';
@@ -48,15 +51,20 @@ interface VoiceSignal {
 }
 
 interface Peer {
-  pc:         RTCPeerConnection;
-  name:       string;
-  audioEl:    HTMLAudioElement | null;
-  pendingIce: RTCIceCandidateInit[];
-  offered:    boolean;
-  connected:  boolean;
+  pc:          RTCPeerConnection;
+  name:        string;
+  polite:      boolean;                 // perfect-negotiation role
+  makingOffer: boolean;
+  ignoreOffer: boolean;
+  audioEl:     HTMLAudioElement | null;
+  pendingIce:  RTCIceCandidateInit[];
+  connected:   boolean;
+  restarts:    number;
 }
 
 const FALLBACK_ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+const MAX_ICE_RESTARTS = 3;
+const REANNOUNCE_MS = 12_000;
 
 let iceServersCache: RTCIceServer[] | null = null;
 async function getIceServers(): Promise<RTCIceServer[]> {
@@ -85,6 +93,7 @@ class VoiceClient {
 
   private localStream: MediaStream | null = null;
   private peers = new Map<string, Peer>();
+  private reannounce: ReturnType<typeof setInterval> | null = null;
 
   private state: VoiceState = 'idle';
   private muted = false;
@@ -162,6 +171,10 @@ class VoiceClient {
     }
     this.state = 'connected';
     playSfx('tap');
+    // Rediscover anyone we missed (mic-prompt races, dropped links).
+    this.reannounce = setInterval(() => {
+      if (this.state === 'connected') this.send({ type: 'JOIN' });
+    }, REANNOUNCE_MS);
     this.emit();
   }
 
@@ -184,69 +197,64 @@ class VoiceClient {
   // ── Signal handling ───────────────────────────────────────────────────────
 
   private async onSignal(sig: VoiceSignal) {
-    if (!sig.fromUserId || sig.fromUserId === this.selfId) return;       // ignore my own
-    if (sig.toUserId && sig.toUserId !== this.selfId) return;            // directed elsewhere
-    if (this.state !== 'connected') {
-      // Not in the room. Still answer a directed JOIN? No — if I haven't joined,
-      // I have no mic and shouldn't connect. Ignore everything until I join.
-      return;
-    }
+    if (!sig.fromUserId || sig.fromUserId === this.selfId) return;   // ignore my own
+    if (sig.toUserId && sig.toUserId !== this.selfId) return;        // directed elsewhere
+    if (this.state !== 'connected') return;                          // not in the room yet
     const from = sig.fromUserId;
     const name = sig.fromName ?? 'Player';
 
     switch (sig.type) {
       case 'JOIN': {
-        const broadcast = !sig.toUserId;
-        if (broadcast) this.send({ type: 'JOIN', toUserId: from });      // announce myself back
-        await this.connectToPeer(from, name);
+        const existing = this.peers.get(from);
+        // Already talking to them → ignore the heartbeat (keeps steady state quiet).
+        if (existing && existing.pc.connectionState === 'connected') break;
+        if (!sig.toUserId) this.send({ type: 'JOIN', toUserId: from });   // announce back
+        this.ensurePeer(from, name);   // adding tracks kicks off negotiation
         break;
       }
-      case 'OFFER': {
-        const peer = this.ensurePeer(from, name);
-        if (!peer || !sig.sdp) break;
-        await peer.pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
-        await this.flushIce(peer);
-        const answer = await peer.pc.createAnswer();
-        await peer.pc.setLocalDescription(answer);
-        this.send({ type: 'ANSWER', sdp: answer.sdp, toUserId: from });
+      case 'OFFER':
+      case 'ANSWER':
+        if (sig.sdp) await this.handleDescription(from, name, sig.type === 'OFFER' ? 'offer' : 'answer', sig.sdp);
         break;
-      }
-      case 'ANSWER': {
-        const peer = this.peers.get(from);
-        if (peer && sig.sdp) {
-          await peer.pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
-          await this.flushIce(peer);
-        }
+      case 'ICE':
+        if (sig.candidate) await this.handleIce(from, name, sig.candidate);
         break;
-      }
-      case 'ICE': {
-        const peer = this.peers.get(from);
-        if (peer && sig.candidate) {
-          if (peer.pc.remoteDescription) {
-            try { await peer.pc.addIceCandidate(sig.candidate); }
-            catch (e) { console.warn('addIceCandidate failed', e); }
-          } else {
-            peer.pendingIce.push(sig.candidate);
-          }
-        }
-        break;
-      }
       case 'LEAVE':
         this.closePeer(from);
         break;
     }
   }
 
-  /** Ensure a peer connection, then (if I'm the lower id) send the offer. */
-  private async connectToPeer(peerId: string, name: string) {
-    const peer = this.ensurePeer(peerId, name);
+  /** Perfect-negotiation description handler (SDP offer/answer). */
+  private async handleDescription(from: string, name: string, type: 'offer' | 'answer', sdp: string) {
+    const peer = this.ensurePeer(from, name);
     if (!peer) return;
-    // Deterministic initiator avoids both sides offering at once (glare).
-    if (this.selfId < peerId && !peer.offered) {
-      peer.offered = true;
-      const offer = await peer.pc.createOffer();
-      await peer.pc.setLocalDescription(offer);
-      this.send({ type: 'OFFER', sdp: offer.sdp, toUserId: peerId });
+    const pc = peer.pc;
+    const collision = type === 'offer' && (peer.makingOffer || pc.signalingState !== 'stable');
+    peer.ignoreOffer = !peer.polite && collision;
+    if (peer.ignoreOffer) return;     // impolite side keeps its own offer
+
+    try {
+      await pc.setRemoteDescription({ type, sdp });
+      await this.flushIce(peer);
+      if (type === 'offer') {
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        this.send({ type: 'ANSWER', sdp: pc.localDescription?.sdp, toUserId: from });
+      }
+    } catch (e) {
+      console.warn('Voice negotiation error', e);
+    }
+  }
+
+  private async handleIce(from: string, name: string, candidate: RTCIceCandidateInit) {
+    const peer = this.ensurePeer(from, name);
+    if (!peer) return;
+    if (peer.pc.remoteDescription) {
+      try { await peer.pc.addIceCandidate(candidate); }
+      catch (e) { if (!peer.ignoreOffer) console.warn('addIceCandidate failed', e); }
+    } else {
+      peer.pendingIce.push(candidate);   // queue until the remote description is set
     }
   }
 
@@ -258,21 +266,50 @@ class VoiceClient {
     if (!this.localStream) return null;
 
     const pc = new RTCPeerConnection({ iceServers: iceServersCache ?? FALLBACK_ICE });
-    const peer: Peer = { pc, name, audioEl: null, pendingIce: [], offered: false, connected: false };
+    const peer: Peer = {
+      pc, name,
+      polite: this.selfId > peerId,   // deterministic: higher id is polite
+      makingOffer: false, ignoreOffer: false,
+      audioEl: null, pendingIce: [], connected: false, restarts: 0,
+    };
     this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream!));
 
+    // Perfect negotiation: react to the browser's own "renegotiate" signal.
+    pc.onnegotiationneeded = async () => {
+      try {
+        peer.makingOffer = true;
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== 'stable') return;   // a remote offer arrived first
+        await pc.setLocalDescription(offer);
+        this.send({ type: 'OFFER', sdp: pc.localDescription?.sdp, toUserId: peerId });
+      } catch (e) {
+        console.warn('Voice onnegotiationneeded error', e);
+      } finally {
+        peer.makingOffer = false;
+      }
+    };
     pc.onicecandidate = ev => {
       if (ev.candidate) this.send({ type: 'ICE', candidate: ev.candidate.toJSON(), toUserId: peerId });
     };
     pc.ontrack = ev => this.attachRemote(peer, ev.streams[0]);
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
-      if (st === 'connected') { peer.connected = true; this.emit(); }
-      else if (st === 'failed' || st === 'closed') this.closePeer(peerId);
+      if (st === 'connected') { peer.connected = true; peer.restarts = 0; this.emit(); }
+      else if (st === 'disconnected') { if (peer.connected) { peer.connected = false; this.emit(); } }
+      else if (st === 'failed') {
+        peer.connected = false;
+        this.emit();
+        // Recover instead of dropping the peer — a mesh must self-heal.
+        if (peer.restarts < MAX_ICE_RESTARTS) {
+          peer.restarts++;
+          try { pc.restartIce(); } catch { /* older engines: onnegotiationneeded still fires */ }
+        } else {
+          this.closePeer(peerId);
+        }
+      }
     };
 
     this.peers.set(peerId, peer);
-    // Make sure the real ICE servers are loaded for the next connection.
     if (!iceServersCache) getIceServers().catch(() => {});
     this.emit();
     return peer;
@@ -309,6 +346,7 @@ class VoiceClient {
   }
 
   private teardown() {
+    if (this.reannounce) { clearInterval(this.reannounce); this.reannounce = null; }
     for (const id of Array.from(this.peers.keys())) this.closePeer(id);
     this.peers.clear();
     this.localStream?.getTracks().forEach(t => t.stop());
