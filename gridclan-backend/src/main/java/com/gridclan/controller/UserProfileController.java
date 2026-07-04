@@ -48,6 +48,7 @@ public class UserProfileController {
     private final GomokuGameRepository     gomokuRepo;
     private final BattleshipGameRepository battleshipRepo;
     private final ScrabbleGameRepository   scrabbleRepo;
+    private final com.gridclan.repository.ChessGameRepository chessRepo;
 
     /** Cache-aside TTL for profile reads (blueprint § Scalability). */
     private static final Duration PROFILE_CACHE_TTL = Duration.ofSeconds(60);
@@ -230,6 +231,8 @@ public class UserProfileController {
             .ifPresent(g -> candidates.add(new Resume("battleship", g.getId(), g.getStatus(), g.isVsComputer(), g.getLastMoveAt())));
         scrabbleRepo.findResumable(userId, RESUMABLE_STATUSES).stream().findFirst()
             .ifPresent(g -> candidates.add(new Resume("scrabble", g.getId(), g.getStatus(), g.isVsComputer(), g.getLastMoveAt())));
+        chessRepo.findResumable(userId, RESUMABLE_STATUSES).stream().findFirst()
+            .ifPresent(g -> candidates.add(new Resume("chess", g.getId(), g.getStatus(), false, g.getLastMoveAt())));
 
         Resume best = candidates.stream()
             .filter(r -> r.lastMoveAt() != null && r.lastMoveAt().isAfter(cutoff))

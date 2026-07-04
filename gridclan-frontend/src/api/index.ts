@@ -175,7 +175,7 @@ export const voiceApi = {
 
 // ── Profile ────────────────────────────────────────────────────────────────
 export interface ActiveGameResume {
-  kind:        'gomoku' | 'battleship' | 'scrabble';
+  kind:        'gomoku' | 'battleship' | 'scrabble' | 'chess';
   gameId:      string;
   status:      'ACTIVE' | 'WAITING_FOR_OPPONENT';
   vsComputer:  boolean;
@@ -284,14 +284,37 @@ export const tournamentApi = {
   getMe: (id: string) =>
     apiClient.get<TournamentMe>(`/tournament/${id}/me`),
 
-  /** Bracket view: rounds → matches. */
+  /** Bracket view: rounds → matches (main draw + consolation draw). */
   getBracket: (id: string) =>
-    apiClient.get<{ tournamentId: string; rounds: Record<string, any[]> }>(
-      `/tournament/${id}/bracket`),
+    apiClient.get<{
+      tournamentId: string;
+      rounds: Record<string, any[]>;
+      consolationRounds?: Record<string, any[]>;
+    }>(`/tournament/${id}/bracket`),
 };
 
-// ── Grid Scrabble (async shared-board 2-player) ─────────────────────────────
+// ── Grid Scrabble (shared-board, 2-4 players) ───────────────────────────────
 export interface ScrabblePlacement { row: number; col: number; letter: string; blank: boolean; }
+
+export interface ScrabbleSeat {
+  seat:     number;
+  name:     string | null;
+  score:    number;
+  current:  boolean;
+  resigned: boolean;
+  tiles:    number;     // rack size only — never the letters
+}
+
+export interface ScrabbleLogEntry {
+  at:      number;
+  seat:    number;
+  type:    'WORD' | 'PASS' | 'SWAP' | 'RESIGN' | 'TIMEOUT' | 'GAME_END';
+  player?: string | null;
+  words?:  string[];
+  score?:  number;
+  bingo?:  boolean;
+  count?:  number;
+}
 
 export interface ScrabbleView {
   gameId:        string;
@@ -306,9 +329,17 @@ export interface ScrabbleView {
   tilesInBag:    number;
   vsComputer?:   boolean;
   hintsRemaining?: number;
+  maxPlayers:    number;      // 2-4 seats
+  seatedCount:   number;
+  yourSeat:      number;      // 0 = spectator
+  spectator:     boolean;
+  players:       ScrabbleSeat[];
+  moveLog:       ScrabbleLogEntry[];
+  turnDeadline:  number | null;   // epoch ms — 5-min PvP turn clock
   difficulty?:   Difficulty;   // present on solo ladder games
   level?:        number;
-  outcome?:      'WON' | 'LOST' | 'TIE';
+  outcome?:      'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
+  winnerName?:   string | null;
 }
 
 export interface ScrabbleHint {
@@ -319,7 +350,7 @@ export interface ScrabbleHint {
 }
 
 export const scrabbleApi = {
-  create: () => apiClient.post<ScrabbleView>('/scrabble'),
+  create: (players = 2) => apiClient.post<ScrabbleView>(`/scrabble?players=${players}`),
   solo:   (difficulty?: Difficulty, level?: number) =>
             apiClient.post<ScrabbleView>(`/scrabble/solo${soloQuery(difficulty, level)}`),
   join:   (code: string) => apiClient.post<ScrabbleView>(`/scrabble/${code}/join`),
@@ -333,6 +364,97 @@ export const scrabbleApi = {
   forfeit: (id: string)  => apiClient.post<ScrabbleView>(`/scrabble/${id}/forfeit`),
 };
 
+// ── Chess (real-time 2-player; friend + tournament) ─────────────────────────
+export interface ChessPlayerView { color: 'WHITE' | 'BLACK'; name: string | null; current: boolean; }
+
+export interface ChessView {
+  gameId:       string;
+  inviteCode:   string;
+  status:       'WAITING_FOR_OPPONENT' | 'ACTIVE' | 'COMPLETE';
+  board:        string[];    // 8 rows, rank 8 → rank 1; '.'=empty, UPPER=white
+  fen:          string;
+  yourColor:    'WHITE' | 'BLACK' | null;
+  yourTurn:     boolean;
+  currentColor: 'WHITE' | 'BLACK';
+  hasOpponent:  boolean;
+  spectator:    boolean;
+  inCheck:      boolean;
+  legalMoves:   string[];    // UCI ("e2e4", "e7e8q") — only on your turn
+  moveLog:      string[];
+  lastMove:     string | null;
+  players:      ChessPlayerView[];
+  turnDeadline: number | null;   // epoch ms — losing on time is the chess rule
+  endReason?:   'CHECKMATE' | 'STALEMATE' | 'DRAW_50' | 'DRAW_MATERIAL' | 'RESIGN' | 'TIMEOUT';
+  outcome?:     'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
+  winnerName?:  string | null;
+}
+
+export const chessApi = {
+  create: () => apiClient.post<ChessView>('/chess'),
+  join:   (code: string) => apiClient.post<ChessView>(`/chess/${code}/join`),
+  get:    (id: string)   => apiClient.get<ChessView>(`/chess/${id}`),
+  move:   (id: string, move: string) =>
+            apiClient.post<ChessView>(`/chess/${id}/move`, { move }),
+  forfeit: (id: string)  => apiClient.post<ChessView>(`/chess/${id}/forfeit`),
+};
+
+// ── Monopoly (tournament-only tables of up to 8) ─────────────────────────────
+export interface MonopolySquare {
+  index: number;
+  type:  'GO' | 'PROP' | 'RAIL' | 'UTIL' | 'TAX' | 'CHANCE' | 'CHEST' | 'JAIL' | 'GO_TO_JAIL' | 'FREE';
+  name:  string;
+  group: string | null;
+  price: number;
+  houseCost: number;
+  rent:  number[];
+}
+
+export interface MonopolySeatView {
+  seat:      number;
+  name:      string | null;
+  cash:      number;
+  pos:       number;
+  inJail:    boolean;
+  jailCards: number;
+  bankrupt:  boolean;
+  netWorth:  number;
+  current:   boolean;
+}
+
+export interface MonopolyPropView { square: number; owner: number; houses: number; mortgaged: boolean; }
+
+export type MonopolyAction =
+  | 'ROLL' | 'BUY' | 'SKIP_BUY' | 'BUILD' | 'SELL_HOUSE'
+  | 'MORTGAGE' | 'UNMORTGAGE' | 'PAY_JAIL' | 'USE_JAIL_CARD' | 'END_TURN';
+
+export interface MonopolyView {
+  gameId:        string;
+  status:        'ACTIVE' | 'COMPLETE';
+  yourSeat:      number;      // -1 = spectator
+  spectator:     boolean;
+  yourTurn:      boolean;
+  current:       number;
+  phase:         'ROLL' | 'BUY' | 'MANAGE';
+  extraRoll:     boolean;
+  lastRoll:      number[];
+  pendingSquare: number;
+  round:         number;
+  maxRounds:     number;
+  players:       MonopolySeatView[];
+  properties:    MonopolyPropView[];
+  log:           string[];
+  turnDeadline:  number | null;
+  outcome?:      'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
+  winnerName?:   string | null;
+}
+
+export const monopolyApi = {
+  board: () => apiClient.get<MonopolySquare[]>('/monopoly/board'),
+  get:   (id: string) => apiClient.get<MonopolyView>(`/monopoly/${id}`),
+  act:   (id: string, action: MonopolyAction, square?: number) =>
+           apiClient.post<MonopolyView>(`/monopoly/${id}/act`, { action, square }),
+};
+
 // ── Gomoku (real-time five-in-a-row) ────────────────────────────────────────
 export interface GomokuView {
   gameId:      string;
@@ -343,6 +465,8 @@ export interface GomokuView {
   yourTurn:    boolean;
   hasOpponent: boolean;
   vsComputer?: boolean;
+  spectator?:  boolean;
+  turnDeadline?: number | null;   // epoch ms — 5-min PvP turn clock
   hintsRemaining?: number;
   difficulty?: Difficulty;     // present on solo ladder games
   level?:      number;
@@ -374,6 +498,8 @@ export interface BattleshipView {
   yourTurn:      boolean;
   hasOpponent:   boolean;
   vsComputer?:   boolean;
+  spectator?:    boolean;
+  turnDeadline?: number | null;   // epoch ms — 5-min PvP turn clock
   hintsRemaining?: number;
   lastShot?:     'HIT' | 'MISS' | 'SUNK' | 'WIN';
   difficulty?:   Difficulty;   // present on solo ladder games

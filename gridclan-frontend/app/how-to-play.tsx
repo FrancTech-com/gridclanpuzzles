@@ -17,11 +17,15 @@ const MODES: { key: string; icon: string }[] = [
   { key: 'tournament', icon: '🏆' },
 ];
 
-// Real-time 2-player games (their own invite-and-play flows, live over WebSocket).
+// Real-time multiplayer board games (their own invite-and-play flows, live over WebSocket).
+// Every turn-based game runs a 5-minute move clock; if it runs out the turn passes
+// automatically (in Chess, that means losing on time).
 const LIVE_GAMES: { key: string; icon: string; name: string; how: string }[] = [
-  { key: 'scrabble',   icon: '🔤', name: 'Grid Scrabble', how: 'Build words on a shared board, taking turns. Every move appears on your friend’s screen instantly.' },
+  { key: 'scrabble',   icon: '🔤', name: 'Grid Scrabble', how: 'Build words on a shared board with standard Scrabble rules and scoring (premiums, +50 bingo, end-game rack adjustment). Play 2 to 4 players — every move appears instantly.' },
+  { key: 'chess',      icon: '♞', name: 'Grid Chess',     how: 'Full chess rules — castling, en passant, promotion, check and checkmate. You play white and share a code; your friend joins as black.' },
   { key: 'gomoku',     icon: '⚫', name: 'Grid Connect',     how: 'Take turns placing stones; first to line up five in a row — across, down, or diagonally — wins.' },
   { key: 'battleship', icon: '🚢', name: 'Grid Battleships', how: 'Your fleet is hidden on a grid. Take turns firing at the enemy waters and sink every ship to win.' },
+  { key: 'monopoly',   icon: '🎩', name: 'Grid Tycoon',      how: 'The classic property game for 6–8 players — buy, build, collect rent and bankrupt your rivals. Tournaments only, played at one shared table.' },
 ];
 
 /**
@@ -60,8 +64,8 @@ export default function HowToPlayScreen() {
           </Card>
         ))}
 
-        {/* Live 2-player games */}
-        <Text style={styles.sectionLabel}>{t('howToPlay.liveTitle', 'Play live with a friend')}</Text>
+        {/* Live multiplayer games */}
+        <Text style={styles.sectionLabel}>{t('howToPlay.liveTitle', 'Play live with friends')}</Text>
         {LIVE_GAMES.map(g => (
           <Card key={g.key} style={styles.modeCard}>
             <Text style={styles.modeIcon}>{g.icon}</Text>
@@ -71,6 +75,10 @@ export default function HowToPlayScreen() {
             </View>
           </Card>
         ))}
+
+        {/* Tournaments */}
+        <Text style={styles.sectionLabel}>{t('howToPlay.tournamentsTitle', 'Tournaments')}</Text>
+        <Text style={styles.paragraph}>{t('howToPlay.tournaments', 'Join a bracket and play to be champion. Chess, Connect and Battleships run classic knockout — win your match and advance. Scrabble plays in groups of four on one board, where the top two scores advance and first-round losers get a second run in the losers bracket. Monopoly seats up to eight players at a table, and each table’s winner moves on. If you’re knocked out, you can still open any live match and watch it in real time.')}</Text>
 
         {/* Ways to play */}
         <Text style={styles.sectionLabel}>{t('howToPlay.modesTitle', 'Ways to play')}</Text>
