@@ -30,9 +30,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class GlobalLeaderboardController {
 
-    /** The four games whose points feed the leaderboard. */
+    /** The games whose points feed the leaderboard. */
     private static final Set<String> GAME_KEYS =
-        Set.of("WORD_SEARCH", "SCRABBLE", "GOMOKU", "BATTLESHIP");
+        Set.of("WORD_SEARCH", "SCRABBLE", "GOMOKU", "BATTLESHIP", "CHESS", "MONOPOLY");
 
     private final PlayerGamePointsRepository gamePointsRepo;
 

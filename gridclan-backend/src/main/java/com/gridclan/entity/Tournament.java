@@ -68,4 +68,8 @@ public class Tournament {
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();
+
+    /** Non-null while the tournament is paused — the scheduler skips it. */
+    @Column(name = "paused_at")
+    private Instant pausedAt;
 }

@@ -11,6 +11,7 @@ import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { TurnCountdown } from '@components/TurnCountdown';
+import { PauseBar } from '@components/PauseBar';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PostGameAd } from '@components/PostGameAd';
@@ -132,6 +133,14 @@ export default function ChessGameScreen() {
     }
   }
 
+  async function doPauseToggle() {
+    if (!id || busy) return;
+    setBusy(true);
+    const res = await (game?.paused ? chessApi.resume(id) : chessApi.pause(id)).catch(() => null);
+    setBusy(false);
+    if (res?.data) setGame(res.data);
+  }
+
   async function doForfeit() {
     if (!id || busy) return;
     const ok = await confirm({
@@ -219,6 +228,9 @@ export default function ChessGameScreen() {
 
         {/* 5-minute move clock — in chess, running out means losing on time */}
         {game.status === 'ACTIVE' && <TurnCountdown deadline={game.turnDeadline} />}
+        {game.status === 'ACTIVE' && !game.spectator && (
+          <PauseBar paused={!!game.paused} onPause={doPauseToggle} onResume={doPauseToggle} busy={busy} />
+        )}
 
         {waiting && (
           <Card style={styles.shareCard}>

@@ -23,8 +23,10 @@ import type {
 const LB_GAMES: { key: GameKey; icon: string; labelKey: string }[] = [
   { key: 'WORD_SEARCH', icon: '🔍', labelKey: 'home.lbWordSearch' },
   { key: 'SCRABBLE',    icon: '🔤', labelKey: 'home.lbScrabble' },
+  { key: 'CHESS',       icon: '♞',  labelKey: 'home.lbChess' },
   { key: 'GOMOKU',      icon: '⚫', labelKey: 'home.lbGomoku' },
   { key: 'BATTLESHIP',  icon: '🚢', labelKey: 'home.lbBattleship' },
+  { key: 'MONOPOLY',    icon: '🎩', labelKey: 'home.lbMonopoly' },
 ];
 
 const TIERS: { labelKey: string; value: GameTier; icon: string; descKey: string }[] = [

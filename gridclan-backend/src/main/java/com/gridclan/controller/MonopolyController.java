@@ -74,6 +74,20 @@ public class MonopolyController {
             service.act(userId(auth), id, req.getAction(), req.getSquare(), req.getAmount(), trade, req.getTarget()));
     }
 
+    /** POST /monopoly/{id}/pause — freeze the turn clock for the table. */
+    @PostMapping("/{id}/pause")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> pause(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.pause(userId(auth), id));
+    }
+
+    /** POST /monopoly/{id}/resume — resume the table. */
+    @PostMapping("/{id}/resume")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> resume(@PathVariable UUID id, Authentication auth) {
+        return ResponseEntity.ok(service.resume(userId(auth), id));
+    }
+
     private static UUID userId(Authentication auth) { return (UUID) auth.getPrincipal(); }
 
     @Getter @Setter

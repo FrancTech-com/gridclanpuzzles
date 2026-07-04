@@ -343,10 +343,51 @@ public class BattleshipGameService {
     /** PvP turn clock: 5 minutes per shot, then the turn auto-passes. */
     public static final long TURN_SECONDS = 300;
 
-    /** When this game's current turn must be played by (PvP + ACTIVE only). */
+    /** When this game's current turn must be played by (PvP + ACTIVE, not paused). */
     private Instant turnDeadline(BattleshipGame g) {
-        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer() || g.getPlayer2Id() == null) return null;
+        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer() || g.getPlayer2Id() == null
+                || g.getPausedAt() != null) return null;
         return g.getLastMoveAt().plusSeconds(TURN_SECONDS);
+    }
+
+    // ── Pause / resume ─────────────────────────────────────────────────────────
+
+    @Transactional
+    public Map<String, Object> pause(UUID userId, UUID gameId) {
+        BattleshipGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        turnOf(g, userId);
+        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a live multiplayer game can be paused.");
+        if (g.getPausedAt() == null) { g.setPausedAt(Instant.now()); repo.save(g); broadcast(g); }
+        return view(userId, g, null);
+    }
+
+    @Transactional
+    public Map<String, Object> resume(UUID userId, UUID gameId) {
+        BattleshipGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        turnOf(g, userId);
+        if (g.getPausedAt() != null) {
+            g.setPausedAt(null);
+            g.setLastMoveAt(Instant.now());
+            repo.save(g);
+            broadcast(g);
+        }
+        return view(userId, g, null);
+    }
+
+    /** System-initiated pause/resume (e.g. a tournament pausing all its matches). */
+    @Transactional
+    public void setPaused(UUID gameId, boolean paused) {
+        repo.findById(gameId).ifPresent(g -> {
+            if (!"ACTIVE".equals(g.getStatus())) return;
+            if (paused && g.getPausedAt() == null) g.setPausedAt(Instant.now());
+            else if (!paused && g.getPausedAt() != null) { g.setPausedAt(null); g.setLastMoveAt(Instant.now()); }
+            else return;
+            repo.save(g);
+            broadcast(g);
+        });
     }
 
     /** If the current player's 5 minutes are up, hand the turn to the other player. */
@@ -400,6 +441,7 @@ public class BattleshipGameService {
         out.put("vsComputer",    g.isVsComputer());
         out.put("hintsRemaining", g.getHintsRemaining());
         out.put("spectator",     me == 0);
+        out.put("paused",        g.getPausedAt() != null);
         Instant deadline = turnDeadline(g);
         out.put("turnDeadline",  deadline != null ? deadline.toEpochMilli() : null);
         if (g.getLevel() > 0) {              // solo ladder game → let the client offer "Next level"
@@ -525,6 +567,8 @@ public class BattleshipGameService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         if (!"ACTIVE".equals(g.getStatus()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPausedAt() != null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is paused — resume to play.");
         if (turnOf(g, userId) != g.getCurrentPlayer())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "It's not your turn.");
         return g;
