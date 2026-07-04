@@ -18,18 +18,19 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * STOMP relay for friend-to-friend in-game WebRTC voice.
+ * STOMP relay for in-game group WebRTC voice (a mesh room per game/table).
  *
- * Subscribe:  /topic/{kind}/{gameId}/voice   (both players; sibling of the move-ping topic)
+ * Subscribe:  /topic/{kind}/{gameId}/voice   (every seat; sibling of the move-ping topic)
  * Send:       /app/{kind}/{gameId}/voice     → @MessageMapping
  *
  * The server never carries audio — only the small signalling frames. It:
- *   1. verifies the sender is one of the two players of {gameId},
- *   2. rate-limits the ring (REQUEST) to 1 / 5s so a tap can't spam a friend,
+ *   1. verifies the sender is seated at {gameId} (any of the 2-8 players),
+ *   2. rate-limits JOIN to 1 / 5s so a tap can't spam the room,
  *   3. stamps the sender identity server-side (client-supplied identity ignored),
- *   4. broadcasts to the per-game voice topic. Each client ignores its own frames.
+ *   4. broadcasts to the per-game voice topic. Clients ignore their own frames and
+ *      any directed frame whose toUserId isn't theirs.
  *
- * kind ∈ { scrabble, gomoku, battleship } — the three real-time 2-player games.
+ * kind ∈ { scrabble, gomoku, battleship, chess, monopoly }.
  */
 @Controller
 @RequiredArgsConstructor
@@ -41,7 +42,7 @@ public class VoiceSignalController {
     private final GameParticipantResolver     participantResolver;
     private final RedisTemplate<String, String> redis;
 
-    /** One ring (REQUEST) per this many seconds, per user. */
+    /** One JOIN per this many seconds, per user. */
     private static final int RING_RATE_SEC = 5;
 
     @MessageMapping("/{kind}/{gameId}/voice")
@@ -53,14 +54,15 @@ public class VoiceSignalController {
 
         UUID userId = UUID.fromString(principal.getName());
 
-        // ── Participant gate — only the two players of this game may signal ──
+        // ── Participant gate — only players seated at this game may signal ──
         if (!participantResolver.isParticipant(kind, gameId, userId)) {
-            log.debug("Voice signal rejected — userId={} not a player of {} {}", userId, kind, gameId);
+            log.debug("Voice signal rejected — userId={} not seated at {} {}", userId, kind, gameId);
             return;
         }
 
-        // ── Anti-spam: only throttle the initial ring, not the WebRTC frames ──
-        if (sig.getType() == VoiceSignal.Type.REQUEST && isRingRateLimited(userId)) {
+        // ── Anti-spam: only throttle JOIN, not the WebRTC handshake frames ──
+        if (sig.getType() == VoiceSignal.Type.JOIN && sig.getToUserId() == null
+                && isRingRateLimited(userId)) {
             return;
         }
 

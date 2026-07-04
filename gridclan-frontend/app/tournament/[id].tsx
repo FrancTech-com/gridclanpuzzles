@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { tournamentApi } from '@api/index';
 import { Badge, Button, Card, LoadingSpinner } from '@components/ui/index';
+import { confirm } from '@utils/confirm';
 import { Font, Radius, Spacing, TournamentGameMeta } from '@theme/index';
 import { useColors } from '@theme/theme';
 import type { Tournament, TournamentMe } from '@gridtypes/index';
@@ -62,6 +63,25 @@ export default function TournamentHubScreen() {
     catch {} finally { setBusy(false); }
   }
 
+  async function handleDelete() {
+    if (!id) return;
+    const ok = await confirm({
+      title:        t('tournament.deleteTitle', 'Delete this tournament?'),
+      message:      t('tournament.deleteMessage', 'This removes the tournament, its bracket and all entries. This cannot be undone.'),
+      confirmLabel: t('common.delete', 'Delete'),
+      cancelLabel:  t('common.cancel', 'Cancel'),
+      destructive:  true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await tournamentApi.remove(id);
+      router.back();
+    } catch {
+      setBusy(false);
+    }
+  }
+
   function playMatch() {
     const m = me?.currentMatch;
     if (!m?.gameId) return;
@@ -94,6 +114,17 @@ export default function TournamentHubScreen() {
           )}
         </View>
       </View>
+
+      {/* Creator / admin can delete the tournament */}
+      {tournament.canDelete && (
+        <Button
+          title={t('tournament.delete', 'Delete tournament')}
+          onPress={handleDelete}
+          variant="ghost"
+          disabled={busy}
+          style={styles.deleteBtn}
+        />
+      )}
 
       {/* Action area — driven by the viewer's state */}
       {renderAction()}
@@ -325,4 +356,5 @@ const makeStyles = (Colors: ReturnType<typeof useColors>) => StyleSheet.create({
   liveCard:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, marginBottom: Spacing.sm },
   liveKind:    { color: Colors.textMuted, fontSize: Font.size.xs, fontWeight: Font.weight.semi },
   liveNames:   { color: Colors.textPrimary, fontSize: Font.size.sm, fontWeight: Font.weight.semi, marginTop: 2 },
+  deleteBtn:   { marginBottom: Spacing.md, alignSelf: 'flex-end' },
 });

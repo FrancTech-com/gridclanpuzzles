@@ -19,4 +19,6 @@ public interface TournamentMatchRepository extends JpaRepository<TournamentMatch
     List<TournamentMatch> findByTournamentIdAndBracketOrderByRoundAscSlotAsc(UUID tournamentId, String bracket);
 
     List<TournamentMatch> findByTournamentIdAndStatus(UUID tournamentId, String status);
+
+    void deleteByTournamentId(UUID tournamentId);
 }
