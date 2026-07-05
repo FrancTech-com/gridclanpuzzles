@@ -2,6 +2,7 @@ package com.gridclan.service;
 
 import com.gridclan.chess.ChessEngine;
 import com.gridclan.entity.ChessGame;
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.repository.ChessGameRepository;
 import com.gridclan.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -37,12 +38,17 @@ public class ChessGameService {
     static final int WIN_POINTS      = 100;
     static final int SPEED_BONUS_MAX = 50;   // decays with game length
 
+    /** Fixed sentinel id for the computer opponent in solo games. */
+    public static final UUID COMPUTER_ID = new UUID(0L, 0L);
+
     private final ChessGameRepository repo;
     private final SimpMessagingTemplate messaging;
     private final PlayerPointsService   pointsService;
     private final GemService            gemService;
     private final RankService           rankService;
     private final UserRepository        userRepo;
+    private final ChessAi               ai;
+    private final LevelService          levelService;
 
     // ── Create / join ──────────────────────────────────────────────────────
 
@@ -57,6 +63,30 @@ public class ChessGameService {
             .build();
         repo.save(g);
         log.info("Chess game created: code={} creator={}", g.getInviteCode(), userId);
+        return view(userId, g);
+    }
+
+    /** Start a solo game vs the computer — you play white and move first. Optional
+     *  difficulty/level set the AI strength (blunder chance) + points and gate the
+     *  locked ladder; pass null difficulty for a plain (non-ladder) solo game. */
+    @Transactional
+    public Map<String, Object> createSolo(UUID userId, Difficulty difficulty, int level) {
+        if (difficulty != null) {
+            levelService.requireUnlocked(userId, "CHESS", difficulty, level);
+        }
+        ChessGame g = ChessGame.builder()
+            .inviteCode(uniqueCode())
+            .player1Id(userId)
+            .player2Id(COMPUTER_ID)
+            .status("ACTIVE")
+            .currentPlayer((short) 1)
+            .fen(ChessEngine.START_FEN)
+            .vsComputer(true)
+            .difficulty(difficulty != null ? difficulty.name() : null)
+            .level(difficulty != null ? level : 0)
+            .build();
+        repo.save(g);
+        log.info("Chess solo game created: creator={} diff={} level={}", userId, difficulty, level);
         return view(userId, g);
     }
 
@@ -130,9 +160,34 @@ public class ChessGameService {
             default -> { }
         }
 
+        // Solo: the computer (black) replies at once so the returned view already
+        // reflects its move.
+        if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) aiRespond(g);
+
         repo.save(g);
         broadcast(g);
         return view(userId, g);
+    }
+
+    /** The computer (black) plays its reply, updating the game in place. */
+    private void aiRespond(ChessGame g) {
+        ChessEngine engine = ChessEngine.fromFen(g.getFen());
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        double blunder = d != null ? d.aiBlunderChance(g.getLevel()) : 0.0;
+        String mv = ai.bestMove(engine, blunder);
+        if (mv == null) return;   // no legal move (shouldn't happen while ACTIVE)
+
+        engine.applyUci(mv);
+        g.setFen(engine.toFen());
+        g.setMoveLog(g.getMoveLog().isEmpty() ? mv : g.getMoveLog() + " " + mv);
+        g.setCurrentPlayer((short) (engine.whiteToMove() ? 1 : 2));
+        g.setLastMoveAt(Instant.now());
+
+        switch (engine.status()) {
+            case "CHECKMATE" -> finishWin(g, COMPUTER_ID, "CHECKMATE", 0);   // computer wins
+            case "STALEMATE", "DRAW_50", "DRAW_MATERIAL" -> finishDraw(g, engine.status());
+            default -> { }
+        }
     }
 
     /** Forfeit (resign): the opponent wins immediately. */
@@ -167,7 +222,9 @@ public class ChessGameService {
     // ── Turn clock (loss on time) ─────────────────────────────────────────────
 
     private Instant turnDeadline(ChessGame g) {
-        if (!"ACTIVE".equals(g.getStatus()) || g.getPlayer2Id() == null || g.getPausedAt() != null) return null;
+        // No clock on a solo game (vs the computer) or a paused / unstarted game.
+        if (!"ACTIVE".equals(g.getStatus()) || g.getPlayer2Id() == null
+                || g.isVsComputer() || g.getPausedAt() != null) return null;
         return g.getLastMoveAt().plusSeconds(TURN_SECONDS);
     }
 
@@ -178,8 +235,8 @@ public class ChessGameService {
         ChessGame g = repo.findById(gameId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         if (seatOf(g, userId) == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
-        if (!"ACTIVE".equals(g.getStatus()))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a live game can be paused.");
+        if (!"ACTIVE".equals(g.getStatus()) || g.isVsComputer())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a live multiplayer game can be paused.");
         if (g.getPausedAt() == null) { g.setPausedAt(Instant.now()); repo.save(g); broadcast(g); }
         return view(userId, g);
     }
@@ -254,6 +311,11 @@ public class ChessGameService {
         out.put("hasOpponent", g.getPlayer2Id() != null);
         out.put("spectator",   me == 0);
         out.put("paused",      g.getPausedAt() != null);
+        out.put("vsComputer",  g.isVsComputer());
+        if (g.getLevel() > 0) {              // solo ladder game → let the client offer "Next level"
+            out.put("difficulty", g.getDifficulty());
+            out.put("level",      g.getLevel());
+        }
         out.put("inCheck",     "ACTIVE".equals(g.getStatus()) && engine.inCheck());
         out.put("legalMoves",  yourTurn ? engine.legalMoves() : List.of());
         List<String> moves = g.getMoveLog().isEmpty()
@@ -301,10 +363,20 @@ public class ChessGameService {
         g.setStatus("COMPLETE");
         g.setWinnerId(winner);
         g.setEndReason(reason);
-        int award = WIN_POINTS
-            + (fullmoves > 0 ? Math.max(0, SPEED_BONUS_MAX - fullmoves) : 0);
+
+        // The computer earns nothing; and a beaten human just loses (no award).
+        if (COMPUTER_ID.equals(winner)) return;
+
+        int award = WIN_POINTS + (fullmoves > 0 ? Math.max(0, SPEED_BONUS_MAX - fullmoves) : 0);
+
+        // Solo win: scale by difficulty×level and unlock the next ladder rung.
+        Difficulty d = Difficulty.fromName(g.getDifficulty());
+        if (g.isVsComputer() && d != null) award = (int) Math.round(award * d.pointsMultiplierFor(g.getLevel()));
+
         pointsService.creditGamePoints(winner, "CHESS", award, "GAME_WIN", g.getId());
         gemService.creditGems(winner, rankService.gemsPerWin(winner), "GAME_REWARD", g.getId());
+        if (g.isVsComputer() && d != null)
+            levelService.recordCompletion(winner, "CHESS", d, g.getLevel(), award);
     }
 
     private void finishDraw(ChessGame g, String reason) {
@@ -350,6 +422,7 @@ public class ChessGameService {
     }
 
     private String displayName(UUID userId) {
+        if (COMPUTER_ID.equals(userId)) return "Computer";
         return userRepo.findById(userId)
             .map(u -> u.getDisplayName() != null ? u.getDisplayName() : u.getUsername())
             .orElse("Player");

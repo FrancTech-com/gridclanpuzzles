@@ -7,7 +7,7 @@ import { useDispatch } from 'react-redux';
 import { useTranslation } from 'react-i18next';
 import { AppDispatch } from '@store/index';
 import { startSessionThunk } from '@store/slices/gameSlice';
-import { levelsApi, gomokuApi, battleshipApi, scrabbleApi } from '@api/index';
+import { levelsApi, gomokuApi, battleshipApi, scrabbleApi, chessApi } from '@api/index';
 import { LoadingSpinner } from '@components/ui/index';
 import { playSfx } from '@services/sound';
 import { Font, Radius, Spacing } from '@theme/index';
@@ -27,6 +27,7 @@ const GAME_TITLE: Record<string, string> = {
   GOMOKU:      'Grid Connect',
   BATTLESHIP:  'Grid Battleships',
   SCRABBLE:    'Grid Scrabble',
+  CHESS:       'Grid Chess',
 };
 
 /**
@@ -72,15 +73,17 @@ export default function LevelSelectScreen() {
         }
         return;
       }
-      // The three board games each have their own vs-computer endpoint + screen.
+      // The board games each have their own vs-computer endpoint + screen.
       const res =
           gameType === 'GOMOKU'     ? await gomokuApi.solo(difficulty, level)
         : gameType === 'BATTLESHIP' ? await battleshipApi.solo(difficulty, level)
+        : gameType === 'CHESS'      ? await chessApi.solo(difficulty, level)
         :                             await scrabbleApi.solo(difficulty, level);
       const id = res.data?.gameId;
       if (id) {
         const path = gameType === 'GOMOKU' ? 'gomoku'
-                   : gameType === 'BATTLESHIP' ? 'battleship' : 'scrabble';
+                   : gameType === 'BATTLESHIP' ? 'battleship'
+                   : gameType === 'CHESS' ? 'chess' : 'scrabble';
         router.replace(`/${path}/${id}`);
       }
     } catch { /* locked/invalid level — tiles already gate this; stay put */ }

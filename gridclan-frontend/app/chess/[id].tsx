@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { chessApi, type ChessView } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
+import { LEVELS_PER_DIFFICULTY } from '@gridtypes/index';
 import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
@@ -51,6 +52,7 @@ export default function ChessGameScreen() {
   const [selected, setSelected] = useState<string | null>(null);   // "e2"
   const [promo, setPromo] = useState<string | null>(null);          // pending "e7e8" base
   const [showResult, setShowResult] = useState(false);
+  const [nextBusy, setNextBusy] = useState(false);
   const announced = useRef(false);
 
   const load = useCallback(async () => {
@@ -157,6 +159,25 @@ export default function ChessGameScreen() {
     if (res?.data) { setGame(res.data); playSfx('lose'); }
   }
 
+  // Solo ladder win → the next level is unlocked server-side; start it and stay
+  // on this screen (the id param flips).
+  const startNextLevel = useCallback(async () => {
+    const d = game?.difficulty, lvl = game?.level ?? 0;
+    if (!d || lvl <= 0 || lvl >= LEVELS_PER_DIFFICULTY || nextBusy) return;
+    playSfx('tap');
+    setNextBusy(true);
+    try {
+      const res = await chessApi.solo(d, lvl + 1);
+      const newId = res.data?.gameId;
+      if (newId) {
+        announced.current = false;
+        setSelected(null); setPromo(null); setShowResult(false); setGame(null); setLoading(true);
+        router.replace(`/chess/${newId}`);
+      }
+    } catch { /* level gate or hiccup — stay on the result */ }
+    finally { setNextBusy(false); }
+  }, [game, nextBusy]);
+
   async function shareInviteLink() {
     if (!game) return;
     const link = gameInviteLink('chess', game.inviteCode);
@@ -171,7 +192,7 @@ export default function ChessGameScreen() {
     headerShown: true, title: t('chess.title', 'Grid Chess'),
     headerStyle: { backgroundColor: Colors.surface }, headerTintColor: Colors.textPrimary,
     headerRight: () =>
-      game && game.status === 'ACTIVE' && !spectator && id
+      game && game.status === 'ACTIVE' && !spectator && !game.vsComputer && id
         ? <VoiceControl kind="chess" gameId={id} />
         : null,
   };
@@ -186,6 +207,9 @@ export default function ChessGameScreen() {
 
   const complete = game.status === 'COMPLETE';
   const waiting  = game.status === 'WAITING_FOR_OPPONENT';
+  const solo = !!game.vsComputer;
+  const canNextLevel = complete && game.outcome === 'WON' && solo
+    && !!game.difficulty && (game.level ?? 0) > 0 && (game.level ?? 0) < LEVELS_PER_DIFFICULTY;
   const white = game.players.find(p => p.color === 'WHITE');
   const black = game.players.find(p => p.color === 'BLACK');
 
@@ -225,10 +249,13 @@ export default function ChessGameScreen() {
         {spectator && !complete && (
           <Text style={styles.watchBanner}>👁 {t('chess.watching', "You're watching this game live")}</Text>
         )}
+        {solo && !complete && (
+          <Text style={styles.watchBanner}>🤖 {t('chess.vsComputer', 'vs Computer')}{game.level ? ` · ${game.difficulty} ${t('chess.level', 'level')} ${game.level}` : ''}</Text>
+        )}
 
-        {/* 5-minute move clock — in chess, running out means losing on time */}
-        {game.status === 'ACTIVE' && <TurnCountdown deadline={game.turnDeadline} />}
-        {game.status === 'ACTIVE' && !game.spectator && (
+        {/* 5-minute move clock — PvP only (solo has no clock); running out loses on time */}
+        {game.status === 'ACTIVE' && !solo && <TurnCountdown deadline={game.turnDeadline} />}
+        {game.status === 'ACTIVE' && !game.spectator && !solo && (
           <PauseBar paused={!!game.paused} onPause={doPauseToggle} onResume={doPauseToggle} busy={busy} />
         )}
 
@@ -297,12 +324,15 @@ export default function ChessGameScreen() {
           </Card>
         )}
 
-        {!waiting && !spectator && id && (
+        {!waiting && !spectator && !solo && id && (
           <View style={styles.chatWrap}><GameChat kind="chess" gameId={id} /></View>
         )}
 
-        {!complete && !waiting && !spectator && (
+        {!complete && !waiting && !spectator && !solo && (
           <Button title={t('chess.resign', 'Resign')} onPress={doForfeit} variant="ghost" disabled={busy} style={{ marginTop: Spacing.md }} />
+        )}
+        {!complete && solo && (
+          <Button title={t('chess.giveUp', 'Give up')} onPress={doForfeit} variant="ghost" disabled={busy} style={{ marginTop: Spacing.md }} />
         )}
       </ScrollView>
 
@@ -328,8 +358,8 @@ export default function ChessGameScreen() {
       <GameResultOverlay
         visible={showResult}
         outcome={complete && game.outcome !== 'SPECTATOR' ? (game.outcome ?? 'TIE') : null}
-        onNext={null}
-        nextBusy={false}
+        onNext={canNextLevel ? startNextLevel : null}
+        nextBusy={nextBusy}
         onClose={() => setShowResult(false)}
       />
       <PostGameAd over={complete && !spectator} />

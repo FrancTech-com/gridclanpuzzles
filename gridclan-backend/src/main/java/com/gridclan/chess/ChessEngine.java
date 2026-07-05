@@ -343,7 +343,8 @@ public final class ChessEngine {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private ChessEngine copy() {
+    /** A deep clone — used by the AI to search without mutating the live game. */
+    public ChessEngine copy() {
         ChessEngine e = new ChessEngine();
         for (int r = 0; r < 8; r++) System.arraycopy(board[r], 0, e.board[r], 0, 8);
         e.whiteToMove = whiteToMove;

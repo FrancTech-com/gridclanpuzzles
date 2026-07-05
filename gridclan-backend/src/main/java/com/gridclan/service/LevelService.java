@@ -27,7 +27,7 @@ public class LevelService {
     // The four games that have difficulty ladders. WORD_SEARCH is a GameType enum
     // value; the other three are real-time games keyed only by their String name.
     public static final Set<String> LADDER_GAMES =
-        Set.of("WORD_SEARCH", "GOMOKU", "BATTLESHIP", "SCRABBLE");
+        Set.of("WORD_SEARCH", "GOMOKU", "BATTLESHIP", "SCRABBLE", "CHESS");
 
     // ── Reads ────────────────────────────────────────────────────────────────
 

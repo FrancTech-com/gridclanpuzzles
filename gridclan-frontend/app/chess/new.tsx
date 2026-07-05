@@ -56,6 +56,12 @@ export default function NewChessScreen() {
         </Card>
 
         <Card style={styles.card}>
+          <Text style={styles.cardTitle}>🤖 {t('chess.soloTitle', 'Play the computer')}</Text>
+          <Text style={styles.cardBody}>{t('chess.soloBody', 'Take on the chess engine solo. Pick a difficulty and climb the level ladder — Easy blunders often, Hard rarely.')}</Text>
+          <Button title={t('chess.soloCta', 'Play vs computer')} onPress={() => router.push('/levels/CHESS')} size="lg" variant="secondary" style={styles.btn} />
+        </Card>
+
+        <Card style={styles.card}>
           <Text style={styles.cardTitle}>{t('chess.joinTitle', 'Have a code?')}</Text>
           <Input value={code} onChangeText={setCode} placeholder={t('chess.codePlaceholder', 'Enter game code')} autoCapitalize="characters" maxLength={12} />
           <Button title={t('chess.joinCta', 'Join game')} onPress={handleJoin} loading={joining} disabled={code.trim().length < 4} variant="secondary" style={styles.btn} />
