@@ -41,7 +41,7 @@ public interface PlayerStatsRepository extends JpaRepository<ScrabbleGame, UUID>
             UNION ALL
             SELECT 'BATTLESHIP' AS game_type, id, player1_id, player2_id, NULL AS player3_id, NULL AS player4_id, winner_id, vs_computer, status FROM battleship_games
             UNION ALL
-            SELECT 'CHESS'      AS game_type, id, player1_id, player2_id, NULL AS player3_id, NULL AS player4_id, winner_id, FALSE AS vs_computer, status FROM chess_games
+            SELECT 'CHESS'      AS game_type, id, player1_id, player2_id, NULL AS player3_id, NULL AS player4_id, winner_id, vs_computer, status FROM chess_games
         ) g
         LEFT JOIN tournament_matches tm ON tm.game_id = g.id
         WHERE g.status = 'COMPLETE'

@@ -1,5 +1,6 @@
 package com.gridclan.controller;
 
+import com.gridclan.entity.enums.Difficulty;
 import com.gridclan.service.ChessGameService;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -31,6 +32,18 @@ public class ChessController {
     @PreAuthorize("hasRole('USER')")
     public ResponseEntity<Map<String, Object>> create(Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(userId(auth)));
+    }
+
+    /** POST /chess/solo — start a game vs the computer (you play white, move first).
+     *  Optional difficulty + level pick the AI strength / points and gate the ladder. */
+    @PostMapping("/solo")
+    @PreAuthorize("hasRole('USER')")
+    public ResponseEntity<Map<String, Object>> solo(
+            @RequestParam(required = false) Difficulty difficulty,
+            @RequestParam(defaultValue = "1") int level,
+            Authentication auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+            .body(service.createSolo(userId(auth), difficulty, level));
     }
 
     /** POST /chess/{code}/join — join as black. */

@@ -400,6 +400,9 @@ export interface ChessView {
   players:      ChessPlayerView[];
   turnDeadline: number | null;   // epoch ms — losing on time is the chess rule
   paused?:      boolean;
+  vsComputer?:  boolean;
+  difficulty?:  Difficulty;   // present on solo ladder games
+  level?:       number;
   endReason?:   'CHECKMATE' | 'STALEMATE' | 'DRAW_50' | 'DRAW_MATERIAL' | 'RESIGN' | 'TIMEOUT';
   outcome?:     'WON' | 'LOST' | 'TIE' | 'SPECTATOR';
   winnerName?:  string | null;
@@ -407,6 +410,8 @@ export interface ChessView {
 
 export const chessApi = {
   create: () => apiClient.post<ChessView>('/chess'),
+  solo:   (difficulty?: Difficulty, level?: number) =>
+            apiClient.post<ChessView>(`/chess/solo${soloQuery(difficulty, level)}`),
   join:   (code: string) => apiClient.post<ChessView>(`/chess/${code}/join`),
   get:    (id: string)   => apiClient.get<ChessView>(`/chess/${id}`),
   move:   (id: string, move: string) =>

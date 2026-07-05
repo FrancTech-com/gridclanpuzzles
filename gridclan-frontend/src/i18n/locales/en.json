@@ -567,7 +567,13 @@
     "sharePrompt": "Send your friend the link — one tap seats them as black:",
     "shareCta": "Share invite link",
     "linkCopied": "Invite link copied",
-    "shareMessage": "Play chess with me on GridClan! Tap to join: {{link}}  (or enter code {{code}} in the app)"
+    "shareMessage": "Play chess with me on GridClan! Tap to join: {{link}}  (or enter code {{code}} in the app)",
+    "soloTitle": "Play the computer",
+    "soloBody": "Take on the chess engine solo. Pick a difficulty and climb the level ladder — Easy blunders often, Hard rarely.",
+    "soloCta": "Play vs computer",
+    "vsComputer": "vs Computer",
+    "level": "level",
+    "giveUp": "Give up"
   },
   "monopoly": {
     "title": "Grid Tycoon",
