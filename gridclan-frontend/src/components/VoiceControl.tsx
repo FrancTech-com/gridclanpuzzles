@@ -62,6 +62,23 @@ export function VoiceControl({ kind, gameId }: { kind: string; gameId: string })
     );
   }
 
+  // In the room but no peer ever connected — almost always no working relay.
+  if (status.error === 'connect-failed') {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>🎙 {t('voice.connectFailed', "Couldn't connect to voice — check your network and try again")}</Text>
+        <View style={styles.cardBtns}>
+          <TouchableOpacity style={[styles.smBtn, styles.neutral]} onPress={() => { voiceClient.leaveRoom(); voiceClient.joinRoom(); }}>
+            <Text style={[styles.smBtnText, styles.neutralText]}>{t('voice.retry', 'Try again')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.smBtn, styles.decline]} onPress={() => voiceClient.leaveRoom()}>
+            <Text style={styles.smBtnText}>{t('voice.leave', 'Leave')}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   // connected — in the room
   const n = status.participants.length;
   const who = n === 0

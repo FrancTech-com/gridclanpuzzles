@@ -32,8 +32,13 @@ export interface VoiceStatus {
   participants: string[];   // names of the other people currently in the room
   muted:        boolean;
   supported:    boolean;
-  error:        'signal-down' | 'mic-denied' | null;
+  error:        'signal-down' | 'mic-denied' | 'connect-failed' | null;
 }
+
+/** How long to wait for at least one peer to actually connect before giving up.
+ *  WebRTC + TURN normally connects within a few seconds; 15s is a safe ceiling
+ *  before we tell the user the call couldn't be established (usually no TURN). */
+const CONNECT_TIMEOUT_MS = 15_000;
 
 type StatusHandler = (s: VoiceStatus) => void;
 
@@ -88,8 +93,9 @@ class VoiceClient {
 
   private state: VoiceState = 'idle';
   private muted = false;
-  private error: 'signal-down' | 'mic-denied' | null = null;
+  private error: 'signal-down' | 'mic-denied' | 'connect-failed' | null = null;
   private gen   = 0;   // bumped on every start/stop to cancel stale async work
+  private connectWatchdog: ReturnType<typeof setTimeout> | null = null;
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -267,11 +273,20 @@ class VoiceClient {
     pc.ontrack = ev => this.attachRemote(peer, ev.streams[0]);
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
-      if (st === 'connected') { peer.connected = true; this.emit(); }
+      if (st === 'connected') {
+        peer.connected = true;
+        // A peer came through — the call works; drop any "couldn't connect".
+        this.clearConnectWatchdog();
+        if (this.error === 'connect-failed') this.error = null;
+        this.emit();
+      }
       else if (st === 'failed' || st === 'closed') this.closePeer(peerId);
     };
 
     this.peers.set(peerId, peer);
+    // We now have someone to reach — start the watchdog that flags a failed call
+    // if nobody actually connects in time (the classic no-TURN-relay symptom).
+    this.armConnectWatchdog();
     // Make sure the real ICE servers are loaded for the next connection.
     if (!iceServersCache) getIceServers().catch(() => {});
     this.emit();
@@ -309,11 +324,30 @@ class VoiceClient {
   }
 
   private teardown() {
+    this.clearConnectWatchdog();
     for (const id of Array.from(this.peers.keys())) this.closePeer(id);
     this.peers.clear();
     this.localStream?.getTracks().forEach(t => t.stop());
     this.localStream = null;
     this.muted = false;
+  }
+
+  /** Arm (once) the timer that flags a failed call if no peer connects in time. */
+  private armConnectWatchdog() {
+    if (this.connectWatchdog) return;
+    this.connectWatchdog = setTimeout(() => {
+      this.connectWatchdog = null;
+      const anyConnected = Array.from(this.peers.values()).some(p => p.connected);
+      // In the room, peers were attempted, but none actually came through.
+      if (this.state === 'connected' && this.peers.size > 0 && !anyConnected) {
+        this.error = 'connect-failed';
+        this.emit();
+      }
+    }, CONNECT_TIMEOUT_MS);
+  }
+
+  private clearConnectWatchdog() {
+    if (this.connectWatchdog) { clearTimeout(this.connectWatchdog); this.connectWatchdog = null; }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
