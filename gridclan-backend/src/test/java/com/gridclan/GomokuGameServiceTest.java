@@ -82,6 +82,30 @@ class GomokuGameServiceTest {
         verify(gemService).spendGems(eq(U1), anyLong(), eq("REVIVE"), eq(GID));
     }
 
+    @Test @DisplayName("Resuming a paused game keeps the time that was left, not a fresh clock")
+    void resume_preservesRemainingTurnTime() {
+        char[][] b = new char[15][15];
+        for (char[] row : b) Arrays.fill(row, '.');
+        StringBuilder sb = new StringBuilder();
+        for (int r = 0; r < 15; r++) { if (r > 0) sb.append('\n'); sb.append(b[r]); }
+        // 240s had elapsed on the turn when it was paused → 60s should remain.
+        java.time.Instant pausedAt = java.time.Instant.now().minusSeconds(120);
+        java.time.Instant lastMove = pausedAt.minusSeconds(240);
+        GomokuGame g = GomokuGame.builder()
+            .id(GID).inviteCode("ABC123").player1Id(U1).player2Id(U2)
+            .status("ACTIVE").currentPlayer((short) 1).board(sb.toString())
+            .lastMoveAt(lastMove).pausedAt(pausedAt).build();
+        when(repo.findById(GID)).thenReturn(Optional.of(g));
+        when(repo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var view = service.resume(U1, GID);
+
+        assertThat(g.getPausedAt()).isNull();
+        long remainingMs = (Long) view.get("turnDeadline") - java.time.Instant.now().toEpochMilli();
+        // Must give back the ~60s that were left — NOT reset to the full 300s.
+        assertThat(remainingMs).isBetween(55_000L, 65_000L);
+    }
+
     @Test @DisplayName("Playing out of turn is rejected")
     void move_outOfTurn_rejected() {
         GomokuGame g = nearWin();   // currentPlayer = 1

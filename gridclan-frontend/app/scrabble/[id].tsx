@@ -694,10 +694,13 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   cellLastMove: { borderColor: Colors.accentDim, borderWidth: 2 },
   tileText:  { color: TILE_TEXT, fontSize: CELL * 0.56, fontFamily: Font.family.displayBold },
   // Corner value, like a physical tile. Hidden on blanks (they score 0).
+  // Keep a legible floor and paint above the letter so it can't be clipped or
+  // covered on small / high-density screens (was shrinking to ~6px and vanishing).
   tileValue: {
     position: 'absolute', bottom: 0, right: 1.5,
-    color: TILE_TEXT, fontSize: Math.max(6, Math.round(CELL * 0.27)),
-    fontWeight: Font.weight.bold, lineHeight: Math.max(7, Math.round(CELL * 0.3)),
+    color: TILE_TEXT, fontSize: Math.max(9, Math.round(CELL * 0.3)),
+    fontWeight: Font.weight.bold, lineHeight: Math.max(10, Math.round(CELL * 0.34)),
+    ...(Platform.OS === 'web' ? { zIndex: 1 } as any : { elevation: 1 }),
   },
   blankText: { color: '#15803d' },
   premText:  { color: Colors.textSecondary, fontSize: CELL * 0.3, fontFamily: Font.family.bodyBold },
