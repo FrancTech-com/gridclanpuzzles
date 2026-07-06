@@ -47,6 +47,14 @@ public class ScrabbleGameService {
     private static final int    FORFEIT_WIN_POINTS = 100;
     /** PvP turn clock: 5 minutes per move, then the turn auto-passes. */
     public static final long    TURN_SECONDS = 300;
+    /**
+     * Once the bag is empty, the game ends when every active player has passed
+     * this many times in a row (a pass streak of PASSES_TO_END × active players)
+     * — nobody can play — and the leader is granted the win. A word or swap
+     * resets the streak. While the bag still has tiles, passing never ends the
+     * game: players keep swapping/passing until they can play or the bag runs out.
+     */
+    private static final int    PASSES_TO_END = 2;
     /** Keep at most this many entries in a game's move log. */
     private static final int    MOVE_LOG_MAX = 300;
 
@@ -197,7 +205,11 @@ public class ScrabbleGameService {
 
     @Transactional
     public Map<String, Object> join(UUID userId, String code) {
-        ScrabbleGame g = byCode(code);
+        // Lock the row for the join so concurrent joiners are seated one at a
+        // time — otherwise two people reading the same seat count both take the
+        // same seat and one silently vanishes from the game.
+        ScrabbleGame g = repo.findByInviteCodeForUpdate(code == null ? "" : code.trim().toUpperCase())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         if (g.seatOf(userId) != 0) return view(userId, g);   // already seated — reopen
         if (!"WAITING_FOR_OPPONENT".equals(g.getStatus()) || g.seatedCount() >= g.getMaxPlayers())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This game is already full.");
@@ -309,7 +321,7 @@ public class ScrabbleGameService {
     private void aiPass(ScrabbleGame g) {
         g.setPassStreak((short) (g.getPassStreak() + 1));
         logMove(g, 2, "PASS", Map.of());
-        if (g.getPassStreak() >= 2 * g.activeCount()) finish(g, 0);
+        if (allPassedOut(g)) finish(g, 0);
         else g.setCurrentPlayer((short) 1);
     }
 
@@ -360,7 +372,7 @@ public class ScrabbleGameService {
         g.setPassStreak((short) (g.getPassStreak() + 1));
         g.setLastMoveAt(Instant.now());
         logMove(g, me, "PASS", Map.of());
-        if (g.getPassStreak() >= 2 * g.activeCount()) finish(g, 0);   // everyone passed twice
+        if (allPassedOut(g)) finish(g, 0);   // bag empty + everyone passed twice
         else {
             advanceTurn(g, me);
             if (g.isVsComputer() && "ACTIVE".equals(g.getStatus())) aiPlay(g);
@@ -482,7 +494,7 @@ public class ScrabbleGameService {
         repo.findById(gameId).ifPresent(g -> {
             if (!"ACTIVE".equals(g.getStatus())) return;
             if (paused && g.getPausedAt() == null) g.setPausedAt(Instant.now());
-            else if (!paused && g.getPausedAt() != null) { g.setPausedAt(null); g.setLastMoveAt(Instant.now()); }
+            else if (!paused && g.getPausedAt() != null) { resumeClock(g); }
             else return;
             repo.save(g);
             broadcast(g);
@@ -495,12 +507,24 @@ public class ScrabbleGameService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         if (g.seatOf(userId) == 0) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not in this game.");
         if (g.getPausedAt() != null) {
-            g.setPausedAt(null);
-            g.setLastMoveAt(Instant.now());   // fresh turn window for the current player
+            resumeClock(g);
             repo.save(g);
             broadcast(g);
         }
         return view(userId, g);
+    }
+
+    /**
+     * Un-pause the turn clock so the current player keeps the time they had left,
+     * instead of getting a fresh 5-minute window. We shift {@code lastMoveAt}
+     * forward by the length of the pause, which preserves the remaining time
+     * (deadline = lastMoveAt + TURN_SECONDS).
+     */
+    private void resumeClock(ScrabbleGame g) {
+        if (g.getPausedAt() == null) return;
+        long pausedForMs = Instant.now().toEpochMilli() - g.getPausedAt().toEpochMilli();
+        g.setLastMoveAt(g.getLastMoveAt().plusMillis(Math.max(0, pausedForMs)));
+        g.setPausedAt(null);
     }
 
     /**
@@ -518,7 +542,7 @@ public class ScrabbleGameService {
             g.setPassStreak((short) (g.getPassStreak() + 1));
             g.setLastMoveAt(deadline);   // the next player's window starts where this one lapsed
             logMove(g, seat, "TIMEOUT", Map.of());
-            if (g.getPassStreak() >= 2 * g.activeCount()) finish(g, 0);
+            if (allPassedOut(g)) finish(g, 0);
             else advanceTurn(g, seat);
             changed = true;
         }
@@ -741,6 +765,15 @@ public class ScrabbleGameService {
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /**
+     * True when the game should end on passes: the bag is empty (no more tiles to
+     * draw or swap for) AND every active player has passed in a row, PASSES_TO_END
+     * times each. While the bag still holds tiles, passing never ends the game.
+     */
+    private boolean allPassedOut(ScrabbleGame g) {
+        return g.getBag().isEmpty() && g.getPassStreak() >= PASSES_TO_END * g.activeCount();
+    }
+
     /** Advance to the next seated, non-resigned player after {@code from}. */
     private void advanceTurn(ScrabbleGame g, int from) {
         int seat = from;
@@ -751,11 +784,6 @@ public class ScrabbleGameService {
                 return;
             }
         }
-    }
-
-    private ScrabbleGame byCode(String code) {
-        return repo.findByInviteCode(code == null ? "" : code.trim().toUpperCase())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
     }
 
     private ScrabbleGame active(UUID gameId, UUID userId) {

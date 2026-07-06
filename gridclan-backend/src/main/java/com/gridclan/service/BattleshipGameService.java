@@ -369,12 +369,22 @@ public class BattleshipGameService {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         turnOf(g, userId);
         if (g.getPausedAt() != null) {
-            g.setPausedAt(null);
-            g.setLastMoveAt(Instant.now());
+            resumeClock(g);
             repo.save(g);
             broadcast(g);
         }
         return view(userId, g, null);
+    }
+
+    /**
+     * Un-pause the turn clock so the current player keeps the time they had left
+     * rather than a fresh window: shift {@code lastMoveAt} forward by the pause.
+     */
+    private void resumeClock(BattleshipGame g) {
+        if (g.getPausedAt() == null) return;
+        long pausedForMs = Instant.now().toEpochMilli() - g.getPausedAt().toEpochMilli();
+        g.setLastMoveAt(g.getLastMoveAt().plusMillis(Math.max(0, pausedForMs)));
+        g.setPausedAt(null);
     }
 
     /** System-initiated pause/resume (e.g. a tournament pausing all its matches). */
@@ -383,7 +393,7 @@ public class BattleshipGameService {
         repo.findById(gameId).ifPresent(g -> {
             if (!"ACTIVE".equals(g.getStatus())) return;
             if (paused && g.getPausedAt() == null) g.setPausedAt(Instant.now());
-            else if (!paused && g.getPausedAt() != null) { g.setPausedAt(null); g.setLastMoveAt(Instant.now()); }
+            else if (!paused && g.getPausedAt() != null) { resumeClock(g); }
             else return;
             repo.save(g);
             broadcast(g);
