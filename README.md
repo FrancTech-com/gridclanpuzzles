@@ -86,4 +86,3 @@ Current head: **V9** (`V9__drop_preferred_currency.sql`).
 ## More detail
 
 - Backend architecture, security invariants, and endpoints: [`gridclan-backend/README.md`](gridclan-backend/README.md)
-- Working agreement & conventions for AI assistance: [`CLAUDE.md`](CLAUDE.md)
