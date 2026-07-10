@@ -10,6 +10,7 @@ import {
 } from '@api/index';
 import { subscribeGame } from '@websocket/gameSocket';
 import { playSfx } from '@services/sound';
+import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { TurnCountdown } from '@components/TurnCountdown';
 import { VoiceControl } from '@components/VoiceControl';
@@ -36,6 +37,32 @@ const GROUP_COLORS: Record<string, string> = {
 
 const TYPE_ICON: Record<string, string> = {
   GO: '🏁', CHANCE: '❓', CHEST: '📦', TAX: '💸', JAIL: '🚔', GO_TO_JAIL: '👮', FREE: '🅿️', RAIL: '✈️', UTIL: '💡',
+};
+
+// Each city's airport-code initials + flag "picture", shown on its board tile.
+const CITY_META: Record<string, { code: string; flag: string }> = {
+  'Lagos':        { code: 'LAG', flag: '🇳🇬' },
+  'Cairo':        { code: 'CAI', flag: '🇪🇬' },
+  'Manila':       { code: 'MNL', flag: '🇵🇭' },
+  'Jakarta':      { code: 'JKT', flag: '🇮🇩' },
+  'Mumbai':       { code: 'BOM', flag: '🇮🇳' },
+  'Cape Town':    { code: 'CPT', flag: '🇿🇦' },
+  'Buenos Aires': { code: 'BUE', flag: '🇦🇷' },
+  'São Paulo':    { code: 'SAO', flag: '🇧🇷' },
+  'Bangkok':      { code: 'BKK', flag: '🇹🇭' },
+  'Istanbul':     { code: 'IST', flag: '🇹🇷' },
+  'Mexico City':  { code: 'MEX', flag: '🇲🇽' },
+  'Berlin':       { code: 'BER', flag: '🇩🇪' },
+  'Madrid':       { code: 'MAD', flag: '🇪🇸' },
+  'Dubai':        { code: 'DXB', flag: '🇦🇪' },
+  'Barcelona':    { code: 'BCN', flag: '🇪🇸' },
+  'Amsterdam':    { code: 'AMS', flag: '🇳🇱' },
+  'Singapore':    { code: 'SIN', flag: '🇸🇬' },
+  'Sydney':       { code: 'SYD', flag: '🇦🇺' },
+  'Tokyo':        { code: 'TYO', flag: '🇯🇵' },
+  'London':       { code: 'LON', flag: '🇬🇧' },
+  'Paris':        { code: 'PAR', flag: '🇫🇷' },
+  'New York':     { code: 'NYC', flag: '🇺🇸' },
 };
 
 /** Standard ring: 0 = GO bottom-right, anticlockwise → (row, col) in an 11×11 grid. */
@@ -68,11 +95,14 @@ export default function MonopolyGameScreen() {
   const [bid, setBid] = useState<number | null>(null);
   // Trade builder state.
   const [tradeOpen, setTradeOpen] = useState(false);
+  const [counterMode, setCounterMode] = useState(false);
   const [tradeTarget, setTradeTarget] = useState<number | null>(null);
   const [giveProps, setGiveProps] = useState<number[]>([]);
   const [getProps, setGetProps] = useState<number[]>([]);
   const [giveCash, setGiveCash] = useState(0);
   const [getCash, setGetCash] = useState(0);
+  // Player detail sheet (tap a player to see their holdings).
+  const [playerDetail, setPlayerDetail] = useState<number | null>(null);
 
   useEffect(() => {
     monopolyApi.board().then(res => setBoard(res.data)).catch(() => null);
@@ -111,20 +141,49 @@ export default function MonopolyGameScreen() {
   }, [game?.properties]);
 
   function openTrade() {
+    setCounterMode(false);
     setTradeTarget(null); setGiveProps([]); setGetProps([]); setGiveCash(0); setGetCash(0);
+    setTradeOpen(true);
+    playSfx('tap');
+  }
+  // Counter an incoming offer: open the builder pre-seeded with the deal mirrored,
+  // ready to tweak. Submitting sends it back to the original proposer.
+  function openCounter() {
+    const inc = game?.trade;
+    if (!inc) return;
+    setCounterMode(true);
+    setTradeTarget(inc.from);
+    setGiveProps(inc.requestProps ?? []);   // I give what they wanted
+    setGetProps(inc.offerProps ?? []);      // I want what they offered
+    setGiveCash(inc.requestCash ?? 0);
+    setGetCash(inc.offerCash ?? 0);
     setTradeOpen(true);
     playSfx('tap');
   }
   function submitTrade() {
     if (tradeTarget == null) return;
-    act('PROPOSE_TRADE', { trade: {
+    act(counterMode ? 'COUNTER_TRADE' : 'PROPOSE_TRADE', { trade: {
       to: tradeTarget,
       offerProps: giveProps, requestProps: getProps,
       offerCash: giveCash || 0, requestCash: getCash || 0,
     } });
   }
 
-  async function act(action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload }) {
+  async function kick(seat: number) {
+    const p = game?.players[seat];
+    const ok = await confirm({
+      title:        t('monopoly.disableTitle', 'Disable this player?'),
+      message:      t('monopoly.disableMessage', '“{{name}}” has missed several turns. Their cash and property will be shared out among the remaining players.', { name: p?.name ?? '' }),
+      confirmLabel: t('monopoly.disable', 'Disable'),
+      cancelLabel:  t('common.cancel', 'Cancel'),
+      destructive:  true,
+    });
+    if (!ok) return;
+    setPlayerDetail(null);
+    act('KICK', { target: seat });
+  }
+
+  async function act(action: MonopolyAction, opts?: { square?: number; amount?: number; trade?: MonopolyTradePayload; target?: number }) {
     if (!id || busy) return;
     setBusy(true);
     const res = await monopolyApi.act(id, action, opts).catch((e: any) => {
@@ -137,7 +196,7 @@ export default function MonopolyGameScreen() {
       playSfx(action === 'ROLL' ? 'move' : 'tap');
       const keepDetail = action === 'BUILD' || action === 'SELL_HOUSE' || action === 'MORTGAGE' || action === 'UNMORTGAGE';
       if (!keepDetail) setDetail(null);
-      if (action === 'PROPOSE_TRADE') setTradeOpen(false);
+      if (action === 'PROPOSE_TRADE' || action === 'COUNTER_TRADE') setTradeOpen(false);
     }
   }
 
@@ -204,14 +263,19 @@ export default function MonopolyGameScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxWidth: boardW }}>
           <View style={styles.playersRow}>
             {game.players.map(p => (
-              <View key={p.seat} style={[styles.playerCard, p.current && styles.playerCardTurn, p.bankrupt && { opacity: 0.45 }]}>
+              <TouchableOpacity
+                key={p.seat}
+                activeOpacity={0.8}
+                onPress={() => setPlayerDetail(p.seat)}
+                style={[styles.playerCard, p.current && styles.playerCardTurn, p.bankrupt && { opacity: 0.45 }]}
+              >
                 <View style={[styles.tokenDot, { backgroundColor: SEAT_COLORS[p.seat] }]} />
                 <Text style={styles.playerName} numberOfLines={1}>
                   {p.seat === game.yourSeat ? t('monopoly.you', 'You') : p.name}
-                  {p.inJail ? ' 🚔' : ''}
+                  {p.inJail ? ' 🚔' : ''}{p.left ? ' 🚪' : p.timeouts >= 1 && !p.bankrupt ? ' ⏳' : ''}
                 </Text>
                 <Text style={[styles.playerCash, p.bankrupt && styles.strike]}>${p.cash}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </ScrollView>
@@ -258,11 +322,19 @@ export default function MonopolyGameScreen() {
                     ]}
                   >
                     {groupColor && <View style={[styles.groupBand, { backgroundColor: groupColor }]} />}
-                    <Text style={styles.cellIcon}>
-                      {sq.type === 'PROP'
-                        ? (p && p.houses > 0 ? (p.houses === 5 ? '🏨' : '🏠'.repeat(Math.min(2, p.houses))) : '')
-                        : TYPE_ICON[sq.type] ?? ''}
-                    </Text>
+                    {sq.type === 'PROP' && CITY_META[sq.name] ? (
+                      // City tile: flag "picture" + airport-code initials, with any
+                      // buildings overlaid on top.
+                      <>
+                        <Text style={styles.cityFlag}>{CITY_META[sq.name].flag}</Text>
+                        <Text style={styles.cityCode} numberOfLines={1}>{CITY_META[sq.name].code}</Text>
+                        {p && p.houses > 0 && (
+                          <Text style={styles.cellBuild}>{p.houses === 5 ? '🏨' : '🏠'.repeat(Math.min(4, p.houses))}</Text>
+                        )}
+                      </>
+                    ) : (
+                      <Text style={styles.cellIcon}>{TYPE_ICON[sq.type] ?? ''}</Text>
+                    )}
                     {p?.mortgaged ? <Text style={styles.mortgaged}>⛔</Text> : null}
                     {toks.length > 0 && (
                       <View style={styles.tokenRow}>
@@ -365,7 +437,8 @@ export default function MonopolyGameScreen() {
             <TradeSummary trade={trade} board={board} youAre="to" styles={styles} t={t} />
             <View style={styles.bidRow}>
               <Button title={t('monopoly.accept', 'Accept')} onPress={() => act('ACCEPT_TRADE')} loading={busy} style={styles.actBtn} />
-              <Button title={t('monopoly.decline', 'Decline')} onPress={() => act('DECLINE_TRADE')} variant="secondary" style={styles.actBtn} disabled={busy} />
+              <Button title={t('monopoly.counter', 'Counter')} onPress={openCounter} variant="secondary" style={styles.actBtn} disabled={busy} />
+              <Button title={t('monopoly.decline', 'Decline')} onPress={() => act('DECLINE_TRADE')} variant="ghost" style={styles.actBtn} disabled={busy} />
             </View>
           </Card>
         )}
@@ -442,21 +515,27 @@ export default function MonopolyGameScreen() {
         <View style={styles.detailOverlay}>
           <Card style={styles.tradeCard}>
             <ScrollView>
-              <Text style={styles.detailTitle}>🤝 {t('monopoly.newTrade', 'Propose a trade')}</Text>
+              <Text style={styles.detailTitle}>🤝 {counterMode ? t('monopoly.counterTrade', 'Counter-offer') : t('monopoly.newTrade', 'Propose a trade')}</Text>
 
-              <Text style={styles.tradeLabel}>{t('monopoly.tradeWith', 'Trade with')}</Text>
-              <View style={styles.chipRow}>
-                {otherPlayers.map(p => (
-                  <TouchableOpacity
-                    key={p.seat}
-                    style={[styles.pChip, tradeTarget === p.seat && styles.pChipSel]}
-                    onPress={() => { setTradeTarget(p.seat); setGetProps([]); }}
-                  >
-                    <View style={[styles.tokenDot, { backgroundColor: SEAT_COLORS[p.seat] }]} />
-                    <Text style={[styles.pChipText, tradeTarget === p.seat && { color: Colors.primary }]} numberOfLines={1}>{p.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <Text style={styles.tradeLabel}>
+                {counterMode
+                  ? t('monopoly.counterWith', 'Counter to {{name}}', { name: tradeTarget != null ? game.players[tradeTarget]?.name : '' })
+                  : t('monopoly.tradeWith', 'Trade with')}
+              </Text>
+              {!counterMode && (
+                <View style={styles.chipRow}>
+                  {otherPlayers.map(p => (
+                    <TouchableOpacity
+                      key={p.seat}
+                      style={[styles.pChip, tradeTarget === p.seat && styles.pChipSel]}
+                      onPress={() => { setTradeTarget(p.seat); setGetProps([]); }}
+                    >
+                      <View style={[styles.tokenDot, { backgroundColor: SEAT_COLORS[p.seat] }]} />
+                      <Text style={[styles.pChipText, tradeTarget === p.seat && { color: Colors.primary }]} numberOfLines={1}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
 
               {tradeTarget != null && (
                 <>
@@ -486,6 +565,61 @@ export default function MonopolyGameScreen() {
           </Card>
         </View>
       )}
+
+      {/* Player detail — their cash, net worth and properties */}
+      {playerDetail != null && game.players[playerDetail] && (() => {
+        const pl = game.players[playerDetail];
+        const owned = game.properties.filter(pr => pr.owner === playerDetail);
+        return (
+          <View style={styles.detailOverlay}>
+            <Card style={styles.detailCard}>
+              <View style={styles.playerHeadRow}>
+                <View style={[styles.tokenDot, { backgroundColor: SEAT_COLORS[pl.seat] }]} />
+                <Text style={styles.detailTitle}>
+                  {pl.seat === game.yourSeat ? t('monopoly.you', 'You') : pl.name}
+                  {pl.left ? ` · ${t('monopoly.disabledTag', 'disabled')}` : pl.bankrupt ? ` · ${t('monopoly.bankruptTag', 'bankrupt')}` : ''}
+                </Text>
+              </View>
+              <Text style={styles.detailLine}>💵 {t('monopoly.cash', 'Cash')}: ${pl.cash}   ·   📈 {t('monopoly.netWorth', 'Net worth')}: ${pl.netWorth}</Text>
+              {pl.jailCards > 0 && <Text style={styles.detailLine}>🎟 {t('monopoly.jailCardsHeld', 'Jail cards')}: {pl.jailCards}</Text>}
+              {pl.timeouts > 0 && !pl.bankrupt && (
+                <Text style={[styles.detailLine, { color: Colors.error }]}>⏳ {t('monopoly.missedTurns', { count: pl.timeouts, defaultValue: 'Missed {{count}} turn(s) in a row' })}</Text>
+              )}
+
+              <Text style={styles.tradeLabel}>{t('monopoly.propertiesOwned', 'Properties')}</Text>
+              {owned.length === 0 ? (
+                <Text style={styles.tradeEmpty}>{t('monopoly.noProps', 'None yet')}</Text>
+              ) : (
+                <View style={styles.propOwnedWrap}>
+                  {owned.map(pr => {
+                    const sq = board[pr.square];
+                    const g = sq.group ? GROUP_COLORS[sq.group] : Colors.border;
+                    return (
+                      <View key={pr.square} style={[styles.propOwnedChip, { borderLeftColor: g }]}>
+                        <Text style={styles.propOwnedName} numberOfLines={1}>
+                          {sq.name}{pr.houses === 5 ? ' 🏨' : pr.houses > 0 ? ` ${'🏠'.repeat(pr.houses)}` : ''}{pr.mortgaged ? ' ⛔' : ''}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Disable a player who has stalled the table */}
+              {pl.kickable && (
+                <Button
+                  title={t('monopoly.disable', 'Disable')}
+                  onPress={() => kick(pl.seat)}
+                  variant="secondary"
+                  disabled={busy}
+                  style={{ marginTop: Spacing.md }}
+                />
+              )}
+              <Button title={t('common.close', 'Close')} onPress={() => setPlayerDetail(null)} variant="ghost" style={{ marginTop: Spacing.sm }} />
+            </Card>
+          </View>
+        );
+      })()}
 
       <GameResultOverlay
         visible={showResult}
@@ -584,6 +718,9 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   cellPending:{ borderColor: '#facc15', borderWidth: 3 },
   groupBand:  { position: 'absolute', top: 0, left: 0, right: 0, height: Math.max(4, CELL * 0.2) },
   cellIcon:   { fontSize: Math.max(8, CELL * 0.34), lineHeight: Math.max(10, CELL * 0.42) },
+  cityFlag:   { fontSize: Math.max(9, CELL * 0.38), lineHeight: Math.max(11, CELL * 0.46), marginTop: Math.max(3, CELL * 0.16) },
+  cityCode:   { fontSize: Math.max(6, CELL * 0.22), lineHeight: Math.max(7, CELL * 0.26), fontWeight: '800', color: '#1b3a24' },
+  cellBuild:  { position: 'absolute', bottom: Math.max(5, CELL * 0.2), fontSize: Math.max(5, CELL * 0.16) },
   mortgaged:  { position: 'absolute', top: 0, right: 0, fontSize: Math.max(7, CELL * 0.25) },
   tokenRow:   { position: 'absolute', bottom: 1, flexDirection: 'row', gap: 1 },
   tokenMini:  { width: Math.max(5, CELL * 0.18), height: Math.max(5, CELL * 0.18), borderRadius: 99, borderWidth: 0.5, borderColor: '#00000055' },
@@ -638,4 +775,10 @@ const makeStyles = (Colors: ReturnType<typeof useColors>, CELL: number, BOARD_W:
   cashBtn:    { width: 34, height: 34, borderRadius: Radius.sm, backgroundColor: Colors.surfaceHigh, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   cashBtnText:{ color: Colors.textPrimary, fontSize: Font.size.lg, fontWeight: Font.weight.bold },
   cashValue:  { minWidth: 60, textAlign: 'center', color: Colors.textPrimary, fontSize: Font.size.md, fontWeight: Font.weight.bold },
+
+  // Player detail sheet
+  playerHeadRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs },
+  propOwnedWrap:  { gap: Spacing.xs, marginTop: Spacing.xs },
+  propOwnedChip:  { borderLeftWidth: 4, backgroundColor: Colors.surfaceHigh, borderRadius: Radius.sm, paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm },
+  propOwnedName:  { color: Colors.textPrimary, fontSize: Font.size.sm },
 });
