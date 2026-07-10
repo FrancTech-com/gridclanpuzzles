@@ -119,7 +119,7 @@ public class TournamentBracketService {
 
     @Transactional
     public void reconcile(Tournament t) {
-        if (!"ACTIVE".equals(t.getStatus())) return;
+        if (!"ACTIVE".equals(t.getStatus()) || t.getPausedAt() != null) return;
         for (String bracket : List.of("MAIN", "CONSOLATION")) {
             int round = latestRound(t.getId(), bracket);
             if (round == 0) continue;
@@ -138,10 +138,50 @@ public class TournamentBracketService {
         maybeComplete(t);
     }
 
+    // ── Pause / resume (creator or admin) ─────────────────────────────────
+
+    /** Freeze a running tournament: the scheduler stops advancing it and all its
+     *  in-progress match games are paused (their turn clocks stop). */
+    @Transactional
+    public void pause(Tournament t) {
+        if (!"ACTIVE".equals(t.getStatus()) || t.getPausedAt() != null) return;
+        t.setPausedAt(java.time.Instant.now());
+        tournamentRepo.save(t);
+        setMatchesPaused(t, true);
+        log.info("Tournament {} paused", t.getId());
+    }
+
+    /** Resume a paused tournament: unpause its match games and push the
+     *  force-complete backstop (endsAt) out by however long it was paused. */
+    @Transactional
+    public void resume(Tournament t) {
+        if (t.getPausedAt() == null) return;
+        long pausedSecs = java.time.Duration.between(t.getPausedAt(), java.time.Instant.now()).getSeconds();
+        if (t.getEndsAt() != null) t.setEndsAt(t.getEndsAt().plusSeconds(Math.max(0, pausedSecs)));
+        t.setPausedAt(null);
+        tournamentRepo.save(t);
+        setMatchesPaused(t, false);
+        log.info("Tournament {} resumed after {}s", t.getId(), pausedSecs);
+    }
+
+    private void setMatchesPaused(Tournament t, boolean paused) {
+        for (TournamentMatch m : matchRepo.findByTournamentIdAndStatus(t.getId(), "ACTIVE")) {
+            if (m.getGameId() == null) continue;
+            switch (m.getGameType()) {
+                case "SCRABBLE"   -> scrabble.setPaused(m.getGameId(), paused);
+                case "GOMOKU"     -> gomoku.setPaused(m.getGameId(), paused);
+                case "BATTLESHIP" -> battleship.setPaused(m.getGameId(), paused);
+                case "CHESS"      -> chess.setPaused(m.getGameId(), paused);
+                case "MONOPOLY"   -> monopoly.setPaused(m.getGameId(), paused);
+                default -> { }
+            }
+        }
+    }
+
     /** Force-resolve everything at endsAt (unfinished match → current game ranking). */
     @Transactional
     public void forceComplete(Tournament t) {
-        if (!"ACTIVE".equals(t.getStatus())) return;
+        if (!"ACTIVE".equals(t.getStatus()) || t.getPausedAt() != null) return;
         int guard = 0;
         while ("ACTIVE".equals(t.getStatus()) && guard++ < 32) {
             boolean progressed = false;

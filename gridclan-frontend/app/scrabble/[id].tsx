@@ -12,6 +12,7 @@ import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { TurnCountdown } from '@components/TurnCountdown';
+import { PauseBar } from '@components/PauseBar';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PostGameAd } from '@components/PostGameAd';
@@ -215,6 +216,14 @@ export default function ScrabbleGameScreen() {
     if (res?.data) { commitGame(res.data); setPending([]); setSelChar(null); }
   }
 
+  async function doPauseToggle() {
+    if (!id || busy) return;
+    setBusy(true);
+    const res = await (game?.paused ? scrabbleApi.resume(id) : scrabbleApi.pause(id)).catch(() => null);
+    setBusy(false);
+    if (res?.data) commitGame(res.data);
+  }
+
   // ── Swap (exchange) ── pick tiles, confirm, server deals replacements and
   // the turn passes — standard Scrabble exchange.
   function enterSwapMode() {
@@ -395,6 +404,9 @@ export default function ScrabbleGameScreen() {
         {/* 5-minute turn clock (PvP only — the server auto-passes at zero) */}
         {game.status === 'ACTIVE' && !game.vsComputer && (
           <TurnCountdown deadline={game.turnDeadline} />
+        )}
+        {game.status === 'ACTIVE' && !game.vsComputer && !spectator && (
+          <PauseBar paused={!!game.paused} onPause={doPauseToggle} onResume={doPauseToggle} busy={busy} />
         )}
 
         {lastWord && !waiting && (

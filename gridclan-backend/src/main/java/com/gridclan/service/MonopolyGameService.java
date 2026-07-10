@@ -54,6 +54,7 @@ public class MonopolyGameService {
     public UUID createTableMatch(List<UUID> players) {
         List<String> ids = players.stream().map(UUID::toString).toList();
         MonopolyState state = MonopolyEngine.init(ids, RANDOM.nextLong());
+        hydrateNames(state);   // so the event log reads player names, not "P1"
         MonopolyGame g = MonopolyGame.builder()
             .status("ACTIVE")
             .playersCsv(String.join(",", ids))
@@ -105,6 +106,8 @@ public class MonopolyGameService {
         enforceTurnClock(g);
         if (!"ACTIVE".equals(g.getStatus()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Game is not active.");
+        if (g.getPausedAt() != null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Table is paused — resume to play.");
 
         MonopolyState s = read(g.getState());
         int seat = seatOf(s, userId);
@@ -170,8 +173,53 @@ public class MonopolyGameService {
     // ── Turn clock ────────────────────────────────────────────────────────────
 
     private Instant turnDeadline(MonopolyGame g) {
-        if (!"ACTIVE".equals(g.getStatus())) return null;
+        if (!"ACTIVE".equals(g.getStatus()) || g.getPausedAt() != null) return null;
         return g.getLastMoveAt().plusSeconds(TURN_SECONDS);
+    }
+
+    // ── Pause / resume (any player at the table) ───────────────────────────────
+
+    @Transactional
+    public Map<String, Object> pause(UUID userId, UUID gameId) {
+        MonopolyGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        requireSeated(g, userId);
+        if (!"ACTIVE".equals(g.getStatus()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a live table can be paused.");
+        if (g.getPausedAt() == null) { g.setPausedAt(Instant.now()); repo.save(g); broadcast(g, read(g.getState())); }
+        return view(userId, g, read(g.getState()));
+    }
+
+    @Transactional
+    public Map<String, Object> resume(UUID userId, UUID gameId) {
+        MonopolyGame g = repo.findById(gameId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
+        requireSeated(g, userId);
+        if (g.getPausedAt() != null) {
+            g.setPausedAt(null);
+            g.setLastMoveAt(Instant.now());
+            repo.save(g);
+            broadcast(g, read(g.getState()));
+        }
+        return view(userId, g, read(g.getState()));
+    }
+
+    /** Called externally (e.g. a tournament pausing all its tables). */
+    @Transactional
+    public void setPaused(UUID gameId, boolean paused) {
+        repo.findById(gameId).ifPresent(g -> {
+            if (!"ACTIVE".equals(g.getStatus())) return;
+            if (paused && g.getPausedAt() == null) g.setPausedAt(Instant.now());
+            else if (!paused && g.getPausedAt() != null) { g.setPausedAt(null); g.setLastMoveAt(Instant.now()); }
+            else return;
+            repo.save(g);
+            broadcast(g, read(g.getState()));
+        });
+    }
+
+    private void requireSeated(MonopolyGame g, UUID userId) {
+        boolean seated = Arrays.stream(g.getPlayersCsv().split(",")).anyMatch(x -> userId.toString().equals(x));
+        if (!seated) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You're not at this table.");
     }
 
     /** Auto-play the current player's lapsed turn (roll, decline, end turn). */
@@ -287,6 +335,7 @@ public class MonopolyGameService {
         out.put("trade",         s.pendingTrade != null ? tradeView(s, me) : null);
         Instant deadline = turnDeadline(g);
         out.put("turnDeadline",  deadline != null ? deadline.toEpochMilli() : null);
+        out.put("paused",        g.getPausedAt() != null);
         if ("COMPLETE".equals(g.getStatus())) {
             out.put("outcome", me < 0 ? "SPECTATOR"
                 : g.getWinnerId() == null ? "TIE"
@@ -378,15 +427,25 @@ public class MonopolyGameService {
         }
     }
 
-    private static MonopolyState read(String json) {
+    private MonopolyState read(String json) {
         try {
             MonopolyState s = JSON.readValue(json, MonopolyState.class);
             // Backfill fields added after some tables were already in flight.
             while (s.timeouts.size() < s.players.size()) s.timeouts.add(0);
             while (s.left.size()     < s.players.size()) s.left.add(false);
+            hydrateNames(s);   // ensure the engine can log real names, not "P1"
             return s;
         } catch (Exception e) {
             throw new IllegalStateException("Could not read the table state", e);
+        }
+    }
+
+    /** Resolve each seat's display name once (cached into the state + persisted). */
+    private void hydrateNames(MonopolyState s) {
+        if (s.names == null) s.names = new java.util.ArrayList<>();
+        while (s.names.size() < s.players.size()) s.names.add(null);
+        for (int i = 0; i < s.players.size(); i++) {
+            if (s.names.get(i) == null) s.names.set(i, displayName(UUID.fromString(s.players.get(i))));
         }
     }
 }

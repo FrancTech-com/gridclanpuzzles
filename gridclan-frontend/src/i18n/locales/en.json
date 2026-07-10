@@ -107,7 +107,9 @@
     "lbWordSearch": "Word Search",
     "lbScrabble": "Scrabble",
     "lbGomoku": "Connect",
-    "lbBattleship": "Battleships"
+    "lbBattleship": "Battleships",
+    "lbChess": "Chess",
+    "lbMonopoly": "Tycoon"
   },
   "game": {
     "start": "Start game",
@@ -248,7 +250,10 @@
     "format_MONOPOLY": "Tables of up to 8 players; each table winner advances to the next round.",
     "delete": "Delete tournament",
     "deleteTitle": "Delete this tournament?",
-    "deleteMessage": "This removes the tournament, its bracket and all entries. This cannot be undone."
+    "deleteMessage": "This removes the tournament, its bracket and all entries. This cannot be undone.",
+    "pause": "⏸ Pause tournament",
+    "resume": "▶ Resume tournament",
+    "pausedNote": "This tournament is paused — matches are frozen."
   },
   "community": {
     "new": "New",
@@ -644,5 +649,10 @@
     "muted": "🔇 Muted",
     "leave": "Leave",
     "cancel": "Cancel"
+  },
+  "pause": {
+    "pause": "Pause",
+    "resume": "Resume",
+    "pausedBanner": "Paused"
   }
 }

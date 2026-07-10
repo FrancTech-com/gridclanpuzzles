@@ -12,6 +12,7 @@ import { gameInviteLink, shareInvite } from '@utils/invite';
 import { confirm } from '@utils/confirm';
 import { Button, Card, LoadingSpinner } from '@components/ui/index';
 import { TurnCountdown } from '@components/TurnCountdown';
+import { PauseBar } from '@components/PauseBar';
 import { VoiceControl } from '@components/VoiceControl';
 import { GameResultOverlay } from '@components/GameResultOverlay';
 import { PromptCard } from '@components/PromptCard';
@@ -188,6 +189,14 @@ export default function GomokuGameScreen() {
     }
   }
 
+  async function doPauseToggle() {
+    if (!id || busy) return;
+    setBusy(true);
+    const res = await (game?.paused ? gomokuApi.resume(id) : gomokuApi.pause(id)).catch(() => null);
+    setBusy(false);
+    if (res?.data) setGame(res.data);
+  }
+
   async function doForfeit() {
     if (!id || busy) return;
     const ok = await confirm({
@@ -278,6 +287,9 @@ export default function GomokuGameScreen() {
         {/* 5-minute turn clock (PvP only — at zero the server passes the turn) */}
         {game.status === 'ACTIVE' && !game.vsComputer && (
           <TurnCountdown deadline={game.turnDeadline} />
+        )}
+        {game.status === 'ACTIVE' && !game.vsComputer && !game.spectator && (
+          <PauseBar paused={!!game.paused} onPause={doPauseToggle} onResume={doPauseToggle} busy={busy} />
         )}
 
         {game.vsComputer && !complete && (
