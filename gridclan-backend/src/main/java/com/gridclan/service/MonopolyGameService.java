@@ -99,7 +99,7 @@ public class MonopolyGameService {
 
     @Transactional
     public Map<String, Object> act(UUID userId, UUID gameId, String action,
-                                   Integer square, Integer amount, TradePayload trade) {
+                                   Integer square, Integer amount, TradePayload trade, Integer target) {
         MonopolyGame g = repo.findById(gameId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Game not found."));
         enforceTurnClock(g);
@@ -125,8 +125,10 @@ public class MonopolyGameService {
                 case "AUCTION_BID"   -> MonopolyEngine.auctionBid(s, seat, needAmount(amount));
                 case "AUCTION_PASS"  -> MonopolyEngine.auctionPass(s, seat);
                 case "PROPOSE_TRADE" -> MonopolyEngine.proposeTrade(s, seat, toTrade(trade));
+                case "COUNTER_TRADE" -> MonopolyEngine.counterTrade(s, seat, toTrade(trade));
                 case "ACCEPT_TRADE"  -> MonopolyEngine.acceptTrade(s, seat);
                 case "DECLINE_TRADE" -> MonopolyEngine.declineTrade(s, seat);
+                case "KICK"          -> MonopolyEngine.kickPlayer(s, seat, needTarget(target));
                 default -> throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Unknown action.");
             }
         } catch (IllegalStateException | IllegalArgumentException e) {
@@ -235,6 +237,7 @@ public class MonopolyGameService {
 
         List<Map<String, Object>> players = new ArrayList<>();
         for (int i = 0; i < s.players.size(); i++) {
+            boolean timedOut = safeGet(s.timeouts, i) >= MonopolyEngine.KICK_AFTER_TIMEOUTS;
             Map<String, Object> p = new LinkedHashMap<>();
             p.put("seat",      i);
             p.put("name",      displayName(UUID.fromString(s.players.get(i))));
@@ -243,8 +246,14 @@ public class MonopolyGameService {
             p.put("inJail",    s.inJail.get(i));
             p.put("jailCards", s.jailCards.get(i));
             p.put("bankrupt",  s.bankrupt.get(i));
+            p.put("left",      safeBool(s.left, i));
+            p.put("timeouts",  safeGet(s.timeouts, i));
             p.put("netWorth",  MonopolyEngine.netWorth(s, i));
             p.put("current",   i == s.current && "ACTIVE".equals(g.getStatus()));
+            // Any active player at the table may disable someone who's stalled it.
+            p.put("kickable",  timedOut && !s.bankrupt.get(i)
+                                 && me >= 0 && me != i && !s.bankrupt.get(me)
+                                 && "ACTIVE".equals(g.getStatus()));
             players.add(p);
         }
 
@@ -340,6 +349,17 @@ public class MonopolyGameService {
         return amount;
     }
 
+    private static int needTarget(Integer target) {
+        if (target == null)
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Pick a player.");
+        return target;
+    }
+
+    // Tables created before the timeout/left fields existed deserialize with empty
+    // lists — read defensively so an in-flight game doesn't blow up.
+    private static int safeGet(List<Integer> l, int i) { return l != null && i < l.size() ? l.get(i) : 0; }
+    private static boolean safeBool(List<Boolean> l, int i) { return l != null && i < l.size() && l.get(i); }
+
     private static int seatOf(MonopolyState s, UUID userId) {
         return s.players.indexOf(userId.toString());
     }
@@ -360,7 +380,11 @@ public class MonopolyGameService {
 
     private static MonopolyState read(String json) {
         try {
-            return JSON.readValue(json, MonopolyState.class);
+            MonopolyState s = JSON.readValue(json, MonopolyState.class);
+            // Backfill fields added after some tables were already in flight.
+            while (s.timeouts.size() < s.players.size()) s.timeouts.add(0);
+            while (s.left.size()     < s.players.size()) s.left.add(false);
+            return s;
         } catch (Exception e) {
             throw new IllegalStateException("Could not read the table state", e);
         }

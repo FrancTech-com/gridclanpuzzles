@@ -452,7 +452,8 @@
     "logSwap": "{{who}} swapped {{count}} tiles",
     "logTimeout": "{{who}} ran out of time",
     "logResign": "{{who}} resigned",
-    "logEnd": "Game over"
+    "logEnd": "Game over",
+    "shuffle": "Shuffle tiles"
   },
   "gomoku": {
     "title": "Grid Connect",
@@ -617,7 +618,21 @@
     "youGet": "You get",
     "plusCash": "+ your cash",
     "theirCash": "+ their cash",
-    "sendOffer": "Send offer"
+    "sendOffer": "Send offer",
+    "counter": "Counter",
+    "counterTrade": "Counter-offer",
+    "counterWith": "Counter to {{name}}",
+    "disable": "Disable",
+    "disableTitle": "Disable this player?",
+    "disableMessage": "“{{name}}” has missed several turns. Their cash and property will be shared out among the remaining players.",
+    "disabledTag": "disabled",
+    "bankruptTag": "bankrupt",
+    "cash": "Cash",
+    "netWorth": "Net worth",
+    "jailCardsHeld": "Jail cards",
+    "missedTurns": "Missed {{count}} turn(s) in a row",
+    "propertiesOwned": "Properties",
+    "noProps": "None yet"
   },
   "voice": {
     "joining": "Joining voice…",

@@ -71,7 +71,7 @@ public class MonopolyController {
                 req.getTrade().getOfferJailCards(),
                 req.getTrade().getRequestJailCards());
         return ResponseEntity.ok(
-            service.act(userId(auth), id, req.getAction(), req.getSquare(), req.getAmount(), trade));
+            service.act(userId(auth), id, req.getAction(), req.getSquare(), req.getAmount(), trade, req.getTarget()));
     }
 
     private static UUID userId(Authentication auth) { return (UUID) auth.getPrincipal(); }
@@ -80,12 +80,13 @@ public class MonopolyController {
     static class ActRequest {
         /** ROLL | BUY | SKIP_BUY | BUILD | SELL_HOUSE | MORTGAGE | UNMORTGAGE | PAY_JAIL |
          *  USE_JAIL_CARD | END_TURN | AUCTION_BID | AUCTION_PASS | PROPOSE_TRADE |
-         *  ACCEPT_TRADE | DECLINE_TRADE */
+         *  COUNTER_TRADE | ACCEPT_TRADE | DECLINE_TRADE | KICK */
         @NotNull
         private String action;
         private Integer square;   // BUILD / SELL_HOUSE / MORTGAGE / UNMORTGAGE
         private Integer amount;   // AUCTION_BID
-        private TradeDto trade;   // PROPOSE_TRADE
+        private TradeDto trade;   // PROPOSE_TRADE / COUNTER_TRADE
+        private Integer target;   // KICK (seat to disable)
     }
 
     @Getter @Setter
