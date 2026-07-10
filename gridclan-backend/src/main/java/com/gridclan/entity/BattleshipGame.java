@@ -77,6 +77,10 @@ public class BattleshipGame {
     @Builder.Default
     private Instant lastMoveAt = Instant.now();
 
+    /** Non-null while the game is paused — the turn clock is frozen. */
+    @Column(name = "paused_at")
+    private Instant pausedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private Instant createdAt = Instant.now();

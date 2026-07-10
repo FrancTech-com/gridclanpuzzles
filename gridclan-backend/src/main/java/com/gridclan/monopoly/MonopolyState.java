@@ -14,6 +14,10 @@ public class MonopolyState {
     /** Seat order — player UUIDs as strings. */
     public List<String> players = new ArrayList<>();
 
+    /** Display name per seat — hydrated by the service so the event log reads
+     *  "Sami offers Francsha1 a deal" instead of "P1 offers P2". */
+    public List<String> names = new ArrayList<>();
+
     public List<Integer> pos        = new ArrayList<>();
     public List<Integer> cash       = new ArrayList<>();
     public List<Boolean> bankrupt   = new ArrayList<>();

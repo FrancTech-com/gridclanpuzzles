@@ -334,6 +334,7 @@ export interface Tournament {
   joinedCount?: number;
   joined?:      boolean;        // is the caller entered (only on GET /{id})
   canDelete?:   boolean;        // caller is the creator or an admin (only on GET /{id})
+  paused?:      boolean;        // bracket + its matches are frozen
 }
 
 // ── Achievements / lifetime record (GET /user/stats) ───────────────────────
@@ -409,7 +410,7 @@ export interface PlayerRank {
 }
 
 // The four games whose points feed the leaderboard.
-export type GameKey = 'WORD_SEARCH' | 'SCRABBLE' | 'GOMOKU' | 'BATTLESHIP';
+export type GameKey = 'WORD_SEARCH' | 'SCRABBLE' | 'GOMOKU' | 'BATTLESHIP' | 'CHESS' | 'MONOPOLY';
 
 // Combined leaderboard row — ranked by total points across all games, with a
 // per-game breakdown. Display name + scores only (no PII).
